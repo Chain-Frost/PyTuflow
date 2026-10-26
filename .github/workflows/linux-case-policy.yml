@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "pytuflow/_tmf/**"
-      - "tests/tmf/test_linux_case_policy.py"
+      - "tests/test_linux_case_policy.py"
       - ".github/workflows/linux-case-policy.yml"
   workflow_dispatch:
 
@@ -30,6 +30,6 @@ jobs:
           python -m pip install -e .
           python -m pip install pytest
       - name: Filesystem case policy
-        run: python -m pytest -q -ra tests/tmf/test_linux_case_policy.py
+        run: python -m pytest -q -ra tests/test_linux_case_policy.py
       - name: Python 3.11 grammar compatibility
         run: python ci/python_compatibility.py

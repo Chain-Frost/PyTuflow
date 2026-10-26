@@ -59,7 +59,7 @@ are included. Folder paths retain exact spelling.
 - Upstream production candidates: five eager modules in `pytuflow/_tmf/`:
   `settings.py`, `tfpathlib/file.py`, `parsers/expand_tuflow_value.py`,
   `parsers/line.py`, `cf/tcf.py`.
-- Essential upstream regression: `tests/tmf/test_linux_case_policy.py`.
+- Essential upstream regression: `tests/test_linux_case_policy.py`.
 - Documentation candidate: this file, pending maintainer choice.
 - Fork-only CI: `.github/workflows/linux-case-policy.yml`.
 - Excluded: all phantom deferred, batch, graph, benchmark and consumer
@@ -70,3 +70,19 @@ to it here. PR #25 changes different production modules. Existing full
 3.11/3.12/3.14 Windows acceptance and both immutable-upstream and
 exact-base comparisons remain mandatory; a focused workflow cannot
 replace them.
+
+## Regression collection boundary
+
+The platform-specific tests are kept in `tests/test_linux_case_policy.py`,
+outside `tests/tmf/`, because the original-library comparator requires an
+explicit per-node skip contract and does not silently approve platform skips.
+The dedicated six-lane Linux/Windows workflow exercises them on actual target
+filesystems, while the original TMF regression collection remains strictly
+comparable with official upstream and the review base. Do not weaken skip
+validation in the production acceptance gate.
+
+Classic `Read File` content retains paths relative to the *calling* control
+file (documented by `docs/examples/working_with_fv.rst`), rather than
+relative to the read file. The preliminary scans apply the filename case policy
+without changing that reference base. FV's different include-file convention
+is outside this change.

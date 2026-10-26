@@ -156,3 +156,66 @@ def test_windows_host_native_lookup(tmp_path: Path, mode: int) -> None:
     result = TuflowPath.init_case_policy_path("data.tif", tmp_path, mode)
     assert result == Path("data.tif")
     assert (tmp_path / result).exists()
+
+
+@linux
+def test_explicit_empty_config_applies_case_mode_to_nested_dependencies(tmp_path: Path) -> None:
+    root = tmp_path / "Main.tcf"
+    (tmp_path / "Parameters.TRD").write_text(
+        "Set Variable MODE == ROOT\n", encoding="utf-8")
+    root.write_text("Read File == parameters.trd\n", encoding="utf-8")
+    supplied = TCFConfig(init_from_tcf=False, case_sensitivity=2)
+    model = TCF(root, config=supplied)
+    assert model.loaded
+    assert model.config.case_sensitivity == 2
+    assert model.config.variables["MODE"] == "ROOT"
+    assert "MODE" not in supplied.variables
+    assert supplied.tcf == Path()
+    assert "MODE" not in TCF(root, case_sensitivity=0).config.variables
+
+
+@linux
+def test_classic_nested_tef_uses_calling_control_file_case_policy(tmp_path: Path) -> None:
+    child = tmp_path / "Child"
+    child.mkdir()
+    (child / "Setup.TRD").write_text(
+        "Event File == events.tef\n", encoding="utf-8")
+    (child / "events.tef").write_text(
+        "Define Event == WRONG\n"
+        "BC Event Source == _event1_ | wrong\n"
+        "End Define\n", encoding="utf-8")
+    (tmp_path / "Events.TEF").write_text(
+        "Define Event == CORRECT\n"
+        "BC Event Source == _event1_ | correct\n"
+        "End Define\n", encoding="utf-8")
+    root = tmp_path / "Main.tcf"
+    root.write_text(
+        "Read File == Child/setup.trd\n", encoding="utf-8")
+    config = TCFConfig(tcf=root, case_sensitivity=2)
+    assert config.event_db["CORRECT"] == {"_event1_": "correct"}
+    assert "WRONG" not in config.event_db
+    assert "CORRECT" not in TCFConfig(tcf=root, case_sensitivity=0).event_db
+
+
+@linux
+def test_classic_nested_spatial_database_keeps_calling_directory(tmp_path: Path) -> None:
+    from pytuflow._tmf.settings import _ParseContext
+
+    child = tmp_path / "Child"
+    child.mkdir()
+    (child / "Setup.TRD").write_text(
+        "Spatial Database == data.gpkg\n", encoding="utf-8")
+    (child / "Data.GPKG").touch()
+    source = tmp_path / "Data.GPKG"
+    source.touch()
+    root = tmp_path / "Main.tcf"
+    root.write_text("Read File == Child/setup.trd\n", encoding="utf-8")
+    config = TCFConfig(control_file=root, init_from_tcf=False, case_sensitivity=2)
+    context = _ParseContext(tcf=root, control_file=root, case_sensitivity=2)
+    config.read_file_for_config(root, context)
+    assert context.spatial_database == source
+    assert context.spatial_database != child / "Data.GPKG"
+
+
+def test_default_case_mode_retained_in_snapshot() -> None:
+    assert TCFConfig(init_from_tcf=False).case_sensitivity == 0

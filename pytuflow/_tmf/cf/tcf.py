@@ -81,6 +81,21 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
             if case_sensitivity is not None:
                 existing = fpath if fpath is not None and Path(fpath).is_file() else None
                 kwargs['config'] = TCFConfig(tcf=existing, case_sensitivity=mode)
+        # ControlFileBuildState replaces a falsey configuration with the
+        # default config when loading. Initialise a supplied empty config here
+        # instead, preserving its selected -cs mode, variables and settings.
+        # Do not mutate the caller's configuration object.
+        if fpath is not None and kwargs.get('config') is not None:
+            supplied = kwargs['config']
+            from pathlib import Path
+            if not supplied and Path(fpath).is_file():
+                from ..settings import from_config
+                from ..tfpathlib import TuflowPath
+                config = from_config(supplied)
+                config.tcf = TuflowPath(fpath)
+                config.model_name = config.get_model_name(config.tcf)
+                config.read_tcf()
+                kwargs['config'] = config
         super(TCF, self).__init__(fpath, **kwargs)
 
     def tgc(self, context: Context = None) -> 'TGC':
