@@ -29,6 +29,12 @@ folding unrelated fixes into PR B. If additional unexpected defects are found
 after that point, record them and obtain a scope decision rather than expanding
 PR B without review.
 
+Classify changes by purpose, not just their module or source PR. API changes,
+typing and optimisations needed only by deferred execution belong in PR B even
+when they touch existing modules. PR A preserves existing defaults except for
+independently justified, documented bug fixes; any deliberate compatibility
+break needs an explicit scope decision and migration guidance.
+
 ENV-A [#30](https://github.com/Chain-Frost/PyTuflow/issues/30) and ENV-B
 [#31](https://github.com/Chain-Frost/PyTuflow/issues/31) are parallel native
 runtime diagnostics. Include proven PyTUFLOW fixes in PR A if applicable;
@@ -128,16 +134,24 @@ itself authorise agent assignments, merges or new implementation branches.
 
 Open a draft internal PR when implementation begins, link its issue and exact
 predecessor, and keep auto-merge off. **Prefer integrating the small validated
-fixes before opening more overlapping PRs:** consider #28 (reference-only),
+fixes before opening more overlapping PRs:** consider #28 (reference and test),
 then #23 (time), #27 (package), and #26 (FV numerical) after exact-head review,
-applicable native tests and both required CI gates. PRs #24 (safe saves), #25
-(TMF), and #29 (Linux paths) must first resolve their failed full acceptance;
-#29 must also address its substantive path/configuration review findings.
+applicable native tests and both required CI gates. These are review priorities,
+not a hard dependency ordering: another independent fix, including #25 (TMF),
+can integrate when ready. Read current checks and review threads rather than
+using a historical green/red list in this document. Resolve failed acceptance
+and substantive review findings before merging any candidate.
 Never merge red CI or use the fast gate alone as acceptance. No merge is
 authorised by this planning document.
 
-After each internal squash merge, refresh dependent/overlapping branches and
-exact review-base evidence, rerun applicable checks and review conflicts.
+After each internal squash merge, every remaining PR must satisfy the strict
+up-to-date rule before its own merge, even if its files do not overlap. Refresh
+the branch and exact review-base evidence, rerun applicable checks and review
+conflicts; old green checks are insufficient for a changed base. For an existing
+independent published branch, merge current integration into it and push normally
+to preserve the PR and shared history. For a published dependent stack whose
+parent was squash-merged, follow BOOTSTRAP.md's successor-branch guidance when
+ancestry needs rebuilding. Do not force-push or weaken branch protection.
 Issue #7 (pandas readers) overlaps #23; issue #9 (QGIS geometry) overlaps
 #26; issue #10 (raster recovery) overlaps #7/#23. Start those implementations
 only with coordinated file ownership and a stable predecessor. The deferred
