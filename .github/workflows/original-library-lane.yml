@@ -37,7 +37,7 @@ jobs:
         run: |
           python -m pip install -r ci/requirements-regression.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Audit Python 3.10 grammar and run infrastructure contracts
+      - name: Audit Python 3.11 grammar and run infrastructure contracts
         run: |
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/contracts" | Out-Null
           python ci/python_compatibility.py

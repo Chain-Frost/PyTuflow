@@ -42,18 +42,20 @@ Integration has no bypass and requires both verified CI gates.
 
 ## Compatibility policy
 
-Minimum runtime and typing language target: Python 3.10. Supported validation
-interpreters: 3.10, 3.12, 3.14. Python 3.9 and earlier are unsupported.
-Production source is audited against 3.10 grammar; actual 3.10 installed-package
-imports and full original suites are required. New annotations must run on 3.10;
+Minimum runtime and typing language target: Python 3.11. Supported validation
+interpreters: 3.11, 3.12, 3.14. Python 3.10 and earlier are unsupported.
+Production source is audited against 3.11 grammar; actual 3.11 installed-package
+imports and full original suites are required. New annotations must run on 3.11;
 use TypeVar rather than PEP 695 declarations. QGIS needs separate real-runtime
 validation. No production fixes are transferred by this bootstrap.
 
 ## Delivery and remaining verification
 
-Initial local Python 3.10.21 grammar audit passed; 117 infrastructure tests plus
-10 subtests passed. Hosted runs and exact configuration will be recorded before
-handover. This PR must remain unmerged. No release or upstream PR is authorized.
+The initial 3.10 audit passed grammar and imports but exposed 87 inherited
+project failures: `pytuflow/project/template/engine.py:60` calls
+`string.Template.get_identifiers()`, introduced in Python 3.11. The owner
+therefore superseded the proposed 3.10 minimum: adopt the runtime upstream
+actually requires, without adding a backport. Python 3.11 validation is pending. This PR must remain unmerged. No release or upstream PR is authorized.
 
 Before transferring a phantom change, read its current diff and review threads,
 check prerequisites, carry only relevant tests, retain failures, record exact

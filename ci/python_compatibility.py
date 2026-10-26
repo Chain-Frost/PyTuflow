@@ -12,10 +12,10 @@ def main():
     errors = []
     for name in filter(None, files):
         try:
-            ast.parse(Path(name).read_bytes(), filename=name, feature_version=(3, 10))
+            ast.parse(Path(name).read_bytes(), filename=name, feature_version=(3, 11))
         except SyntaxError as error:
             errors.append(f"{name}:{error.lineno}: {error.msg}")
-    print(f"Python {sys.version}; Python 3.10 grammar: {len(files) - 1} files, {len(errors)} errors")
+    print(f"Python {sys.version}; Python 3.11 grammar: {len(files) - 1} files, {len(errors)} errors")
     print("\n".join(errors))
     return bool(errors)
 

@@ -12,7 +12,7 @@ The two FM test helpers are applied identically to both revisions and hashed.
 No engineering reference data is changed. Raw failures remain failed in reports;
 a green comparison means no new regressions, not that all tests passed.
 
-Windows Python 3.10, 3.12 and 3.14 each run fast infrastructure contracts and
+Windows Python 3.11, 3.12 and 3.14 each run fast infrastructure contracts and
 full original-library regression plus sdist-to-wheel installation checks.
 The wheel check runs with `-I` outside the checkout and verifies package bytes,
 RECORD, public imports, resources, generated TCF and CLI entry-point targets.
