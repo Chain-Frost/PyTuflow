@@ -8,12 +8,13 @@ reviewers a stable original-library comparison. Do not merge phantom/master.
 Do not commit fork-only process records, CI administration or benchmark archives
 to an external contribution by default.
 
-Prefer independently reviewable correctness changes before the deferred series.
-Do not promise one large external PR before the upstream maintainer agrees on
-scope: a small ordered series may be easier to review. Prepare a separate
-`upstream/<topic>` branch from the then-current official master only when the
-selected changes and evidence are ready. No external branch or PR is created
-by this bootstrap.
+Keep independently reviewable internal correctness changes before the deferred
+series. The revised plan is two curated external PRs: existing-library fixes
+and improvements first, then optional deferred/batch/graph execution. Prepare
+`contrib/upstream-fixes` from current official master and, after that contribution
+lands upstream, reconstruct `contrib/upstream-deferred` on its actual upstream
+result. See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for scope and separate
+acceptance gates. Neither external submission is authorised by this plan.
 
 ## Internal branch contract
 
@@ -23,7 +24,10 @@ by this bootstrap.
   target the predecessor while stacked, then retarget integration after it lands.
 - Squash merging changes ancestry. Rebase remaining unpublished steps onto the
   resulting integration commit. For already published branches, create a new
-  successor branch and replacement PR instead of force-pushing shared history.
+  successor branch and replacement PR when rebuilding stacked ancestry instead
+  of force-pushing shared history. Independent published PRs can merge current
+  integration into their branch and push normally without replacing the PR.
+  Every candidate must satisfy strict up-to-date checks on its refreshed base.
 - Keep merged branches during the dependent series. No automatic merge arming.
 - Use explicit file/commit selection when curating upstream; never wholesale merge
   integration into an external branch. Re-run every applicable check on its head.
@@ -60,7 +64,9 @@ therefore superseded the proposed 3.10 minimum: adopt the runtime upstream
 actually requires, without adding a backport. Python 3.11.16 passed the grammar audit, 121 infrastructure tests plus 10
 subtests, and all 23 installed-wheel checks. Hosted fast run **40330148824**
 passed all 3.11/3.12/3.14 lanes. Full final-head hosted acceptance is required
-before handover. This PR must remain unmerged. No release or upstream PR is authorized.
+before handover. This historical checkpoint was superseded by final validation
+and the authorised squash merge of bootstrap PR #1 as `89a43fa5`. No release or
+upstream PR is authorised by that merge.
 
 Before transferring a phantom change, read its current diff and review threads,
 check prerequisites, carry only relevant tests, retain failures, record exact
@@ -129,9 +135,10 @@ final committed candidate.
 ## Roadmap and strengthened acceptance
 
 See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for work-package issues,
-provisional dependencies, source SHAs and upstream curation rules. Planning does
-not authorize merging bootstrap or starting production branches. Python >=3.11
-is settled; no 3.10 backport is planned.
+provisional dependencies, source SHAs and the two upstream curation scopes.
+Bootstrap is merged and internal implementation is underway. Each subsequent
+merge still needs accepted evidence and owner authorisation. Python >=3.11 is
+settled; no 3.10 backport is planned.
 
 The follow-up strengthens CI to compare the candidate with both immutable
 upstream and its exact event-pinned PR base. This prevents a fixed upstream bug
