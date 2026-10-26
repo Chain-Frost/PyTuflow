@@ -8,9 +8,67 @@ Bootstrap is complete. Python >=3.11 is approved and matches APIs already used
 in upstream. Create implementation PRs progressively from the updated
 `contrib/integration` branch. Keep `master` as the official-upstream mirror
 and integrate internal work separately.
-The intended external delivery is one curated PR with logical reviewable commits;
-confirm its scope with the maintainer before creating it. No external PR is
-created or authorized by this plan.
+External delivery is **two separate upstream PRs**, not one consolidated PR:
+first existing-library fixes/improvements, then optional deferred/batch/graph
+execution. Internal package PRs remain independently reviewable. Neither
+external PR is created or authorised by this plan.
+
+## Two upstream deliverables
+
+| Delivery | Internal work packages | Scope | Proposed export branch |
+| --- | --- | --- | --- |
+| **Upstream PR A — correctness and improvements** | 00F, 01–09, including 08A/08B/08C | Inherited FM/TMF defects; output/numerical/QGIS corrections; pandas/NetCDF, safe saves, package/import/logging/API/typing improvements; eager Linux `-cs` policy; verified non-deferred fixes | `contrib/upstream-fixes` |
+| **Upstream PR B — deferred execution and related architecture** | 10–15 | Optional deferred file references, ordered batch dependencies, compiled graphs, conservative cross-run reuse, deferred Linux parity and strictly justified deferred-related performance | `contrib/upstream-deferred` |
+
+PR A is the **complete existing-functionality improvement contribution**, with
+the eager parser still the only execution mode. PR B adds the **optional**
+deferred execution pathway and preserves eager as the default. Any non-deferred
+bug found during development of PR B should normally be fixed and validated
+in PR A before PR A is finalised; once PR A is merged upstream, avoid silently
+folding unrelated fixes into PR B. If additional unexpected defects are found
+after that point, record them and obtain a scope decision rather than expanding
+PR B without review.
+
+Classify changes by purpose, not just their module or source PR. API changes,
+typing and optimisations needed only by deferred execution belong in PR B even
+when they touch existing modules. PR A preserves existing defaults except for
+independently justified, documented bug fixes; any deliberate compatibility
+break needs an explicit scope decision and migration guidance.
+
+ENV-A [#30](https://github.com/Chain-Frost/PyTuflow/issues/30) and ENV-B
+[#31](https://github.com/Chain-Frost/PyTuflow/issues/31) are parallel native
+runtime diagnostics. Include proven PyTUFLOW fixes in PR A if applicable;
+external environment issues should be documented, not falsely attributed
+to a candidate regression. Unresolved relevant native limitations require
+an explicit acceptance decision. They do not automatically create a third
+upstream PR.
+
+### Submission and branch policy
+
+1. Continue using small **internal** PRs into `contrib/integration` with manual
+   squash merges and review/CI evidence.
+2. Reconstruct `contrib/upstream-fixes` from the **latest official upstream**
+   head plus only reviewed PR A production fixes, essential regression tests
+   and appropriate user-facing documentation. Exclude fork-only CI,
+   coordination records, internal evidence and deferred features.
+3. Validate PR A independently on Windows Python 3.11/3.12/3.14, Linux eager
+   path semantics, installed wheels and native QGIS/MDAL where affected.
+   Submit **upstream PR A first**, with a maintainable series of logical commits.
+4. Develop PR B internally against the accepted fixes baseline when safe, but
+   **do not open upstream PR B with PR A's changes in its diff**. Once PR A is
+   accepted/merged upstream, rebuild/rebase PR B onto that actual upstream
+   result, test eager/deferred/batch parity and submit the **second** upstream PR.
+   If PR A has not landed, keep PR B's upstream submission pending.
+5. Do not force-push protected/shared branches, enable auto-merge, publish a
+   release or open either external PR without explicit authorisation.
+
+The final acceptance in work package 14 is **PR B's** cross-platform deferred
+gate. PR A has its own standalone release/curation acceptance, including
+all relevant existing-library tests, reference-change justifications and
+native environment outcomes. Do not hold PR A merely because PR B's
+architecture or performance work is unfinished. Optional stage 15 is
+deferred-related unless an independently justified eager-only optimisation
+is expressly included in PR A.
 
 ## Work packages
 
@@ -40,8 +98,9 @@ merge SHAs, owned areas, acceptance requirements and exclusions.
 | 14 | [Complete cross-platform and curated-branch acceptance](https://github.com/Chain-Frost/PyTuflow/issues/20) | [09](https://github.com/Chain-Frost/PyTuflow/issues/15), [10](https://github.com/Chain-Frost/PyTuflow/issues/16), [11](https://github.com/Chain-Frost/PyTuflow/issues/17), [12](https://github.com/Chain-Frost/PyTuflow/issues/18), [13](https://github.com/Chain-Frost/PyTuflow/issues/19) |
 | 15 | [Evaluate optional additional performance work](https://github.com/Chain-Frost/PyTuflow/issues/21) | [13](https://github.com/Chain-Frost/PyTuflow/issues/19), [14](https://github.com/Chain-Frost/PyTuflow/issues/20) |
 
-All rows begin with source-diff inspection. Open phantom PRs #4 and #39 are
-unfinished; their recorded heads are provisional references, not accepted inputs.
+All rows begin with source-diff inspection. Phantom PR #4 has merged (merge
+commit `fa24498b`); phantom PR #39 remains open and provisional. Recheck
+source revisions and review findings before selecting changes.
 See [the inspected source inventory](docs/contributing/migration-sources.json).
 Do not import an entire historical PR just because it is listed here.
 
@@ -64,20 +123,43 @@ must be confirmed during extraction. Stage 14 is final consolidated acceptance;
 Linux tests accompany stage 09 and every deferred/batch/graph stage from the
 start. Stage 15 is optional and cannot block a correct core contribution.
 
-## First implementation wave
+## Internal implementation, integration and merge cadence
 
-With bootstrap merged, the first implementation wave can start: 01 (TMF),
-02 (time correctness), and 07 (safe saves/ownership). Branch each independently
-from the latest `contrib/integration`; they have no assumed inter-package
-prerequisites. Record exact touched files and coordinate actual overlap. 00F,
-04 and 08A can start as capacity allows after the same preflight. Keep broad
-typing work away from modules undergoing feature edits. This document does not
-itself create agent assignments or implementation branches.
+The first wave (01 / 02 / 07) and follow-up independent workstreams
+(00F / 04 / 08A / 09) already have implementation PRs; use their issue/PR
+threads for live status. Continue branching independent corrections from the
+latest `contrib/integration`, confirm touched-file ownership and keep broad
+typing work away from modules undergoing changes. This document does not
+itself authorise agent assignments, merges or new implementation branches.
 
-Open a draft PR when implementation begins, link its issue and exact predecessor,
-and keep auto-merge off. Branch dependent work once its parent implementation is
-stable. Squash changes ancestry: follow BOOTSTRAP.md's restacking instructions
-and never force-push published shared history.
+Open a draft internal PR when implementation begins, link its issue and exact
+predecessor, and keep auto-merge off. **Prefer integrating the small validated
+fixes before opening more overlapping PRs:** consider #28 (reference and test),
+then #23 (time), #27 (package), and #26 (FV numerical) after exact-head review,
+applicable native tests and both required CI gates. These are review priorities,
+not a hard dependency ordering: another independent fix, including #25 (TMF),
+can integrate when ready. Read current checks and review threads rather than
+using a historical green/red list in this document. Resolve failed acceptance
+and substantive review findings before merging any candidate.
+Never merge red CI or use the fast gate alone as acceptance. No merge is
+authorised by this planning document.
+
+After each internal squash merge, every remaining PR must satisfy the strict
+up-to-date rule before its own merge, even if its files do not overlap. Refresh
+the branch and exact review-base evidence, rerun applicable checks and review
+conflicts; old green checks are insufficient for a changed base. For an existing
+independent published branch, merge current integration into it and push normally
+to preserve the PR and shared history. For a published dependent stack whose
+parent was squash-merged, follow BOOTSTRAP.md's successor-branch guidance when
+ancestry needs rebuilding. Do not force-push or weaken branch protection.
+Issue #7 (pandas readers) overlaps #23; issue #9 (QGIS geometry) overlaps
+#26; issue #10 (raster recovery) overlaps #7/#23. Start those implementations
+only with coordinated file ownership and a stable predecessor. The deferred
+chain #16→#17→#18→#19 must not enter integration before the accepted eager
+Linux policy (#15). No requirement to finish all PR A work before undertaking
+independent PR B design/research, but keep production implementations and
+upstream submission scopes separate. Squash changes ancestry: follow the
+repository's restacking guidance and never force-push shared history.
 
 ## Acceptance and upstream curation
 
@@ -91,12 +173,16 @@ and never force-push published shared history.
 - Classify every changed file/commit as upstream production, essential regression
   test, user documentation, or fork-only process/CI/evidence. Fork-only material
   is omitted by default from the external branch.
-- After the correctness wave and each deferred milestone, rehearse reconstruction
-  from pinned official upstream in a disposable checkout. Run applicable tests
-  and record selected commits, omissions, prerequisites and API impact. Do not
+- Rehearse **PR A** reconstruction from current official upstream after the
+  existing-functionality work converges. Record selected fixes and excluded
+  fork-only material; independently test the curated result.
+- Rehearse **PR B** reconstruction at each deferred milestone, initially on
+  the accepted PR A integration baseline. Before external submission rebuild
+  from PR A's actual merged upstream result and independently verify that
+  the PR B diff contains only deferred/batch/graph-related changes. Do not
   publish an external PR during rehearsal.
-- Recheck upstream before final curation; any intended behavior change needs
-  explicit review. Use one clear rationale per logical upstream commit, without
+- Recheck upstream before **each** external PR; intentional behaviour changes
+  need explicit review. Use one rationale per logical upstream commit without
   importing the fork's administrative merge history.
 - Before performance work, define the measurement protocol and useful improvement
   threshold. Preserve correctness parity and unsuccessful trial results.
@@ -107,5 +193,6 @@ Issues hold live implementation status and PR links; this file holds stable
 scope and ordering rules. Update dependencies when actual code proves them.
 The source inventory is dated; refresh it when implementation starts.
 Bootstrap PR #1 was squash-merged into `contrib/integration` as `89a43fa5`.
-The minimum supported Python version is 3.11. No release, external upstream PR
-or production transfer is part of this scaffolding.
+The minimum supported Python version is 3.11. This plan targets exactly two
+external PRs, both requiring separate final review/authorisation. No release
+or external upstream PR is authorised by this planning update.
