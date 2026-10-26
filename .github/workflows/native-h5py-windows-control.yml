@@ -1,0 +1,38 @@
+name: Native h5py Windows import control
+on:
+  pull_request:
+    paths:
+      - 'ci/diagnostics/**'
+      - '.github/workflows/native-h5py-windows-control.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  h5py_control:
+    name: Windows CPython 3.12 h5py-only import (no QGIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install controlled Python binaries without virtual environment
+        shell: pwsh
+        run: |
+          python -m pip install --only-binary=:all: "numpy==2.5.4" "h5py==3.16.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run isolated h5py-only control with native DLL provenance
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path diagnostic | Out-Null
+          python -X faulthandler ci/diagnostics/h5py_qgis_imports.py --child-case h5py_only 2>&1 | Tee-Object diagnostic/h5py-only.txt
+          $status = $LASTEXITCODE
+          "h5py_only_exit_code=$status" | Out-File diagnostic/outcome.txt -Encoding utf8
+          if ($status -ne 0) { exit $status }
+      - name: Upload raw import output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-windows-h5py-only
+          path: diagnostic/
+          if-no-files-found: warn

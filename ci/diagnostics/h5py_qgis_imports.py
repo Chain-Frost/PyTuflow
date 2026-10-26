@@ -61,7 +61,7 @@ def loaded_dlls() -> dict[str, object]:
 
 
 def load_h5py() -> None:
-    record("before_h5py")
+    record("before_h5py", dlls_already_loaded=loaded_dlls())
     import h5py
     record("after_h5py", path=h5py.__file__, hdf5=h5py.version.hdf5_version,
            version=h5py.__version__, dlls=loaded_dlls())
@@ -101,8 +101,9 @@ def child(case: str) -> int:
             record("after_pytuflow", path=pytuflow.__file__)
         record("complete")
         return 0
-    except BaseException:
+    except BaseException as error:
         traceback.print_exc()
+        record("python_exception", error=repr(error), dlls_at_failure=loaded_dlls())
         return 1
     finally:
         if app is not None:
