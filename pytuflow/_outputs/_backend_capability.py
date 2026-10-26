@@ -15,11 +15,27 @@ def require_mesh_backend(
 ) -> None:
     """Raise a dependency-specific error for unavailable requested drivers."""
     selected = driver.lower()
-    if (selected == "v1.0" or "qgis" in selected) and not qgis_available:
-        raise ImportError(
-            "QGIS Python bindings with the MDAL provider are required for "
-            f"the explicitly selected {driver!r} mesh driver."
-        )
+    if selected == "v1.0" or "qgis" in selected:
+        if not qgis_available:
+            raise ImportError(
+                "QGIS Python bindings with the MDAL provider are required for "
+                f"the explicitly selected {driver!r} mesh driver."
+            )
+        from qgis.core import QgsApplication, QgsProviderRegistry
+
+        if QgsApplication.instance() is None:
+            raise RuntimeError(
+                "An initialized QGIS application is required for "
+                f"the explicitly selected {driver!r} mesh driver. "
+                "Create QgsApplication and call initQgis() before selecting this driver."
+            )
+        if QgsProviderRegistry.instance().providerMetadata("mdal") is None:
+            raise ImportError(
+                "The QGIS MDAL provider is unavailable for "
+                f"the explicitly selected {driver!r} mesh driver. "
+                "Call QgsApplication.initQgis() and ensure MDAL is installed "
+                "in the active QGIS environment."
+            )
     if "h5py" in selected and not h5py_available:
         raise ImportError(
             f"h5py is required for the explicitly selected {driver!r} mesh driver. "

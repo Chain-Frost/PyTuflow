@@ -10,6 +10,7 @@ on:
       - "pytuflow/_tmf/logging_.py"
       - "pytuflow/util/_util/logging.py"
       - "tests/test_package_import_logging.py"
+      - "tests/test_mesh_backend_capability.py"
       - "README.md"
   workflow_dispatch:
 
@@ -32,7 +33,7 @@ jobs:
       - name: Install and build package
         run: python -m pip install -e . pytest build hatchling
       - name: Run focused regression tests from checkout
-        run: python -m pytest -q tests/test_package_import_logging.py
+        run: python -m pytest -q tests/test_package_import_logging.py tests/test_mesh_backend_capability.py
       - name: Build distribution wheel
         run: python -m build --wheel --no-isolation
       - name: Test installed wheel outside checkout
@@ -47,11 +48,12 @@ jobs:
           $outside = Join-Path $env:RUNNER_TEMP "pytuflow-08a-wheel"
           New-Item -ItemType Directory -Force -Path $outside | Out-Null
           Copy-Item "tests/test_package_import_logging.py" (Join-Path $outside "test_package_import_logging.py")
+          Copy-Item "tests/test_mesh_backend_capability.py" (Join-Path $outside "test_mesh_backend_capability.py")
           Push-Location $outside
           try {
             python -I -c "import pathlib,os,pytuflow,importlib.metadata as md; p=pathlib.Path(pytuflow.__file__).absolute(); root=pathlib.Path(os.environ['GITHUB_WORKSPACE']).absolute(); assert not p.is_relative_to(root),p; assert md.metadata('pytuflow')['Requires-Python'].startswith('>=3.11'); print('Wheel package origin:',p)"
             if ($LASTEXITCODE -ne 0) { throw 'Installed wheel origin/metadata check failed' }
-            python -I -m pytest -q test_package_import_logging.py
+            python -I -m pytest -q test_package_import_logging.py test_mesh_backend_capability.py
             if ($LASTEXITCODE -ne 0) { throw 'Installed-wheel focused tests failed' }
           }
           finally {
