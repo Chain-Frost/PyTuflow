@@ -19,5 +19,9 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
 - For deliberate output corrections or test replacements, follow
   `docs/contributing/INTENTIONAL_CORRECTIONS.md`; provide independent expected
   values and exact affected tests. Review does not override required CI.
-- The eventual external contribution branch is curated separately. Exclude this
-  fork's administration/process files unless upstream explicitly wants them.
+- Curate two external PRs separately: existing-library fixes/improvements first,
+  then optional deferred/batch/graph execution on the actual upstream result of
+  the first PR. See UPSTREAM_STACK.md for scope and acceptance. Deferred-only
+  API/typing work belongs in the second PR. Exclude fork administration/process
+  files unless upstream explicitly wants them. Neither submission is authorised
+  by this plan.
