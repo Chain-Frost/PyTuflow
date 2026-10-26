@@ -68,17 +68,19 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
         An omitted mode still uses the existing configuration constructor path.
         Its Linux default is now strictly -cs0, following TUFLOW 2026.3.
         """
-        if case_sensitivity is not None:
-            if kwargs.get('config') is not None:
-                raise ValueError('Pass case_sensitivity or config, not both')
+        if case_sensitivity is not None and kwargs.get('config') is not None:
+            raise ValueError('Pass case_sensitivity or config, not both')
+        if case_sensitivity is not None or kwargs.get('config') is not None:
             from pathlib import Path
             from ..settings import TCFConfig
             from ..tfpathlib import TuflowPath
+            mode = (case_sensitivity if case_sensitivity is not None
+                    else kwargs['config'].case_sensitivity)
             if fpath is not None:
-                fpath = TuflowPath.init_case_policy_path(
-                    fpath, Path.cwd(), case_sensitivity)
-            existing = fpath if fpath is not None and Path(fpath).is_file() else None
-            kwargs['config'] = TCFConfig(tcf=existing, case_sensitivity=case_sensitivity)
+                fpath = TuflowPath.init_case_policy_path(fpath, Path.cwd(), mode)
+            if case_sensitivity is not None:
+                existing = fpath if fpath is not None and Path(fpath).is_file() else None
+                kwargs['config'] = TCFConfig(tcf=existing, case_sensitivity=mode)
         super(TCF, self).__init__(fpath, **kwargs)
 
     def tgc(self, context: Context = None) -> 'TGC':

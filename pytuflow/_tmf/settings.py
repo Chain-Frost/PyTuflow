@@ -156,6 +156,7 @@ class TCFConfig:
             self.wildcards = [r'(<<.{1,}?>>)']
         self.tcf = TuflowPath(self.tcf) if self.tcf else TuflowPath()  # ensure tcf is a TuflowPath object
         if self.tcf != TuflowPath() and self.init_from_tcf:
+            self.tcf = TuflowPath.init_case_policy_path(self.tcf, Path.cwd(), self.case_sensitivity)
             self.model_name = self.get_model_name(self.tcf)
             self.read_tcf()
 

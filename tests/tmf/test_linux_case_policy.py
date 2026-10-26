@@ -121,6 +121,9 @@ def test_primary_tcf_filename_and_directory_policy(tmp_path: Path) -> None:
     assert TCF(folder / "Main.TCF", case_sensitivity=1).loaded
     assert not TCF(folder / "main.TCF", case_sensitivity=1).loaded
     assert TCF(folder / "main.TCF", case_sensitivity=2).loaded
+    assert TCF(folder / "main.TCF",
+               config=TCFConfig(init_from_tcf=False, case_sensitivity=2)).loaded
+    assert TCFConfig(tcf=folder / "main.TCF", case_sensitivity=2).tcf == folder / "Main.tcf"
     assert not TCF(tmp_path / "runs" / "main.tcf", case_sensitivity=2).loaded
 
 
