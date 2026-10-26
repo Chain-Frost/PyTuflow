@@ -16,5 +16,8 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
   raw failures and compares against both immutable official upstream and the
   exact PR base. Preserve accepted fixes and test definitions; do not suppress
   failures/warnings or edit reference outputs simply to obtain green checks.
+- For deliberate output corrections or test replacements, follow
+  `docs/contributing/INTENTIONAL_CORRECTIONS.md`; provide independent expected
+  values and exact affected tests. Review does not override required CI.
 - The eventual external contribution branch is curated separately. Exclude this
   fork's administration/process files unless upstream explicitly wants them.

@@ -14,6 +14,12 @@ applicable hosted run links, raw inherited failures,
 and any QGIS/native validation required by the change. A passing regression
 comparison does not mean the inherited suite is failure-free.
 
+For intentional output or test changes, follow the
+[correction policy](https://github.com/Chain-Frost/PyTuflow/blob/contrib/integration/docs/contributing/INTENTIONAL_CORRECTIONS.md): identify the
+old defect, independent expected-value evidence, affected test node IDs and
+fixtures, and any old-to-new test mapping. Explain compatibility impact. Test
+replacement requires explicit review and passing gates; no blanket exemptions.
+
 ## Upstream curation
 
 Identify files/commits intended for upstream and fork-only infrastructure to omit.

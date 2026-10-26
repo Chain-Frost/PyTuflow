@@ -83,6 +83,8 @@ and never force-push published shared history.
   fixes; inherited failures are not permission to reintroduce them.
 - Numerical/geometry fixes need independent expected values. Do not regenerate
   references to manufacture agreement.
+- Follow the [intentional-correction policy](docs/contributing/INTENTIONAL_CORRECTIONS.md)
+  for changed outputs, fixtures or test identities; review cannot bypass CI.
 - Classify every changed file/commit as upstream production, essential regression
   test, user documentation, or fork-only process/CI/evidence. Fork-only material
   is omitted by default from the external branch.

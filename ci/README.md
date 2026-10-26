@@ -17,7 +17,8 @@ The two FM test helpers are applied identically to all revisions and hashed.
 Before overlays, a committed-source inventory rejects removed/renamed test
 definitions, including tests added since upstream. Runtime comparison also
 rejects removed collected cases. Intentional test restructuring needs a reviewed
-policy change; there is no silent deletion allowlist. Static inventory cannot
+policy change; follow the [intentional-correction policy](../docs/contributing/INTENTIONAL_CORRECTIONS.md).
+There is no silent deletion allowlist. Static inventory cannot
 prove assertion quality or parameter coverage in overlaid files: changes to
 those helpers still require careful review.
 No engineering reference data is changed. Raw failures remain failed in reports;
