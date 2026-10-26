@@ -43,8 +43,14 @@ def main() -> None:
             ])
             paths = [p for p in raw.decode('utf-8').split('\0') if p]
             expected = applicable(paths, args.mode)
+        elif event.get("before") and event["before"] != "0" * 40:
+            raw = subprocess.check_output([
+                "git", "diff", "--name-only", "--no-renames", "-z",
+                event["before"], event["after"],
+            ])
+            expected = applicable([p for p in raw.decode("utf-8").split("\0") if p], args.mode)
         else:
-            expected = True  # Preserve explicit workflow_dispatch execution.
+            expected = True  # First push or explicit dispatch always runs all lanes.
         with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
             output.write(f"required={str(expected).lower()}\n")
         print(f'Substantive {args.mode} jobs required: {expected}')

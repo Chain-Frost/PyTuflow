@@ -58,3 +58,38 @@ def test_every_required_lane_fails_closed(result):
         jobs[name] = result
         with pytest.raises(ValueError):
             require_results(True, "success", jobs, names)
+
+
+@pytest.mark.parametrize("event_kind", ["pull_request", "push"])
+@pytest.mark.parametrize("renamed, expected", [(False, "false"), (True, "true")])
+def test_real_git_scope_classification(tmp_path, event_kind, renamed, expected):
+    import json
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(tmp_path), *args], text=True).strip()
+
+    git("init", "-q")
+    git("config", "user.name", "Scope test")
+    git("config", "user.email", "scope@example.invalid")
+    (tmp_path / "source.py").write_text("# example\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD")
+    if renamed:
+        git("mv", "source.py", "README.md")
+    else:
+        (tmp_path / "README.md").write_text("prose\n")
+        git("add", ".")
+    git("commit", "-qm", "change")
+    head = git("rev-parse", "HEAD")
+    event = {"pull_request": {"base": {"sha": base}, "head": {"sha": head}}} if event_kind == "pull_request" else {"before": base, "after": head}
+    event_path, output = tmp_path / "event.json", tmp_path / "output"
+    event_path.write_text(json.dumps(event))
+    env = dict(os.environ, GITHUB_EVENT_PATH=str(event_path), GITHUB_OUTPUT=str(output))
+    helper = Path(__file__).resolve().parents[2] / "ci/pr_gate.py"
+    subprocess.run([sys.executable, str(helper), "classify", "--mode", "full"], cwd=tmp_path, env=env, check=True)
+    assert output.read_text() == f"required={expected}\n"
