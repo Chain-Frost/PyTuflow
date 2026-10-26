@@ -1126,7 +1126,9 @@ def test_input_files_ref_in_gis():
         command = Command(line, config)
         inp = get_input_class(command)(None, command)
         files = [x.resolve() for x in inp.files]
-        assert sorted(files) == sorted([file0, file1, file2, file3, file4, file5, file6])
+        assert sorted(files) == sorted([file0, file1, file2, file3, file5, file6])
+        # An ordinary Q channel references a curve ID, not q_flow.csv.
+        assert file4 not in files
     except Exception as e:
         raise e
     finally:
