@@ -1,11 +1,13 @@
 # Upstream contribution stack
 
 Tracking issue: [#3](https://github.com/Chain-Frost/PyTuflow/issues/3).
-Bootstrap: [PR #1](https://github.com/Chain-Frost/PyTuflow/pull/1).
+Bootstrap: [PR #1](https://github.com/Chain-Frost/PyTuflow/pull/1),
+squash-merged into `contrib/integration` as `89a43fa5`.
 
-Plan all work now; create implementation PRs progressively after bootstrap is
-reviewed and merged with owner authorization. Python >=3.11 is settled. Keep
-master as the official-upstream mirror and integrate internal work separately.
+Bootstrap is complete. Python >=3.11 is approved and matches APIs already used
+in upstream. Create implementation PRs progressively from the updated
+`contrib/integration` branch. Keep `master` as the official-upstream mirror
+and integrate internal work separately.
 The intended external delivery is one curated PR with logical reviewable commits;
 confirm its scope with the maintainer before creating it. No external PR is
 created or authorized by this plan.
@@ -64,12 +66,13 @@ start. Stage 15 is optional and cannot block a correct core contribution.
 
 ## First implementation wave
 
-After bootstrap review and an authorized merge, start a small wave: 01 (TMF),
-02 (time correctness), and 07 (safe saves/ownership). They have no assumed
-inter-package prerequisites; still record exact touched files and coordinate
-actual overlap. 00F, 04 and 08A can start as capacity allows after the same
-preflight. Keep broad typing work away from modules undergoing feature edits.
-No agents or implementation branches are launched by this planning change.
+With bootstrap merged, the first implementation wave can start: 01 (TMF),
+02 (time correctness), and 07 (safe saves/ownership). Branch each independently
+from the latest `contrib/integration`; they have no assumed inter-package
+prerequisites. Record exact touched files and coordinate actual overlap. 00F,
+04 and 08A can start as capacity allows after the same preflight. Keep broad
+typing work away from modules undergoing feature edits. This document does not
+itself create agent assignments or implementation branches.
 
 Open a draft PR when implementation begins, link its issue and exact predecessor,
 and keep auto-merge off. Branch dependent work once its parent implementation is
@@ -103,5 +106,6 @@ and never force-push published shared history.
 Issues hold live implementation status and PR links; this file holds stable
 scope and ordering rules. Update dependencies when actual code proves them.
 The source inventory is dated; refresh it when implementation starts.
-Bootstrap remains unmerged until reviewed and explicitly authorized. No release,
-external upstream PR or production transfer is part of this scaffolding.
+Bootstrap PR #1 was squash-merged into `contrib/integration` as `89a43fa5`.
+The minimum supported Python version is 3.11. No release, external upstream PR
+or production transfer is part of this scaffolding.
