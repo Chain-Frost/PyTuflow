@@ -61,7 +61,24 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
     """
     TUFLOW_TYPE = const.CONTROLFILE.TCF
 
-    def __init__(self, fpath: PathLike | None = None, **kwargs):
+    def __init__(self, fpath: PathLike | None = None, *,
+                 case_sensitivity: int | None = None, **kwargs):
+        """Load with TUFLOW -cs0/-cs1/-cs2 filename resolution, without deferred APIs.
+
+        An omitted mode still uses the existing configuration constructor path.
+        Its Linux default is now strictly -cs0, following TUFLOW 2026.3.
+        """
+        if case_sensitivity is not None:
+            if kwargs.get('config') is not None:
+                raise ValueError('Pass case_sensitivity or config, not both')
+            from pathlib import Path
+            from ..settings import TCFConfig
+            from ..tfpathlib import TuflowPath
+            if fpath is not None:
+                fpath = TuflowPath.init_case_policy_path(
+                    fpath, Path.cwd(), case_sensitivity)
+            existing = fpath if fpath is not None and Path(fpath).is_file() else None
+            kwargs['config'] = TCFConfig(tcf=existing, case_sensitivity=case_sensitivity)
         super(TCF, self).__init__(fpath, **kwargs)
 
     def tgc(self, context: Context = None) -> 'TGC':
