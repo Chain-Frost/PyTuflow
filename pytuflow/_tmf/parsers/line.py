@@ -86,8 +86,13 @@ class TuflowLine:
         else:
             rel_path = TuflowPath(self.value)
         rel_path = globify(rel_path, self.config.wildcards)
+        # -cs1/-cs2 relax *filenames* only. Folder commands use exact
+        # directory spelling even when the current model tolerates case in
+        # input filenames; never casefold-match output folder names.
+        case_sensitivity = (0 if self.is_folder(self.value, self.part_count, self.part_index)
+                            else self.config.case_sensitivity)
         try:
-            for file in TuflowPath(parent).glob(rel_path, case_sensitivity=self.config.case_sensitivity):
+            for file in TuflowPath(parent).glob(rel_path, case_sensitivity=case_sensitivity):
                 yield file
         except Exception as e:
             # allow exception to propogate, but add additional context

@@ -219,3 +219,19 @@ def test_classic_nested_spatial_database_keeps_calling_directory(tmp_path: Path)
 
 def test_default_case_mode_retained_in_snapshot() -> None:
     assert TCFConfig(init_from_tcf=False).case_sensitivity == 0
+
+
+@linux
+def test_folder_enumeration_stays_strict_with_case_collisions(tmp_path: Path) -> None:
+    """Folder commands must not use leaf filename tolerance during lazy loading."""
+    (tmp_path / "Results").mkdir()
+    (tmp_path / "RESULTS").mkdir()
+    root = tmp_path / "Main.tcf"
+    root.write_text("Output Folder == results\n", encoding="utf-8")
+    model = TCF(root, case_sensitivity=2)
+    assert model.loaded
+    folder = model.find_input("Output Folder")[0]
+    # Before correction this raised an ambiguity exception while trying to
+    # pick either Results or RESULTS, despite both being wrong-cased.
+    assert list(folder.command().iter_files()) == []
+    assert folder.files == []
