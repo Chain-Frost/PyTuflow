@@ -246,13 +246,12 @@ class TestConversion(unittest.TestCase):
             setup.settings.output_dir / f'{setup.name}.ecf',
             setup.pre_conv_folder / f'{setup.name}.ecf',
         ):
-            with self.subTest(ecf=str(path)):
-                # Blank separators are cosmetic; command presence and order are not.
-                actual = [line.strip() for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
-                self.assertEqual(
-                    commands, actual,
-                    'Both the converted and committed ECF must read the Flood Relief network layer',
-                )
+            # Blank separators are cosmetic; command presence and order are not.
+            actual = [line.strip() for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+            self.assertEqual(
+                commands, actual,
+                f'{path}: both the converted and reference ECF must load the Flood Relief network',
+            )
 
     def test_convert_river_broad_crested_weir(self):
         dat_path = Path('./tests/fm_lib/data/River_Sections_Broad_Crested_Weir.dat')
