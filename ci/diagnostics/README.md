@@ -13,3 +13,7 @@ For #31, use the **configured OSGeo4W QGIS Python** to run `python -X faulthandl
 Observed on a non-QGIS Linux control (Python 3.13.5, NumPy 2.3.5, VTK 9.6.2): VTK direct conversion passes; h5py-only passes while all four QGIS cases report missing QGIS. **These are not affected-platform acceptance results.**
 
 Do not silence warning filters, replace OSGeo4W packages, or classify `0xc0000139` as harmless merely because an outer test process returned output. Reproduce against official upstream, exact base and candidate. Any verified fix needs separately reviewed code and full regression checks. See #3 and #20 for the acceptance programme.
+
+## Hosted VTK version matrix
+
+A separate non-required GitHub Actions workflow, `.github/workflows/native-vtk-numpy-diagnostic.yml`, runs a strict direct-conversion test under the following Windows Python 3.12 combinations: NumPy 2.4.6/VTK 9.6.1 (control), NumPy 2.5.4 with VTK 9.6.1, 9.6.2 and 9.7.1. It also runs NumPy 2.5.4 with VTK 9.6.1/9.7.1 on Linux. **Diagnostic failures are deliberately red** and their raw output is uploaded; a failing outdated VTK version does not mean a regression was introduced in PR #33. This isolated test is independent of the repository's required original-library compatibility gates. VTK 9.7 may change other APIs: do not update `pyproject.toml` or CI pins until public PyTuflow reader/geometry suites pass on the proposed version in native QGIS.
