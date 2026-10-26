@@ -231,6 +231,29 @@ class TestConversion(unittest.TestCase):
         result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
+    def test_flood_relief_arch_ecf_registers_both_nwk_layers(self):
+        """A converted Flood Relief opening must actually be loaded by ESTRY."""
+        dat_path = Path('./tests/fm_lib/data/River_Sections_Flood_Relief_Arch.dat')
+        setup = Setup(dat_path)
+        run_conversion(setup)
+
+        commands = [
+            f'Read GIS Network == 1d_nwk_RIVER_{setup.name}',
+            f'Read GIS Table Links == 1d_xs_RIVER_{setup.name}',
+            f'Read GIS Network == 1d_nwk_ORIFICE_{setup.name}',
+        ]
+        for path in (
+            setup.settings.output_dir / f'{setup.name}.ecf',
+            setup.pre_conv_folder / f'{setup.name}.ecf',
+        ):
+            with self.subTest(ecf=str(path)):
+                # Blank separators are cosmetic; command presence and order are not.
+                actual = [line.strip() for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+                self.assertEqual(
+                    commands, actual,
+                    'Both the converted and committed ECF must read the Flood Relief network layer',
+                )
+
     def test_convert_river_broad_crested_weir(self):
         dat_path = Path('./tests/fm_lib/data/River_Sections_Broad_Crested_Weir.dat')
         setup = Setup(dat_path)
