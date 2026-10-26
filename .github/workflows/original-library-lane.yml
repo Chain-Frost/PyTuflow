@@ -1,0 +1,132 @@
+name: Original library lane
+on:
+  workflow_call:
+    inputs:
+      python:
+        required: true
+        type: string
+      kind:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Windows Python ${{ inputs.python }} ${{ inputs.kind }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONNOUSERSITE: '1'
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      UPSTREAM_SHA: cf908cc922ca8448ed6002834877b0b377329eae
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python }}
+          cache: pip
+          cache-dependency-path: ci/requirements-regression.txt
+      - name: Install compatible regression dependencies
+        run: |
+          python -m pip install -r ci/requirements-regression.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Audit Python 3.11 grammar and run infrastructure contracts
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/contracts" | Out-Null
+          python ci/python_compatibility.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q tests/ci --junitxml="$env:RUNNER_TEMP/contracts/tests.xml"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Archive infrastructure contracts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-${{ inputs.python }}-${{ inputs.kind }}
+          path: ${{ runner.temp }}/contracts/
+          if-no-files-found: error
+      - name: Pin review base and reject removed test definitions
+        id: review-base
+        if: inputs.kind == 'full'
+        run: |
+          python -m ci.review_base --upstream "$env:UPSTREAM_SHA" --report "$env:RUNNER_TEMP/original-regression/test-inventory.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run immutable canonical upstream (raw failures retained)
+        if: inputs.kind == 'full'
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref "$env:UPSTREAM_SHA" --label upstream --report-dir "$env:RUNNER_TEMP/original-regression/upstream"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run exact review base (raw failures retained)
+        if: inputs.kind == 'full' && steps.review-base.outputs.sha != env.UPSTREAM_SHA
+        continue-on-error: true
+        env:
+          REVIEW_BASE_SHA: ${{ steps.review-base.outputs.sha }}
+        run: |
+          python ci/run_regression.py --source . --ref "$env:REVIEW_BASE_SHA" --label review-base --report-dir "$env:RUNNER_TEMP/original-regression/base"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run exact candidate (raw failures retained)
+        if: inputs.kind == 'full'
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref HEAD --label candidate --report-dir "$env:RUNNER_TEMP/original-regression/candidate"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Require complete evidence against upstream and review base
+        if: always() && inputs.kind == 'full'
+        env:
+          REVIEW_BASE_SHA: ${{ steps.review-base.outputs.sha }}
+        run: |
+          python -m ci.accept_regression --root "$env:RUNNER_TEMP/original-regression" --upstream "$env:UPSTREAM_SHA" --base "$env:REVIEW_BASE_SHA" --candidate "$(git rev-parse HEAD)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Archive raw failures and comparison evidence
+        if: always() && inputs.kind == 'full'
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-regression-${{ inputs.python }}
+          path: ${{ runner.temp }}/original-regression/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Build sdist then build wheel from sdist without a virtual environment
+        if: success() && inputs.kind == 'full'
+        run: |
+          New-Item -ItemType Directory -Path "$env:RUNNER_TEMP/original-wheel" -Force | Out-Null
+          $sourceRevision = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $pythonVersion = python --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @{ source_sha=$sourceRevision; python=$pythonVersion; build_command="python -m build --no-isolation" } | ConvertTo-Json | Out-File -Encoding utf8 "$env:RUNNER_TEMP/original-wheel/provenance.json"
+          python -m build --no-isolation --outdir "$env:RUNNER_TEMP/original-wheel/dist"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install built wheel into the configured job interpreter
+        if: success() && inputs.kind == 'full'
+        run: |
+          $wheels = @(Get-ChildItem "$env:RUNNER_TEMP/original-wheel/dist/*.whl")
+          if ($wheels.Count -ne 1) { throw "Expected exactly one newly built wheel" }
+          python -m pip install --no-deps --force-reinstall $wheels[0].FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify installed origin, public API, resources and CLI outside checkout
+        if: success() && inputs.kind == 'full'
+        run: |
+          $sourceRoot = (Get-Location).Path
+          $wheel = @(Get-ChildItem "$env:RUNNER_TEMP/original-wheel/dist/*.whl")[0].FullName
+          $outside = "$env:RUNNER_TEMP/original-wheel/outside"
+          New-Item -ItemType Directory -Path $outside -Force | Out-Null
+          Set-Location $outside
+          python -I "$sourceRoot/ci/wheel_smoke.py" --source-root $sourceRoot --wheel $wheel --report "$env:RUNNER_TEMP/original-wheel/wheel-smoke.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Archive built distributions and complete smoke evidence
+        if: always() && inputs.kind == 'full'
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-wheel-${{ inputs.python }}
+          path: ${{ runner.temp }}/original-wheel/
+          if-no-files-found: error
+          retention-days: 30

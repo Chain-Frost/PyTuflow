@@ -1,0 +1,450 @@
+{
+  "inspected_on": "2026-10-26",
+  "repository": "phantom-branch/PyTuflow",
+  "purpose": "Source inventory only; not authorization or acceptance to transplant changes",
+  "pull_requests": [
+    {
+      "number": 27,
+      "title": "[TMF] Fix inherited rainfall, GIS inventory and pandas regressions",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "7a2171ff1c7a03e2a38d4961e06e28f64d80d013",
+      "mergeCommit": {
+        "oid": "9d1ad6664566e4c650f77d2498251f2a0bd6aa40"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/27",
+      "production_paths": [
+        "pytuflow/_tmf/db/bc_dbase_run_state.py"
+      ]
+    },
+    {
+      "number": 34,
+      "title": "Fix free-form material parsing with pandas 3.1",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "bdae4236de40ad7fb37044ce1c12e9e48eb734c8",
+      "mergeCommit": {
+        "oid": "6a4c0d99cc86b8ef9019c4799a41960891ce047f"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/34",
+      "production_paths": [
+        "pytuflow/_tmf/utils/text_to_db_parser.py"
+      ]
+    },
+    {
+      "number": 16,
+      "title": "[W3] Correct result timestep selection and NetCDF time units",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "7d8bd6f590a9c312bb197ffaeae2bb0e4827a0ff",
+      "mergeCommit": {
+        "oid": "3a6f480d742580816c6d7cae1117739d20583a34"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/16",
+      "production_paths": [
+        "pytuflow/_outputs/grid.py",
+        "pytuflow/_outputs/helpers/nc_grid_var.py",
+        "pytuflow/_outputs/map_output.py",
+        "pytuflow/_outputs/nc_grid.py",
+        "pytuflow/_outputs/output.py"
+      ]
+    },
+    {
+      "number": 30,
+      "title": "[results] Restore pandas 3.1 compatibility for 2DM and line extraction",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "a672c5799fc0376372dadce49fb05e997886288c",
+      "mergeCommit": {
+        "oid": "0aba6b79db0ecc4922b910867f2c96905acb8d3a"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/30",
+      "production_paths": [
+        "pytuflow/_outputs/catch_json.py",
+        "pytuflow/_outputs/grid.py",
+        "pytuflow/_outputs/map_output.py",
+        "pytuflow/_outputs/mesh.py",
+        "pytuflow/_outputs/pymesh/mesh_geom/py2dm.py"
+      ]
+    },
+    {
+      "number": 23,
+      "title": "[W8] Correct FV depth averaging and vector minimum reductions",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "4fdcde77c2b86f14b19c96f97c2b8328d60e998c",
+      "mergeCommit": {
+        "oid": "0679d9c758c07e786f23d552295366baa4bea10b"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/23",
+      "production_paths": [
+        "pytuflow/_outputs/pymesh/cell_data_mixin.py",
+        "pytuflow/_outputs/pymesh/depth_averaging/depth_averaging.py",
+        "pytuflow/_outputs/pymesh/depth_averaging/get_method_func.py",
+        "pytuflow/_outputs/pymesh/extractors/qgis_data_extractor.py",
+        "pytuflow/_outputs/pymesh/pymesh.py"
+      ]
+    },
+    {
+      "number": 26,
+      "title": "[W9] Restore QGIS geometry public cell-surface positions",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "fd151d50fef2dbe98c27382fa9ac82b35838b027",
+      "mergeCommit": {
+        "oid": "73e0041f1fa5e3ce074fd71e8c5ffb36a6cf7d07"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/26",
+      "production_paths": [
+        "pytuflow/_outputs/pymesh/mesh_geom/qgismesh_geom.py"
+      ]
+    },
+    {
+      "number": 32,
+      "title": "[W10] Restore inherited QGIS cell-to-vertex surface interpolation",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "9a00988e1ee0fe2d714524c5c1cecaffbc5f402c",
+      "mergeCommit": {
+        "oid": "fad6dae3038a9381c268b308ef4aae216682aba2"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/32",
+      "production_paths": [
+        "pytuflow/_outputs/pymesh/cell_data_mixin.py",
+        "pytuflow/_outputs/pymesh/mesh_geom/qgismesh_geom.py"
+      ]
+    },
+    {
+      "number": 20,
+      "title": "[W4] Bound raster result caches and recover NetCDF readers after errors",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "f9b9267592aad07e04e729817abe465e95c28469",
+      "mergeCommit": {
+        "oid": "4ce28f9552df02e5b334eb23b1df0dee04339865"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/20",
+      "production_paths": [
+        "pytuflow/_outputs/grid.py",
+        "pytuflow/_outputs/nc_grid.py"
+      ]
+    },
+    {
+      "number": 17,
+      "title": "[W1] Make model saves recoverable and preserve text encoding",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "0299f3cef921a09596b6c0dc58964644c67d468d",
+      "mergeCommit": {
+        "oid": "f1ceb77f74cb521f50be80209b929ecf0b58bf20"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/17",
+      "production_paths": [
+        "pytuflow/_tmf/cf/cf_build_state.py",
+        "pytuflow/_tmf/parsers/non_recursive_basic_parser.py",
+        "pytuflow/_tmf/scope_writer.py"
+      ]
+    },
+    {
+      "number": 18,
+      "title": "[W2] Correct inherited nested remove_input ownership (no undo redesign)",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "b1b0bb12ec0a5a896d0b11fdf6c947113b7ea20c",
+      "mergeCommit": {
+        "oid": "520a292806be97b431c511d157a9c0b5422b4bda"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/18",
+      "production_paths": [
+        "pytuflow/_tmf/cf/cf_build_state.py"
+      ]
+    },
+    {
+      "number": 22,
+      "title": "[W7] Harden package compatibility, imports and public API",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "3c3385b7dd4464de2355dff81891a520087babc7",
+      "mergeCommit": {
+        "oid": "41c0c2a274c932f1ba236f796814f43e38155231"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/22",
+      "production_paths": [
+        "pytuflow/TUFLOW.py",
+        "pytuflow/__init__.py",
+        "pytuflow/_outputs/__init__.py",
+        "pytuflow/_outputs/_backend_capability.py",
+        "pytuflow/_outputs/nc_mesh.py",
+        "pytuflow/_outputs/xmdf.py",
+        "pytuflow/_tmf/logging_.py",
+        "pytuflow/py.typed",
+        "pytuflow/util/_util/logging.py"
+      ]
+    },
+    {
+      "number": 35,
+      "title": "[W10] Add isolated typing stub for inherited legacy ResData fa\u00e7ade",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "e46cb7bfe3cfa14f5cc28503dc7c7792f6a4cfef",
+      "mergeCommit": {
+        "oid": "507f2329fbdbc4ca78946928fccaf06059582b29"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/35",
+      "production_paths": [
+        "pytuflow/TUFLOW.pyi"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "[Linux prerequisite] Strict POSIX path and deferred/batch parity before #36",
+      "state": "OPEN",
+      "isDraft": false,
+      "headRefOid": "c09d8a624e3f0282afabbb790303c1ae95c4c5cb",
+      "mergeCommit": null,
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/4",
+      "production_paths": [
+        "pytuflow/_tmf/cf/tcf.py",
+        "pytuflow/_tmf/parsers/expand_tuflow_value.py",
+        "pytuflow/_tmf/parsers/line.py",
+        "pytuflow/_tmf/settings.py",
+        "pytuflow/_tmf/tfpathlib/file.py"
+      ]
+    },
+    {
+      "number": 1,
+      "title": "[tmf] Defer file-system resolution during context construction",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "d10970ae15440472ccd07fcc1b55b3cd407073b6",
+      "mergeCommit": {
+        "oid": "2c841b715c4c119b64416810e1d6f50e6de38567"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/1",
+      "production_paths": [
+        "pytuflow/_tmf/__init__.py",
+        "pytuflow/_tmf/abc/tcf_base.py",
+        "pytuflow/_tmf/cf/tcf.py",
+        "pytuflow/_tmf/cf/tcf_run_state.py",
+        "pytuflow/_tmf/context.py",
+        "pytuflow/_tmf/db/db_run_state.py",
+        "pytuflow/_tmf/db/rf.py",
+        "pytuflow/_tmf/deferred_database.py",
+        "pytuflow/_tmf/file_reference.py",
+        "pytuflow/_tmf/gis.py",
+        "pytuflow/_tmf/inp/cf.py",
+        "pytuflow/_tmf/inp/db.py",
+        "pytuflow/_tmf/inp/gis.py",
+        "pytuflow/_tmf/inp/inp_build_state.py",
+        "pytuflow/_tmf/inp/inp_run_state.py",
+        "pytuflow/_tmf/inp/mat.py",
+        "pytuflow/_tmf/parsers/command.py",
+        "pytuflow/_tmf/parsers/expand_tuflow_value.py",
+        "pytuflow/_tmf/parsers/line.py",
+        "pytuflow/_tmf/settings.py"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Deferred parity: distinguish database roles, rainfall grids and GIS table links",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "3f63fe139c5b3991c00025b14c594b0bba64926b",
+      "mergeCommit": {
+        "oid": "4228a805687cfd80d98a27e2ebcb62c234b40059"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/2",
+      "production_paths": [
+        "pytuflow/_tmf/abc/tcf_base.py",
+        "pytuflow/_tmf/cf/tcf_run_state.py",
+        "pytuflow/_tmf/db/db_run_state.py",
+        "pytuflow/_tmf/db/rf.py",
+        "pytuflow/_tmf/deferred_database.py",
+        "pytuflow/_tmf/file_reference.py",
+        "pytuflow/_tmf/gis.py",
+        "pytuflow/_tmf/inp/cf.py",
+        "pytuflow/_tmf/inp/db.py",
+        "pytuflow/_tmf/inp/gis.py",
+        "pytuflow/_tmf/inp/inp_run_state.py",
+        "pytuflow/_tmf/parsers/command.py"
+      ]
+    },
+    {
+      "number": 37,
+      "title": "[Typing] Fully annotate new independent deferred modules",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "99f1530e98fbe9869956aa19959335135514e401",
+      "mergeCommit": {
+        "oid": "69e4278002df992b316c501660ff00fabd462ff9"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/37",
+      "production_paths": [
+        "pytuflow/_tmf/deferred_database.py"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "[tmf] Compile and cache shared-TCF batch dependencies",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "cc128b0b49741faeb776c6c053f210afa5edb02d",
+      "mergeCommit": {
+        "oid": "70220dced73845538c27a471bb4e6d7844a53d94"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/5",
+      "production_paths": [
+        "pytuflow/_tmf/batch_dependencies.py",
+        "pytuflow/_tmf/cf/cf_run_state.py",
+        "pytuflow/_tmf/cf/tcf.py",
+        "pytuflow/_tmf/compiled_dependency_plan.py",
+        "pytuflow/_tmf/context.py",
+        "pytuflow/_tmf/db/drivers/xsdat.py",
+        "pytuflow/_tmf/db/drivers/xstf.py",
+        "pytuflow/_tmf/db/mat.py",
+        "pytuflow/_tmf/deferred_database.py",
+        "pytuflow/_tmf/inp/db.py",
+        "pytuflow/_tmf/inp/inp_build_state.py",
+        "pytuflow/_tmf/inp/inp_run_state.py"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "[tmf] Preserve ordered batch input lineage for compiled dependency work",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "4350938161b25bd67b7f8e492a01cba49e58235e",
+      "mergeCommit": {
+        "oid": "2a6aab5e28a9de8fa9b03fe4f2553eecc1b218df"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/6",
+      "production_paths": [
+        "pytuflow/_tmf/batch_dependencies.py"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "[tmf] P1: Index run inputs and database activations",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "e78a680425342a8df20c910952391a6fc8bc4b0b",
+      "mergeCommit": {
+        "oid": "2a40276caf2f535e19c07c22e1c428c7e8c286cd"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/8",
+      "production_paths": [
+        "pytuflow/_tmf/cf/tcf_run_state.py"
+      ]
+    },
+    {
+      "number": 9,
+      "title": "[tmf] P2: Compile immutable shared-TCF dependency graph",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "204c9e0989b88e3cfdfea0d682f6807627adcb95",
+      "mergeCommit": {
+        "oid": "124ff1ad26ecb58584872cc032eb6701734d8388"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/9",
+      "production_paths": [
+        "pytuflow/_tmf/batch_dependencies.py",
+        "pytuflow/_tmf/cf/tcf.py",
+        "pytuflow/_tmf/compiled_control_tree.py"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "[tests] P3: Benchmark deferred batches on TUFLOW tutorials",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "66872d5648e1d51681c93fabf0b8bf4052b7637b",
+      "mergeCommit": {
+        "oid": "970f43e95e54ab137fce82fff9a807c7264d3236"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/7",
+      "production_paths": []
+    },
+    {
+      "number": 10,
+      "title": "[tmf] P4: Integrate batch compiler, activation index and tutorial benchmarks",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "099434fe15e475e5c5334550a62828cf66979e25",
+      "mergeCommit": {
+        "oid": "3de5cd954a5bf6739377937c8ff2fe3341e86bfc"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/10",
+      "production_paths": [
+        "pytuflow/_tmf/compiled_control_tree.py"
+      ]
+    },
+    {
+      "number": 12,
+      "title": "[tmf] Improve graph reuse for invariant command groups",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "126ec64e221908f5327ee9dc9d372c8084afaf12",
+      "mergeCommit": {
+        "oid": "e162c04330d24c37bee3ade94479cc4602651060"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/12",
+      "production_paths": [
+        "pytuflow/_tmf/batch_dependencies.py",
+        "pytuflow/_tmf/cf/cf_run_state.py",
+        "pytuflow/_tmf/compiled_control_tree.py",
+        "pytuflow/_tmf/group_input_reuse.py",
+        "pytuflow/_tmf/inp/gis.py",
+        "pytuflow/_tmf/inp/inp_build_state.py"
+      ]
+    },
+    {
+      "number": 13,
+      "title": "[tmf] Record expected reference counts for ordered batch commands",
+      "state": "MERGED",
+      "isDraft": false,
+      "headRefOid": "d4a47d130e82d02c2f5cdb2cd212cf1c637776bd",
+      "mergeCommit": {
+        "oid": "b8d77d206a2ebd8c66738773dadc0814212aed40"
+      },
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/13",
+      "production_paths": [
+        "pytuflow/_tmf/batch_dependencies.py"
+      ]
+    },
+    {
+      "number": 39,
+      "title": "[performance] Reuse immutable batch file dependencies and consolidate P6\u2013P10",
+      "state": "OPEN",
+      "isDraft": false,
+      "headRefOid": "36ad04bd7cb045c48f3b77e8794c48a956c90c06",
+      "mergeCommit": null,
+      "url": "https://github.com/phantom-branch/PyTuflow/pull/39",
+      "production_paths": [
+        "pytuflow/_tmf/abc/bld_state.py",
+        "pytuflow/_tmf/batch_dependencies.py",
+        "pytuflow/_tmf/cf/cf_build_state.py",
+        "pytuflow/_tmf/cf/cf_run_state.py",
+        "pytuflow/_tmf/cf/ecf.py",
+        "pytuflow/_tmf/cf/fvc.py",
+        "pytuflow/_tmf/cf/fvsed.py",
+        "pytuflow/_tmf/cf/fvwq.py",
+        "pytuflow/_tmf/cf/tcf.py",
+        "pytuflow/_tmf/cf/tcf_run_state.py",
+        "pytuflow/_tmf/cf/tef.py",
+        "pytuflow/_tmf/compiled_control_tree.py",
+        "pytuflow/_tmf/context.py",
+        "pytuflow/_tmf/deferred_database.py",
+        "pytuflow/_tmf/event.py",
+        "pytuflow/_tmf/file_reference.py",
+        "pytuflow/_tmf/fragment_dependencies.py",
+        "pytuflow/_tmf/group_input_reuse.py",
+        "pytuflow/_tmf/inp/block.py",
+        "pytuflow/_tmf/inp/cf.py",
+        "pytuflow/_tmf/inp/db.py",
+        "pytuflow/_tmf/inp/inp_build_state.py",
+        "pytuflow/_tmf/inp/inputs.py",
+        "pytuflow/_tmf/scope.py"
+      ]
+    }
+  ]
+}

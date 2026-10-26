@@ -1,0 +1,51 @@
+{
+  "Chain-Frost/PyTuflow": {
+    "settings": {
+      "allow_squash_merge": true,
+      "allow_merge_commit": true,
+      "allow_rebase_merge": true,
+      "allow_auto_merge": false,
+      "delete_branch_on_merge": false,
+      "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+      "squash_merge_commit_message": "COMMIT_MESSAGES",
+      "default_branch": "master",
+      "has_issues": false
+    },
+    "rulesets": []
+  },
+  "phantom-branch/PyTuflow": {
+    "settings": {
+      "allow_squash_merge": true,
+      "allow_merge_commit": false,
+      "allow_rebase_merge": false,
+      "allow_auto_merge": true,
+      "delete_branch_on_merge": true,
+      "squash_merge_commit_title": "PR_TITLE",
+      "squash_merge_commit_message": "BLANK",
+      "default_branch": "master"
+    },
+    "rulesets": [
+      {
+        "id": 25816190,
+        "name": "master PR protection",
+        "target": "branch",
+        "source_type": "Repository",
+        "source": "phantom-branch/PyTuflow",
+        "enforcement": "active",
+        "node_id": "RRS_lACqUmVwb3NpdG9yec5VGyJjzgGJ7H4",
+        "_links": {
+          "self": {
+            "href": "https://api.github.com/repos/phantom-branch/PyTuflow/rulesets/25816190"
+          },
+          "html": {
+            "href": "https://github.com/phantom-branch/PyTuflow/rules/25816190"
+          }
+        },
+        "created_at": "2026-10-25T17:13:08.165+08:00",
+        "updated_at": "2026-10-25T18:04:37.368+08:00"
+      }
+    ]
+  },
+  "upstream_sha": "cf908cc922ca8448ed6002834877b0b377329eae",
+  "reference_sha": "93d425561ac1995706f95a9c20633d92c4a23fcf"
+}
