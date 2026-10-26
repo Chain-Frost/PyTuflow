@@ -1,0 +1,179 @@
+{
+  "settings": {
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": false,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": false,
+    "squash_merge_commit_title": "PR_TITLE",
+    "squash_merge_commit_message": "BLANK",
+    "default_branch": "master",
+    "has_issues": true
+  },
+  "rulesets": [
+    {
+      "id": 25880728,
+      "name": "Contribution integration protection",
+      "target": "branch",
+      "source_type": "Repository",
+      "source": "Chain-Frost/PyTuflow",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "refs/heads/contrib/integration"
+          ]
+        }
+      },
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "type": "required_linear_history"
+        },
+        {
+          "type": "pull_request",
+          "parameters": {
+            "required_approving_review_count": 0,
+            "dismiss_stale_reviews_on_push": false,
+            "required_reviewers": [],
+            "require_code_owner_review": false,
+            "require_last_push_approval": false,
+            "required_review_thread_resolution": true,
+            "require_extra_approval_for_unattributed_changes": true,
+            "allowed_merge_methods": [
+              "squash"
+            ]
+          }
+        },
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "Fast contracts gate",
+                "integration_id": 15368
+              },
+              {
+                "context": "Original library acceptance",
+                "integration_id": 15368
+              }
+            ]
+          }
+        }
+      ],
+      "node_id": "RRS_lACqUmVwb3NpdG9yec5VfqUjzgGK6Jg",
+      "created_at": "2026-10-26T21:15:44.052+08:00",
+      "updated_at": "2026-10-26T21:25:48.067+08:00",
+      "bypass_actors": [],
+      "current_user_can_bypass": "never",
+      "_links": {
+        "self": {
+          "href": "https://api.github.com/repos/Chain-Frost/PyTuflow/rulesets/25880728"
+        },
+        "html": {
+          "href": "https://github.com/Chain-Frost/PyTuflow/rules/25880728"
+        }
+      }
+    },
+    {
+      "id": 25881302,
+      "name": "Master immutable history",
+      "target": "branch",
+      "source_type": "Repository",
+      "source": "Chain-Frost/PyTuflow",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "refs/heads/master"
+          ]
+        }
+      },
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "type": "required_linear_history"
+        }
+      ],
+      "node_id": "RRS_lACqUmVwb3NpdG9yec5VfqUjzgGK6tY",
+      "created_at": "2026-10-26T21:23:44.627+08:00",
+      "updated_at": "2026-10-26T21:23:44.661+08:00",
+      "bypass_actors": [],
+      "current_user_can_bypass": "never",
+      "_links": {
+        "self": {
+          "href": "https://api.github.com/repos/Chain-Frost/PyTuflow/rulesets/25881302"
+        },
+        "html": {
+          "href": "https://github.com/Chain-Frost/PyTuflow/rules/25881302"
+        }
+      }
+    },
+    {
+      "id": 25880727,
+      "name": "Upstream mirror protection",
+      "target": "branch",
+      "source_type": "Repository",
+      "source": "Chain-Frost/PyTuflow",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "refs/heads/master"
+          ]
+        }
+      },
+      "rules": [
+        {
+          "type": "pull_request",
+          "parameters": {
+            "required_approving_review_count": 0,
+            "dismiss_stale_reviews_on_push": false,
+            "required_reviewers": [],
+            "require_code_owner_review": false,
+            "require_last_push_approval": false,
+            "required_review_thread_resolution": true,
+            "require_extra_approval_for_unattributed_changes": true,
+            "allowed_merge_methods": [
+              "squash"
+            ]
+          }
+        }
+      ],
+      "node_id": "RRS_lACqUmVwb3NpdG9yec5VfqUjzgGK6Jc",
+      "created_at": "2026-10-26T21:15:42.682+08:00",
+      "updated_at": "2026-10-26T21:23:45.778+08:00",
+      "bypass_actors": [
+        {
+          "actor_id": 5,
+          "actor_type": "RepositoryRole",
+          "bypass_mode": "always"
+        }
+      ],
+      "current_user_can_bypass": "always",
+      "_links": {
+        "self": {
+          "href": "https://api.github.com/repos/Chain-Frost/PyTuflow/rulesets/25880727"
+        },
+        "html": {
+          "href": "https://github.com/Chain-Frost/PyTuflow/rules/25880727"
+        }
+      }
+    }
+  ]
+}

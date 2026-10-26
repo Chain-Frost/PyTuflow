@@ -1,0 +1,39 @@
+{
+  "qgis": {
+    "candidate_sha": "d025029a9f4aac351de30211324c4c5d3eef675d",
+    "upstream_sha": "cf908cc922ca8448ed6002834877b0b377329eae",
+    "python": "3.12.15",
+    "qgis": "4.2.3",
+    "upstream": {
+      "passed": 239,
+      "failed": 0,
+      "skipped": 0
+    },
+    "candidate": {
+      "passed": 239,
+      "failed": 0,
+      "skipped": 0
+    },
+    "comparison": "passed",
+    "limitation": "Windows native HDF5 loader diagnostic 0xc0000139 retained in logs; not warning-free acceptance",
+    "archive_sha256": "bde2c30b9f294f575a880d6babc0b68afb386698b7246a1c8b03566242d0bc70"
+  },
+  "python310_diagnostic": {
+    "source_sha": "cf908cc922ca8448ed6002834877b0b377329eae",
+    "counts": {
+      "passed": 1155,
+      "failed": 90,
+      "skipped": 12
+    },
+    "project_failures": 87,
+    "fm_failures": 3,
+    "acceptance": "not accepted: checkout changed while the exploratory local run was executing; raw group results are diagnostic only"
+  },
+  "python311_local": {
+    "version": "3.11.16",
+    "infrastructure_passed": 121,
+    "subtests_passed": 10,
+    "wheel_checks_passed": 23,
+    "production_changes": false
+  }
+}
