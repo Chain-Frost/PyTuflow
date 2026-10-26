@@ -1,7 +1,7 @@
 # Contribution fork instructions
 
 Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
-`ci/README.md` before implementation. They define the reviewed integration path.
+`ci/README.md` and `UPSTREAM_STACK.md` before implementation. They define the reviewed integration path.
 
 - Keep `master` identical to official upstream; work through PRs to
   `contrib/integration`. Do not merge phantom/master wholesale.
@@ -13,7 +13,8 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
 - Keep production correctness PRs separate from deferred-execution prerequisites.
   Record the predecessor and exact SHA for stacked work; see squash handover rules.
 - Run `python ci/python_compatibility.py` and applicable tests. Full CI retains
-  raw failures and compares against immutable official upstream; do not suppress
+  raw failures and compares against both immutable official upstream and the
+  exact PR base. Preserve accepted fixes and test definitions; do not suppress
   failures/warnings or edit reference outputs simply to obtain green checks.
 - The eventual external contribution branch is curated separately. Exclude this
   fork's administration/process files unless upstream explicitly wants them.

@@ -124,3 +124,18 @@ final committed candidate.
 5. Before external curation, fetch official upstream again, agree scope, and
    reconstruct only accepted production/test commits on a separate branch.
    Re-run CI there; no upstream PR or release is authorized by this bootstrap.
+
+
+## Roadmap and strengthened acceptance
+
+See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for work-package issues,
+provisional dependencies, source SHAs and upstream curation rules. Planning does
+not authorize merging bootstrap or starting production branches. Python >=3.11
+is settled; no 3.10 backport is planned.
+
+The follow-up strengthens CI to compare the candidate with both immutable
+upstream and its exact event-pinned PR base. This prevents a fixed upstream bug
+from returning unnoticed and protects tests added after upstream. A committed
+pre-overlay inventory also guards the FM helper boundary. See ci/README.md for
+report names and the updated reproduction command. The earlier run IDs above
+remain historical bootstrap evidence; PR #1 records current-head validation.

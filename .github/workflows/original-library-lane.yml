@@ -51,11 +51,25 @@ jobs:
           name: contracts-${{ inputs.python }}-${{ inputs.kind }}
           path: ${{ runner.temp }}/contracts/
           if-no-files-found: error
+      - name: Pin review base and reject removed test definitions
+        id: review-base
+        if: inputs.kind == 'full'
+        run: |
+          python -m ci.review_base --upstream "$env:UPSTREAM_SHA" --report "$env:RUNNER_TEMP/original-regression/test-inventory.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run immutable canonical upstream (raw failures retained)
         if: inputs.kind == 'full'
         continue-on-error: true
         run: |
           python ci/run_regression.py --source . --ref "$env:UPSTREAM_SHA" --label upstream --report-dir "$env:RUNNER_TEMP/original-regression/upstream"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run exact review base (raw failures retained)
+        if: inputs.kind == 'full' && steps.review-base.outputs.sha != env.UPSTREAM_SHA
+        continue-on-error: true
+        env:
+          REVIEW_BASE_SHA: ${{ steps.review-base.outputs.sha }}
+        run: |
+          python ci/run_regression.py --source . --ref "$env:REVIEW_BASE_SHA" --label review-base --report-dir "$env:RUNNER_TEMP/original-regression/base"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run exact candidate (raw failures retained)
         if: inputs.kind == 'full'
@@ -63,10 +77,12 @@ jobs:
         run: |
           python ci/run_regression.py --source . --ref HEAD --label candidate --report-dir "$env:RUNNER_TEMP/original-regression/candidate"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Require complete evidence and no regression against upstream
+      - name: Require complete evidence against upstream and review base
         if: always() && inputs.kind == 'full'
+        env:
+          REVIEW_BASE_SHA: ${{ steps.review-base.outputs.sha }}
         run: |
-          python ci/accept_regression.py --root "$env:RUNNER_TEMP/original-regression" --upstream "$env:UPSTREAM_SHA" --candidate "$(git rev-parse HEAD)"
+          python -m ci.accept_regression --root "$env:RUNNER_TEMP/original-regression" --upstream "$env:UPSTREAM_SHA" --base "$env:REVIEW_BASE_SHA" --candidate "$(git rev-parse HEAD)"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Archive raw failures and comparison evidence
         if: always() && inputs.kind == 'full'
