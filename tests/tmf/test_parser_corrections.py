@@ -15,15 +15,16 @@ from pytuflow._tmf.db.mat import MatDatabaseTMF
 from pytuflow._tmf.db.rf import RainfallDatabase
 
 
-def test_direct_netcdf_rainfall_is_not_a_rainfall_database(tmp_path: Path) -> None:
+def test_direct_netcdf_rainfall_has_no_csv_index(tmp_path: Path) -> None:
     tcf = tmp_path / "direct_rainfall.tcf"
     tcf.write_text("Read Grid RF == rain.nc\n", encoding="utf-8")
-    # The control-file API raises KeyError when no rainfall database exists.
-    try:
-        database = TCF(tcf).rainfall_dbase()
-    except KeyError:
-        database = None
-    assert not isinstance(database, RainfallDatabase)
+    # This public API returns an empty database object when no CSV index
+    # exists. A NetCDF raster must not be interpreted as a CSV rainfall index.
+    database = TCF(tcf).rainfall_dbase()
+    assert isinstance(database, RainfallDatabase)
+    assert database.fpath is None
+    assert not database.loaded
+    assert database.df.empty
 
 
 def test_rainfall_csv_database_with_native_absolute_path(tmp_path: Path) -> None:
