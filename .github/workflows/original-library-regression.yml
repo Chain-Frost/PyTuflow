@@ -1,0 +1,66 @@
+name: Original-library regression and wheels
+on:
+  pull_request:
+    branches: [contrib/integration, 'contrib/**', master]
+  push:
+    branches: ['ci-validation/**']
+permissions:
+  contents: read
+concurrency:
+  group: full-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - id: scope
+        run: python ci/pr_gate.py classify --mode full
+  python310:
+    needs: changes
+    if: needs.changes.outputs.required == 'true'
+    uses: ./.github/workflows/original-library-lane.yml
+    with:
+      python: '3.10'
+      kind: full
+  python312:
+    needs: changes
+    if: needs.changes.outputs.required == 'true'
+    uses: ./.github/workflows/original-library-lane.yml
+    with:
+      python: '3.12'
+      kind: full
+  python314:
+    needs: changes
+    if: needs.changes.outputs.required == 'true'
+    uses: ./.github/workflows/original-library-lane.yml
+    with:
+      python: '3.14'
+      kind: full
+  gate:
+    name: Original library acceptance
+    if: always()
+    needs: [changes, python310, python312, python314]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - name: Require every named interpreter lane
+        env:
+          REQUIRED: ${{ needs.changes.outputs.required }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          EXPECTED_JOBS: python310,python312,python314
+          JOB_RESULTS: '{"python310": "${{ needs.python310.result }}", "python312": "${{ needs.python312.result }}", "python314": "${{ needs.python314.result }}"}'
+        run: python ci/pr_gate.py verify
