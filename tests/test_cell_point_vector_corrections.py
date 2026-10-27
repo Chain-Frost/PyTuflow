@@ -132,10 +132,12 @@ def test_real_ncmesh_individual_vector_component_point_preserves_float(
     path = tmp_path / "individual-components.nc"
     _write_fv(path)
     reader = NCMesh(path, driver=engine)
-    result = reader.data_point((.5, .5), dtype, 0., averaging_method=averaging)
+    # The review finding is on PyNCMesh's public point method. NCMesh is a
+    # higher-level spatial wrapper that filters result names before dispatch.
+    result = reader._driver.data_point((.5, .5), dtype, 0., depth_averaging=averaging)
     assert type(result) is float
     axis = "x" if dtype in {"V_x", "x_velocity"} else "y"
     np.testing.assert_allclose(result, expected[axis], rtol=1e-12, atol=1e-12)
     # Valid zero in cell 2 must remain a scalar zero, not a 2D-vector tuple.
-    zero = reader.data_point((4.5, .5), dtype, 0., averaging_method=averaging)
+    zero = reader._driver.data_point((4.5, .5), dtype, 0., depth_averaging=averaging)
     assert type(zero) is float and zero == 0.0
