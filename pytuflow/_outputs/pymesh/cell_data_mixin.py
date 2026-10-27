@@ -262,9 +262,24 @@ class CellDataMixin:
 
         if len(values) > 1:
             data = np.column_stack(values)
-        else:
-            data = values[0]
-        return float(data[0] if isinstance(data, np.ndarray) and data.ndim > 0 else data) if len(values) == 1 else tuple([x for x in data.flatten()])
+            # Some readers expose the two components as separate datasets.
+            # Preserve that established tuple-valued public point contract.
+            return tuple(x for x in data.flatten())
+
+        data = values[0]
+        if self.is_vector(data_type[0]):
+            # QGIS/MDAL can expose both components in *one* vector dataset.
+            # A single dataset is not evidence that its sample is scalar.
+            # Convert source masks without changing the cached source values.
+            components = np.ma.asarray(data, dtype=float).filled(np.nan).reshape(-1)
+            if components.size == 2:
+                return float(components[0]), float(components[1])
+            if components.size != 1:
+                raise ValueError("Vector point data must have one or two components")
+            # NetCDF components such as V_x and x_velocity advertise vector
+            # metadata but each addressable variable contains one scalar.
+            return float(components[0])
+        return float(data[0] if isinstance(data, np.ndarray) and data.ndim > 0 else data)
 
     def time_series_from_cell_data(
             self: 'PyMesh',
