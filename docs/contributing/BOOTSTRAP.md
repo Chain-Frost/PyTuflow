@@ -8,13 +8,16 @@ reviewers a stable original-library comparison. Do not merge phantom/master.
 Do not commit fork-only process records, CI administration or benchmark archives
 to an external contribution by default.
 
-Keep independently reviewable internal correctness changes before the deferred
-series. The revised plan is two curated external PRs: existing-library fixes
-and improvements first, then optional deferred/batch/graph execution. Prepare
-`contrib/upstream-fixes` from current official master and, after that contribution
-lands upstream, reconstruct `contrib/upstream-deferred` on its actual upstream
-result. See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for scope and separate
-acceptance gates. Neither external submission is authorised by this plan.
+Keep independently reviewable internal work packages. The revised plan has
+**three externally curated PRs**: **A** existing-library fixes, **B** focused
+public typing, **C** optional deferred/batch/graph execution. Reconstruct
+`contrib/upstream-fixes` from actual official upstream; curate
+`contrib/upstream-typing` and `contrib/upstream-deferred` independently after A
+has been accepted upstream. Both use the accepted A baseline, but **C does not
+depend on B**. If either B or C has already landed, the other is reconstructed
+on the latest real upstream head. Typing for new deferred modules belongs in C.
+See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for curation and separate
+acceptance. No external submission or auto-merge is authorised by the plan.
 
 ## Internal branch contract
 
@@ -135,7 +138,7 @@ final committed candidate.
 ## Roadmap and strengthened acceptance
 
 See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for work-package issues,
-provisional dependencies, source SHAs and the two upstream curation scopes.
+provisional dependencies, source SHAs and the three upstream curation scopes.
 Bootstrap is merged and internal implementation is underway. Each subsequent
 merge still needs accepted evidence and owner authorisation. Python >=3.11 is
 settled; no 3.10 backport is planned.

@@ -8,67 +8,94 @@ Bootstrap is complete. Python >=3.11 is approved and matches APIs already used
 in upstream. Create implementation PRs progressively from the updated
 `contrib/integration` branch. Keep `master` as the official-upstream mirror
 and integrate internal work separately.
-External delivery is **two separate upstream PRs**, not one consolidated PR:
-first existing-library fixes/improvements, then optional deferred/batch/graph
-execution. Internal package PRs remain independently reviewable. Neither
-external PR is created or authorised by this plan.
+External delivery is **three separately curated upstream PRs**: A fixes,
+B public typing, and C optional deferred execution. Internal work packages
+remain independently reviewable and continue integrating into
+`contrib/integration`. This plan authorises no external submission.
 
-## Two upstream deliverables
+## Three upstream deliverables
 
-| Delivery | Internal work packages | Scope | Proposed export branch |
+| Delivery | Internal packages | Scope | Candidate branch |
 | --- | --- | --- | --- |
-| **Upstream PR A — correctness and improvements** | 00F, 01–09, including 08A/08B/08C | Inherited FM/TMF defects; output/numerical/QGIS corrections; pandas/NetCDF, safe saves, package/import/logging/API/typing improvements; eager Linux `-cs` policy; verified non-deferred fixes | `contrib/upstream-fixes` |
-| **Upstream PR B — deferred execution and related architecture** | 10–15 | Optional deferred file references, ordered batch dependencies, compiled graphs, conservative cross-run reuse, deferred Linux parity and strictly justified deferred-related performance | `contrib/upstream-deferred` |
+| **PR A — existing-library fixes and improvements** | 00F, 01–07, 08A, 08B, 09 (exclude 08C) | FM/TMF, results, pandas, numerical/QGIS, cache and save correctness; packaging/import/logging, public API compatibility tests and eager Linux `-cs` handling | `contrib/upstream-fixes` |
+| **PR B — public typing and static contracts** | 08C / [#14](https://github.com/Chain-Frost/PyTuflow/issues/14) | Narrowly scoped `py.typed`, `.pyi`, stable existing-library annotations, static/installed-wheel consumer tests, typing documentation | `contrib/upstream-typing` |
+| **PR C — deferred execution** | 10–15 | Optional deferred references, batch dependencies, compiled graphs, conservative reuse, Linux parity and justified performance; inline types for **new deferred modules** | `contrib/upstream-deferred` |
 
-PR A is the **complete existing-functionality improvement contribution**, with
-the eager parser still the only execution mode. PR B adds the **optional**
-deferred execution pathway and preserves eager as the default. Any non-deferred
-bug found during development of PR B should normally be fixed and validated
-in PR A before PR A is finalised; once PR A is merged upstream, avoid silently
-folding unrelated fixes into PR B. If additional unexpected defects are found
-after that point, record them and obtain a scope decision rather than expanding
-PR B without review.
+PR A delivers the corrected existing *eager* library, retaining defaults except
+independently justified bug fixes. PR B delivers static typing contracts for
+existing public APIs, **without changing runtime behaviour**. PR C adds the
+optional deferred/batch/graph pathway with eager still the default. Existing
+minor annotations required to implement a real correction in A need not be
+artificially extracted into B. Do **not** transfer the legacy `ResData`
+typing stub or optional `py.typed` marker with A, and do **not** place typing
+for modules first introduced by C in B.
 
-Classify changes by purpose, not just their module or source PR. API changes,
-typing and optimisations needed only by deferred execution belong in PR B even
-when they touch existing modules. PR A preserves existing defaults except for
-independently justified, documented bug fixes; any deliberate compatibility
-break needs an explicit scope decision and migration guidance.
+**Dependencies:** PR A comes first. B and C each depend on the *accepted A
+baseline* for their external submission; **C does not technically depend on
+B** and may be developed/tested internally alongside B once its actual
+implementation prerequisites are satisfied. Do not artificially chain C
+behind `py.typed`/legacy-stub work. B and C are independently reviewed. For
+external submission, curate each branch against the *actual merged upstream A*
+and the latest relevant official upstream head. If B lands first, update C
+onto that actual head; if C lands first, update B likewise. In either order,
+the later PR must not repeat changes from earlier PRs. Do not create a
+cumulative B+C diff or assume a future upstream merge order.
 
-ENV-A [#30](https://github.com/Chain-Frost/PyTuflow/issues/30) and ENV-B
-[#31](https://github.com/Chain-Frost/PyTuflow/issues/31) are parallel native
-runtime diagnostics. Include proven PyTUFLOW fixes in PR A if applicable;
-external environment issues should be documented, not falsely attributed
-to a candidate regression. Unresolved relevant native limitations require
-an explicit acceptance decision. They do not automatically create a third
-upstream PR.
+**Compatibility:** Public imports, identities, defaults and behaviour remain
+protected in A by issue #13's API contract tests. Broad export narrowing,
+breaking annotation claims or removing deprecated `ResData` is not implied by
+the separate typing PR. Any deliberate compatibility break needs a separately
+reviewed owner/maintainer decision and migration guidance. Typing/API changes
+needed solely by deferred execution belong in C even if they touch an inherited
+module. All three targets support Python **3.11 minimum**, with independent
+3.11/3.12/3.14 validation.
+
+Native environment diagnostics [#30](https://github.com/Chain-Frost/PyTuflow/issues/30)
+and [#31](https://github.com/Chain-Frost/PyTuflow/issues/31) require a
+documented disposition where relevant for A; revisit them for B or C if the
+chosen changes affect native imports/providers. External library failures
+must not be attributed to a PR without evidence and do not create a fourth
+upstream delivery.
 
 ### Submission and branch policy
 
-1. Continue using small **internal** PRs into `contrib/integration` with manual
-   squash merges and review/CI evidence.
-2. Reconstruct `contrib/upstream-fixes` from the **latest official upstream**
-   head plus only reviewed PR A production fixes, essential regression tests
-   and appropriate user-facing documentation. Exclude fork-only CI,
-   coordination records, internal evidence and deferred features.
-3. Validate PR A independently on Windows Python 3.11/3.12/3.14, Linux eager
-   path semantics, installed wheels and native QGIS/MDAL where affected.
-   Submit **upstream PR A first**, with a maintainable series of logical commits.
-4. Develop PR B internally against the accepted fixes baseline when safe, but
-   **do not open upstream PR B with PR A's changes in its diff**. Once PR A is
-   accepted/merged upstream, rebuild/rebase PR B onto that actual upstream
-   result, test eager/deferred/batch parity and submit the **second** upstream PR.
-   If PR A has not landed, keep PR B's upstream submission pending.
-5. Do not force-push protected/shared branches, enable auto-merge, publish a
-   release or open either external PR without explicit authorisation.
+1. Continue small independently validated **internal** PRs into
+   `contrib/integration` using reviewed, manually squash-merged changes.
+   A/B/C are **external** curation scopes, not changes to existing internal
+   PR branches, tests, ownership or integration cadence.
+2. Reconstruct A from the **latest official upstream** plus only reviewed A
+   production corrections, necessary regression tests and relevant user docs.
+   Exclude fork-only workflows, internal records, independent typing work and
+   any deferred/batch/graph changes. Run A's own full Windows
+   3.11/3.12/3.14, Linux eager, installed-wheel, engineering-reference and
+   affected real QGIS/MDAL acceptance before its authorised submission.
+3. Reconstruct B from A's **actual accepted upstream result**, not from the
+   unaccepted aggregate integration branch. Include only reviewed focused
+   public typing changes, a coherent `py.typed`/legacy `.pyi` surface,
+   typing tests and necessary consumer docs. Verify stub/runtime consistency,
+   mypy/Pyright and `stubtest` where applicable, installed-wheel consumers
+   on Python 3.11/3.12/3.14 and the ordinary regression gates. Retain raw
+   inherited typing failures without hiding them.
+4. Continue C internally against the accepted eager policy (#15) and its
+   genuine #16→#17→#18→#19 feature prerequisites, regardless of B's status.
+   Rebuild the external C candidate on the then-current **actual upstream
+   A baseline** (and already merged B if applicable), with *only* deferred,
+   batch, graph, related optimisations and inline types for newly added
+   modules. Run cross-platform eager/deferred/batch parity, installed-wheel
+   and native provider tests before C submission.
+5. If B and C are developed while A is in upstream review, neither may be
+   submitted with A's unmerged fixes duplicated in its diff. After either B
+   or C lands upstream, rebase/reconstruct the other onto that real head and
+   repeat exact-head acceptance. Neither follows the other as a functional
+   prerequisite.
+6. No force pushes on protected/shared branches, auto-merge, releases or
+   external upstream PRs without separate explicit authorisation.
 
-The final acceptance in work package 14 is **PR B's** cross-platform deferred
-gate. PR A has its own standalone release/curation acceptance, including
-all relevant existing-library tests, reference-change justifications and
-native environment outcomes. Do not hold PR A merely because PR B's
-architecture or performance work is unfinished. Optional stage 15 is
-deferred-related unless an independently justified eager-only optimisation
-is expressly included in PR A.
+Work package 14 / [#20](https://github.com/Chain-Frost/PyTuflow/issues/20)
+remains **PR C's** comprehensive final deferred acceptance gate. A and B have
+independent sign-off; unfinished deferred functionality must not hold either
+A or B. Optional stage 15 remains deferred-related unless a separate
+eager-only improvement is justified for A.
 
 ## Work packages
 
@@ -119,7 +146,7 @@ prerequisites before stacking branches.
 | 07 combines #17/#18 | Both modify cf_build_state.py | One ownership area; split coherent fixes if useful |
 
 The 10 -> 11 -> 12 -> 13 chain expresses intended API/ownership contracts and
-must be confirmed during extraction. Stage 14 is final consolidated acceptance;
+must be confirmed during extraction. Stage 14 is final **PR C** acceptance;
 Linux tests accompany stage 09 and every deferred/batch/graph stage from the
 start. Stage 15 is optional and cannot block a correct core contribution.
 
@@ -156,9 +183,9 @@ Issue #7 (pandas readers) overlaps #23; issue #9 (QGIS geometry) overlaps
 #26; issue #10 (raster recovery) overlaps #7/#23. Start those implementations
 only with coordinated file ownership and a stable predecessor. The deferred
 chain #16→#17→#18→#19 must not enter integration before the accepted eager
-Linux policy (#15). No requirement to finish all PR A work before undertaking
-independent PR B design/research, but keep production implementations and
-upstream submission scopes separate. Squash changes ancestry: follow the
+Linux policy (#15). No requirement to finish all PR A work before independent **PR C deferred**
+design/research, but do not submit C until an accepted A baseline exists;
+keep production implementations and external submission scopes separate. Squash changes ancestry: follow the
 repository's restacking guidance and never force-push shared history.
 
 ## Acceptance and upstream curation
@@ -176,11 +203,15 @@ repository's restacking guidance and never force-push shared history.
 - Rehearse **PR A** reconstruction from current official upstream after the
   existing-functionality work converges. Record selected fixes and excluded
   fork-only material; independently test the curated result.
-- Rehearse **PR B** reconstruction at each deferred milestone, initially on
-  the accepted PR A integration baseline. Before external submission rebuild
-  from PR A's actual merged upstream result and independently verify that
-  the PR B diff contains only deferred/batch/graph-related changes. Do not
-  publish an external PR during rehearsal.
+- Rehearse **PR B (typing)** only against stable existing public APIs;
+  reconstruct it from the actual accepted upstream A result. Confirm B's
+  diff contains only typing declarations, tests and user-facing type docs,
+  without unrelated runtime changes.
+- Rehearse **PR C (deferred)** at each feature milestone, first on the
+  compatible internal fixes baseline. Reconstruct external C after upstream
+  has merged A, plus B only if already accepted. Prove C includes only
+  deferred/batch/graph changes, related performance and inline typing for
+  *new deferred modules*. Neither rehearsal authorises external submission.
 - Recheck upstream before **each** external PR; intentional behaviour changes
   need explicit review. Use one rationale per logical upstream commit without
   importing the fork's administrative merge history.
@@ -193,6 +224,7 @@ Issues hold live implementation status and PR links; this file holds stable
 scope and ordering rules. Update dependencies when actual code proves them.
 The source inventory is dated; refresh it when implementation starts.
 Bootstrap PR #1 was squash-merged into `contrib/integration` as `89a43fa5`.
-The minimum supported Python version is 3.11. This plan targets exactly two
-external PRs, both requiring separate final review/authorisation. No release
+The minimum supported Python version is 3.11. This plan targets exactly three
+external PRs (A fixes, B public typing, C deferred), each requiring separate
+final review/authorisation. No release
 or external upstream PR is authorised by this planning update.
