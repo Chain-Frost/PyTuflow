@@ -19,5 +19,8 @@ def use_supported_optionals(binaries: TuflowBinaries) -> None:
     custom_result: str | Path | None = binaries.get("not-registered", custom_default)
     assert_type(custom_result, str | Path | None)
 
-    assert_type(Scope("SCENARIO", "DEV", var=None), Scope)
-    assert_type(Scope("VARIABLE", "DEV", var="<<VERSION>>"), Scope)
+    # Scope.__new__ is an existing factory returning concrete Scope subclasses.
+    scenario: Scope = Scope("SCENARIO", "DEV", var=None)
+    variable: Scope = Scope("VARIABLE", "DEV", var="<<VERSION>>")
+    assert_type(scenario, Scope)
+    assert_type(variable, Scope)
