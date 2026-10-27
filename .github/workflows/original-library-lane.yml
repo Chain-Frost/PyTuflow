@@ -56,6 +56,10 @@ jobs:
         run: |
           python -m pytest -q tests/test_qgis_vertex_angle_math.py --junitxml="$env:RUNNER_TEMP/contracts/qgis-vertex-angles.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify cell-centred point scalar/vector public contracts
+        run: |
+          python -m pytest -q tests/test_cell_point_vector_corrections.py --junitxml="$env:RUNNER_TEMP/contracts/cell-point-vector.xml"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Archive infrastructure contracts
         if: always()
         uses: actions/upload-artifact@v4
