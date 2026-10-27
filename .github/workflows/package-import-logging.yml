@@ -1,0 +1,61 @@
+name: Package imports and logging 08A
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/package-import-logging.yml"
+      - "pytuflow/__init__.py"
+      - "pytuflow/TUFLOW.py"
+      - "pytuflow/_outputs/**"
+      - "pytuflow/_tmf/logging_.py"
+      - "pytuflow/util/_util/logging.py"
+      - "tests/test_package_import_logging.py"
+      - "tests/test_mesh_backend_capability.py"
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  imports-logging:
+    name: Wheel imports/logging Python ${{ matrix.python-version }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install and build package
+        run: python -m pip install -e . pytest build hatchling
+      - name: Run focused regression tests from checkout
+        run: python -m pytest -q tests/test_package_import_logging.py tests/test_mesh_backend_capability.py
+      - name: Build distribution wheel
+        run: python -m build --wheel --no-isolation
+      - name: Test installed wheel outside checkout
+        shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem -Path "dist/*.whl" | Select-Object -First 1).FullName
+          if (-not $wheel) { throw 'Built wheel missing' }
+          python -m pip uninstall -y pytuflow
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot uninstall editable install' }
+          python -m pip install --no-deps "$wheel"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install built wheel' }
+          $outside = Join-Path $env:RUNNER_TEMP "pytuflow-08a-wheel"
+          New-Item -ItemType Directory -Force -Path $outside | Out-Null
+          Copy-Item "tests/test_package_import_logging.py" (Join-Path $outside "test_package_import_logging.py")
+          Copy-Item "tests/test_mesh_backend_capability.py" (Join-Path $outside "test_mesh_backend_capability.py")
+          Push-Location $outside
+          try {
+            python -I -c "import pathlib,os,pytuflow,importlib.metadata as md; p=pathlib.Path(pytuflow.__file__).absolute(); root=pathlib.Path(os.environ['GITHUB_WORKSPACE']).absolute(); assert not p.is_relative_to(root),p; assert md.metadata('pytuflow')['Requires-Python'].startswith('>=3.11'); print('Wheel package origin:',p)"
+            if ($LASTEXITCODE -ne 0) { throw 'Installed wheel origin/metadata check failed' }
+            python -I -m pytest -q test_package_import_logging.py test_mesh_backend_capability.py
+            if ($LASTEXITCODE -ne 0) { throw 'Installed-wheel focused tests failed' }
+          }
+          finally {
+            Pop-Location
+          }
