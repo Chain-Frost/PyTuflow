@@ -6,7 +6,7 @@
 
 ## Documentation
 
-Documentation and examples are available at https://docs.tuflow.com/pytuflow/.
+Documentation and examples are available at https://docs.tuflow.com/pytuflow/1.2/.
 
 ## Installation
 
@@ -21,12 +21,12 @@ The installation includes PyTUFLOW's declared Python dependencies. Some features
 - **GDAL/OGR Python bindings** are required for GDAL-based GIS functionality, including selected `GisInput` operations. The bindings must be compatible with the installed native GDAL library.
 - **QGIS/MDAL** is required for QGIS-backed map and mesh operations. Supported Python-based XMDF and NCMesh readers can be used without QGIS.
 
-For QGIS-backed operations, use a compatible QGIS Python environment. See the [QGIS environment guide](https://docs.tuflow.com/pytuflow/examples/working_with_tuflow_outputs/#qgis-environment).
+For QGIS-backed operations, use a compatible QGIS Python environment.
 
 ## Quickstart
 
-Start with [Load and Run a TUFLOW Model](https://docs.tuflow.com/pytuflow/examples/tcf_load_and_run/) or browse the [other examples](https://docs.tuflow.com/pytuflow/examples/).
+Start with [Load and Run a TUFLOW Model](https://docs.tuflow.com/pytuflow/1.2/examples/tcf_load_and_run/) or browse the [other examples](https://docs.tuflow.com/pytuflow/1.2/examples/).
 
 ## Licence
 
-MIT licence. See [LICENSE](LICENSE).
+MIT licence. See [LICENSE.txt](LICENSE.txt).

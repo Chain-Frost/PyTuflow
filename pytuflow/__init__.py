@@ -55,7 +55,7 @@ from .project import HPCProject as HPCProject, FVProject as FVProject
 
 
 name = 'PyTuflow'
-__version__ = '1.2.6'
+__version__ = '1.2.7'
 
 
 # Preserve the historic from-pytuflow import surface without eagerly loading

@@ -1,6 +1,16 @@
 Changelog for 1.2
 =================
 
+1.2.7
+-----
+
+- Python 3.11 is now the minimum supported version.
+- Corrected filename case handling on Linux, input parsing, and model save operations to better preserve existing control-file content.
+- Corrected result times, compatibility with newer pandas versions, raster cache limits, and recovery from NetCDF reader errors.
+- Corrected depth averaging and selected QGIS mesh calculations, including face positions, vertex interpolation, and vector point extraction.
+- Improved package import behaviour, optional mesh backend handling, and logging.
+- Corrected Flood Relief Arch input registration in Flood Modeller conversion references.
+
 1.2.6
 -----
 

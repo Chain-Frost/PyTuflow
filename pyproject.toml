@@ -61,10 +61,10 @@ filterwarnings = [
 
 [project.urls]
 Homepage = "https://github.com/TUFLOW-Support/PyTuflow"
-Documentation = "https://docs.tuflow.com/pytuflow/"
+Documentation = "https://docs.tuflow.com/pytuflow/1.2/"
 Repository = "https://github.com/TUFLOW-Support/PyTuflow"
 Issues = "https://github.com/TUFLOW-Support/PyTuflow/issues"
-Changelog = "https://docs.tuflow.com/pytuflow/#changelog"
+Changelog = "https://docs.tuflow.com/pytuflow/1.2/changelog/1.2/"
 
 [project.scripts]
 pytuflow-project = "pytuflow.project.__main__:main"
