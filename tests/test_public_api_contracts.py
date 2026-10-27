@@ -117,7 +117,8 @@ def test_legacy_root_star_import_preserves_supported_names() -> None:
 @pytest.mark.parametrize(
     ("name", "parameter_names", "defaults"),
     [
-        ("TCF", ("fpath", "kwargs"), {"fpath": None}),
+        ("TCF", ("fpath", "case_sensitivity", "kwargs"),
+         {"fpath": None, "case_sensitivity": None}),
         ("Context", ("context", "config"), {"context": (), "config": None}),
         ("Scope", ("type_name", "name", "var", "else_"),
          {"name": "", "var": None, "else_": False}),
@@ -141,6 +142,11 @@ def test_existing_constructor_names_and_defaults(
     for parameter_name, default in defaults.items():
         assert signature.parameters[parameter_name].default == default, (
             name, parameter_name
+        )
+    if name == "TCF":
+        # Eager -cs opt-in added by accepted package 09; keep it keyword-only.
+        assert signature.parameters["case_sensitivity"].kind is (
+            inspect.Parameter.KEYWORD_ONLY
         )
 
 
