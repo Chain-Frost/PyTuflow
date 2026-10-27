@@ -6,6 +6,7 @@ Do not execute: the example demonstrates signatures, not real result files.
 
 # pyright: strict
 from datetime import datetime
+from os import PathLike
 from pathlib import Path
 from typing import assert_type
 
@@ -17,7 +18,7 @@ def consume_public_resdata(reader: ResData, path: Path, when: datetime) -> None:
     assert_type(reader, LegacyResData)
     assert_type(reader.format(), str)
     assert_type(reader.name(), str)
-    assert_type(reader.source(), str | Path)
+    assert_type(reader.source(), str | PathLike[str])
     assert_type(reader.load(path), tuple[bool, str])
     assert_type(reader.channels(), list[str])
     assert_type(reader.channelCount(), int)
