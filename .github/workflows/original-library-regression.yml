@@ -1,4 +1,4 @@
-﻿name: Curated PR A acceptance
+name: Curated PR A acceptance
 on:
   push:
     branches: ['ci-validation/pr-a-curation-20261028']
@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
-          ref: 03b8406c971772d86647a3f3f5220431fd5533b9
+          ref: 97473811b436b5482909fcbd9e316eb37a1999a4
           path: candidate
           fetch-depth: 0
           persist-credentials: false
@@ -57,7 +57,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
-          ref: 03b8406c971772d86647a3f3f5220431fd5533b9
+          ref: 97473811b436b5482909fcbd9e316eb37a1999a4
           path: candidate
           fetch-depth: 0
           persist-credentials: false

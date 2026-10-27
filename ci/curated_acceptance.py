@@ -8,7 +8,7 @@ import sys
 
 UPSTREAM = 'cf908cc922ca8448ed6002834877b0b377329eae'
 INTEGRATION = '251387feeae0e53e48fddae762d59b13b2a8f525'
-CANDIDATE = '03b8406c971772d86647a3f3f5220431fd5533b9'
+CANDIDATE = '97473811b436b5482909fcbd9e316eb37a1999a4'
 HARNESS = Path(__file__).resolve().parents[1]
 
 def main():
@@ -31,7 +31,8 @@ def main():
     assert git('rev-parse','HEAD') == CANDIDATE
     assert not git('status','--porcelain')
     assert git('merge-base',UPSTREAM,CANDIDATE) == UPSTREAM
-    assert not git('diff',INTEGRATION,CANDIDATE,'--','pytuflow','pyproject.toml','tests',':(exclude)tests/ci')
+    assert not git('diff',INTEGRATION,CANDIDATE,'--','pytuflow','pyproject.toml','tests',':(exclude)tests/ci',':(exclude)tests/test_fm_comparison.py')
+    assert git('rev-parse',INTEGRATION+':tests/ci/test_fm_comparison.py') == git('rev-parse',CANDIDATE+':tests/test_fm_comparison.py')
     paths=git('diff','--name-only',UPSTREAM,CANDIDATE).splitlines()
     assert not any(p.startswith(('.github/','ci/','tests/ci/','docs/contributing/')) or p in ('AGENTS.md','UPSTREAM_STACK.md') or p.endswith(('.pyi','py.typed')) for p in paths)
     (out/'provenance.json').write_text(json.dumps({'candidate':CANDIDATE,'upstream':UPSTREAM,'accepted_integration':INTEGRATION,'python':sys.version,'paths':paths,'production_and_all_non_ci_tests_identical_to_integration':True},indent=2))
@@ -47,7 +48,7 @@ def main():
     outside=out/'outside';outside.mkdir()
     run('wheel-smoke',[sys.executable,'-I',HARNESS/'ci/wheel_smoke.py','--source-root',source,'--wheel',wheels[0],'--report',out/'wheel-smoke.json'],cwd=outside)
     # Every new standalone non-provider regression module, including import/API tests.
-    modules=['package_import_logging','mesh_backend_capability','public_api_contracts','result_time_correctness','pandas31_output_compatibility','raster_cache_reader_recovery','numerical_depth_averaging','numerical_mesh_reductions','numerical_fv_reader','qgis_centroid_math','qgis_vertex_angle_math','cell_point_vector_corrections']
+    modules=['fm_comparison','package_import_logging','mesh_backend_capability','public_api_contracts','result_time_correctness','pandas31_output_compatibility','raster_cache_reader_recovery','numerical_depth_averaging','numerical_mesh_reductions','numerical_fv_reader','qgis_centroid_math','qgis_vertex_angle_math','cell_point_vector_corrections']
     run('focused',[sys.executable,'-m','pytest','-q','-ra',*['tests/test_'+m+'.py' for m in modules],'--junitxml='+str(out/'focused.xml')])
     run('case-policy',[sys.executable,'-m','pytest','-q','-ra','tests/test_linux_case_policy.py','--junitxml='+str(out/'case.xml')])
     for role,sha in [('upstream',UPSTREAM),('base',INTEGRATION),('candidate',CANDIDATE)]:
