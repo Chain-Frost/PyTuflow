@@ -19,9 +19,11 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
 - For deliberate output corrections or test replacements, follow
   `docs/contributing/INTENTIONAL_CORRECTIONS.md`; provide independent expected
   values and exact affected tests. Review does not override required CI.
-- Curate two external PRs separately: existing-library fixes/improvements first,
-  then optional deferred/batch/graph execution on the actual upstream result of
-  the first PR. See UPSTREAM_STACK.md for scope and acceptance. Deferred-only
-  API/typing work belongs in the second PR. Exclude fork administration/process
-  files unless upstream explicitly wants them. Neither submission is authorised
-  by this plan.
+- Curate three external PRs separately: **A** existing-library fixes,
+  **B** focused public typing, **C** optional deferred/batch/graph execution.
+  Both B and C must be curated on the actual accepted upstream A baseline;
+  C does not technically depend on B, and whichever lands second must be
+  refreshed on the real upstream head. Keep type annotations for *new deferred
+  modules* within C. Preserve public compatibility and Python >=3.11.
+  Exclude fork administration, CI and internal evidence unless requested.
+  Neither upstream submission nor automatic merge is authorised by this plan.
