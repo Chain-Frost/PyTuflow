@@ -28,8 +28,9 @@ def _invoke(label: str, arguments: list[str], *, should_fail: bool = False) -> N
             raise AssertionError(f"{label} accepted deliberately invalid public API calls")
         if result.returncode != 1:
             raise AssertionError(f"{label} failed for unexpected tooling reasons")
+        target = next(arg for arg in arguments if arg.endswith("_negative.py"))
         diagnostics = re.findall(
-            r"(?im)^.*resdata_negative\.py.*(?:error:| - error:)",
+            rf"(?im)^.*{re.escape(target)}.*(?:error:| - error:)",
             output,
         )
         if len(diagnostics) < 3:
@@ -57,6 +58,24 @@ def main() -> None:
     _invoke(
         "Pyright negative",
         ["pyright", "--pythonversion", VERSION, "resdata_negative.py"],
+        should_fail=True,
+    )
+    _invoke(
+        "mypy optional contracts positive",
+        ["mypy", "--strict", "--no-incremental", "public_optionals_positive.py"],
+    )
+    _invoke(
+        "Pyright optional contracts positive",
+        ["pyright", "--pythonversion", VERSION, "public_optionals_positive.py"],
+    )
+    _invoke(
+        "mypy optional contracts negative",
+        ["mypy", "--strict", "--no-incremental", "public_optionals_negative.py"],
+        should_fail=True,
+    )
+    _invoke(
+        "Pyright optional contracts negative",
+        ["pyright", "--pythonversion", VERSION, "public_optionals_negative.py"],
         should_fail=True,
     )
     _invoke(

@@ -180,7 +180,7 @@ class Scope:
 
         return object.__new__(cls)
 
-    def __init__(self, type_name: str, name: str = '', var: str = None, else_: bool = False):
+    def __init__(self, type_name: str, name: str = '', var: str | None = None, else_: bool = False):
         #: str: The type of scope (e.g. 'SCENARIO', 'EVENT', 'VARIABLE', etc.)
         self.type = ''
         #: list[str]: The names of the scope (e.g. ['D01', 'D02'] for a scenario scope)
