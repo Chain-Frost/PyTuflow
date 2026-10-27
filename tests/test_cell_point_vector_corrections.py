@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from pytuflow._outputs.pymesh import PyMesh
+from pytuflow._outputs.pymesh.transform import Transform2D
 from tests.test_numerical_fv_reader import _write_fv
 from pytuflow import NCMesh
 
@@ -17,6 +18,7 @@ from pytuflow import NCMesh
 def _reader(*, dtype="velocity2d", vector=True, values=None, wet=True, cell_id=0, name="QgisDataExtractor"):
     mesh = PyMesh()
     mesh.geom.data_type = ""
+    mesh.geom.trans = Transform2D()
     mesh.geom.find_containing_cell = lambda point, scope="local": cell_id
     extractor = MagicMock()
     extractor.NAME = name
