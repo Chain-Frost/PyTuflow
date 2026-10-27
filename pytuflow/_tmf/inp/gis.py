@@ -260,6 +260,16 @@ class GisInput(GisInputBase):
                     attrs = feat if has_gdal or has_geopandas else list(feat.values())
                     if field_count <= i or not attrs[i] or isinstance(attrs[i], float):
                         continue
+                    # Ordinary Q channels name a depth-discharge curve in the
+                    # ECF database, not a CSV file. QO channels instead use
+                    # an operational CSV, and M channels use matrix files.
+                    if (
+                        'NETWORK' in cmd.command
+                        and len(attrs) > 1
+                        and isinstance(attrs[1], str)
+                        and attrs[1].strip().upper() == 'Q'
+                    ):
+                        continue
                     if '|' in str(attrs[i]):
                         op, file_ref = [x.strip() for x in attrs[i].split('|', 1)]  # operational control | file
                     else:
