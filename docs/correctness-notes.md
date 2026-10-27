@@ -99,5 +99,8 @@ the ESTRY input omits the relief opening. This is a missing network registration
 not regenerated hydraulic geometry or a new numerical reference. The dedicated
 `test_flood_relief_arch_ecf_registers_both_nwk_layers` asserts the independently
 specified RIVER, table-link and ORIFICE commands in both generated and reference
-files. Comparison helpers retain structural checks and tolerant numeric checks
-without treating platform path separators or blank separator lines as geometry.
+files. Comparison helpers match full relative file and layer identities within
+the declared CSV/GIS output roots before comparing contents. Text comparison
+reads both files and checks every line, including whitespace and final newlines.
+`tests/test_fm_comparison.py` protects missing/misnamed files, layer pairing,
+nested paths and text differences; numeric and geometry comparators remain intact.
