@@ -1,0 +1,709 @@
+{
+  "date": "2026-10-27",
+  "scope": "Fork-only native acceptance and diagnostics; no production/reference/assertion changes",
+  "profiles": {
+    "legacy_vtk": {
+      "python": "3.12.15",
+      "qgis": "4.2.3-Bel\u00e9m do Par\u00e1",
+      "qt": "6.11.0",
+      "gdal": "GDAL 3.13.3 \"Iowa City\", released 2026/08/13",
+      "mdal_registered": true,
+      "hdf5_runtime": "1.14.6",
+      "packages": {
+        "numpy": "2.5.4",
+        "pandas": "3.0.6",
+        "pyvista": "0.48.2",
+        "vtk": "9.6.1",
+        "rasterio": "1.5.0",
+        "h5py": "3.14.0",
+        "netCDF4": "1.7.5",
+        "pyvista_validation": "not installed"
+      },
+      "dlls": [
+        {
+          "file": "provider_mdal.dll",
+          "sha256": "6d0f860167c9bcdd3b23e6603c0da0bd7a561cdcf37de15d9bd1268d6744ea9b"
+        },
+        {
+          "file": "Qt6Core.dll",
+          "sha256": "5e16224c5da114bf9bbe0c7be1436c4df1d83beabec804c3200c9457b30562cb"
+        },
+        {
+          "file": "Qt6Core5Compat.dll",
+          "sha256": "686a819906dff4430898ca8d5830a4476909a07a87c5bdd76d246bc55b5f7831"
+        },
+        {
+          "file": "gdal313.dll",
+          "sha256": "183d5d743aa356d2f0e0702b9ccbc73b144dcd4b6e446e13e3dc05a65904ea80"
+        },
+        {
+          "file": "hdf5.dll",
+          "sha256": "e70306113f88230049e916a0e3afefc78bbe6b76d4c1b27a3893889cdcf1552a"
+        },
+        {
+          "file": "hdf5_hl.dll",
+          "sha256": "f0f05f40026dd62e01351d82249887a6758026dc08d1678f4c50fe087f96de72"
+        },
+        {
+          "file": "python312.dll",
+          "sha256": "11b9e569461d120ce4d1d19b289294a8bb54aa79774da1331bba91d46c53ed23"
+        },
+        {
+          "file": "hdf5-410e5a1d52c7f8e53a092375c2b0d9a0.dll",
+          "sha256": "b8e683fae300420e3334750c515e91a8d73cefffba90239747d5c33323e4e52f"
+        },
+        {
+          "file": "hdf5_hl-02110dfb897123c7a83ca65944e6eb8c.dll",
+          "sha256": "53eabc606bf98c3272a3406abd69302cdb2317ab972c33cbe55c92d8a6b78a86"
+        },
+        {
+          "file": "vtkCommonCore-9.6.1.dll",
+          "sha256": "3f8364e8a78042b3d34c423b62e7d22bf91e12bdf3f0fc532d6bfbd3dedcff1d"
+        },
+        {
+          "file": "vtkhdf5-9.6.1.dll",
+          "sha256": "4a5493a9bdab05d10bd283e5289cc615c904c43885d6fc4ff9af879921b02c01"
+        },
+        {
+          "file": "vtkhdf5_hl-9.6.1.dll",
+          "sha256": "8a058982acbba385e12abf12281001ebf94eb9d49177ab89224cc2cc8dd870f6"
+        },
+        {
+          "file": "vtkCommonCore.cp312-win_amd64.pyd",
+          "sha256": "5b8baf6865fe6a08f0fd254d9f4323079bae2f8c6a6855e40a36d715be117a4f"
+        }
+      ]
+    },
+    "candidate": {
+      "python": "3.12.15",
+      "qgis": "4.2.3-Bel\u00e9m do Par\u00e1",
+      "qt": "6.11.0",
+      "gdal": "GDAL 3.13.3 \"Iowa City\", released 2026/08/13",
+      "mdal_registered": true,
+      "hdf5_runtime": "1.14.6",
+      "packages": {
+        "numpy": "2.5.4",
+        "pandas": "3.0.6",
+        "pyvista": "0.49.1",
+        "vtk": "9.7.1",
+        "rasterio": "1.5.2",
+        "h5py": "3.14.0",
+        "netCDF4": "1.7.5",
+        "pyvista_validation": "0.2.2"
+      },
+      "dlls": [
+        {
+          "file": "provider_mdal.dll",
+          "sha256": "6d0f860167c9bcdd3b23e6603c0da0bd7a561cdcf37de15d9bd1268d6744ea9b"
+        },
+        {
+          "file": "Qt6Core.dll",
+          "sha256": "5e16224c5da114bf9bbe0c7be1436c4df1d83beabec804c3200c9457b30562cb"
+        },
+        {
+          "file": "Qt6Core5Compat.dll",
+          "sha256": "686a819906dff4430898ca8d5830a4476909a07a87c5bdd76d246bc55b5f7831"
+        },
+        {
+          "file": "gdal313.dll",
+          "sha256": "183d5d743aa356d2f0e0702b9ccbc73b144dcd4b6e446e13e3dc05a65904ea80"
+        },
+        {
+          "file": "hdf5.dll",
+          "sha256": "e70306113f88230049e916a0e3afefc78bbe6b76d4c1b27a3893889cdcf1552a"
+        },
+        {
+          "file": "hdf5_hl.dll",
+          "sha256": "f0f05f40026dd62e01351d82249887a6758026dc08d1678f4c50fe087f96de72"
+        },
+        {
+          "file": "python312.dll",
+          "sha256": "11b9e569461d120ce4d1d19b289294a8bb54aa79774da1331bba91d46c53ed23"
+        },
+        {
+          "file": "hdf5-90d65e8c6734fd05e7f71019aea56e63.dll",
+          "sha256": "51edda406beacd87cf8d28aa300156e4e036052206dae91647b575be77fcb987"
+        },
+        {
+          "file": "hdf5_hl-0f04f4391d2304f0c3baecb4b64cc3c7.dll",
+          "sha256": "4b18ade51d4d32f56fc3041ca1350a647953551b0492ce83eef3727ead4d3426"
+        },
+        {
+          "file": "vtkCommonCore-9.7.1.dll",
+          "sha256": "ce8afebaa0d117fe99958599f0b8ce3641ea92a31482b6659ddb6bdcfbc2cd4d"
+        },
+        {
+          "file": "vtkhdf5-9.7.1.dll",
+          "sha256": "9dd073d5196084cafc38541b363b412b6957a616847f395e83210c9591315f87"
+        },
+        {
+          "file": "vtkhdf5_hl-9.7.1.dll",
+          "sha256": "9ce0f5757551879c3ec5f66523eb236a8b14b1ea19b7ed1fdaef7266e8b2e455"
+        },
+        {
+          "file": "vtkCommonCore.cp312-win_amd64.pyd",
+          "sha256": "64244283e873d7deb5ca651f7a21e8d934099b387aee2ab6d943f3a12180ebeb"
+        }
+      ]
+    }
+  },
+  "regressions": [
+    {
+      "profile": "legacy_vtk",
+      "revision": "upstream",
+      "sha": "cf908cc922ca8448ed6002834877b0b377329eae",
+      "groups": {
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "failed": 2,
+            "passed": 237
+          }
+        }
+      }
+    },
+    {
+      "profile": "legacy_vtk",
+      "revision": "pr23_base",
+      "sha": "7444bf5abc41cf76f3786fd04e11c26fb9482d4a",
+      "groups": {
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "failed": 2,
+            "passed": 237
+          }
+        }
+      }
+    },
+    {
+      "profile": "legacy_vtk",
+      "revision": "pr23",
+      "sha": "a858ecd0e90f162f4dde7c2e2392704edc9ac832",
+      "groups": {
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "failed": 2,
+            "passed": 237
+          }
+        }
+      }
+    },
+    {
+      "profile": "candidate",
+      "revision": "upstream",
+      "sha": "cf908cc922ca8448ed6002834877b0b377329eae",
+      "groups": {
+        "python_mesh": {
+          "collected": 110,
+          "counts": {
+            "passed": 110
+          }
+        },
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "passed": 239
+          }
+        }
+      }
+    },
+    {
+      "profile": "candidate",
+      "revision": "pr23_base",
+      "sha": "7444bf5abc41cf76f3786fd04e11c26fb9482d4a",
+      "groups": {
+        "python_mesh": {
+          "collected": 110,
+          "counts": {
+            "passed": 110
+          }
+        },
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "passed": 239
+          }
+        }
+      }
+    },
+    {
+      "profile": "candidate",
+      "revision": "pr23",
+      "sha": "a858ecd0e90f162f4dde7c2e2392704edc9ac832",
+      "groups": {
+        "python_mesh": {
+          "collected": 110,
+          "counts": {
+            "passed": 110
+          }
+        },
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "passed": 239
+          }
+        }
+      }
+    },
+    {
+      "profile": "candidate",
+      "revision": "pr33_base",
+      "sha": "2a516733caec0e7f2ab7c91eef5d5ca3dad6f2eb",
+      "groups": {
+        "python_mesh": {
+          "collected": 110,
+          "counts": {
+            "passed": 110
+          }
+        },
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "passed": 239
+          }
+        }
+      }
+    },
+    {
+      "profile": "candidate",
+      "revision": "pr33",
+      "sha": "aaff74e7a3e65cf7f2a1a50f8463e673b014a8b6",
+      "groups": {
+        "python_mesh": {
+          "collected": 110,
+          "counts": {
+            "passed": 110
+          }
+        },
+        "qgis": {
+          "collected": 239,
+          "counts": {
+            "passed": 239
+          }
+        }
+      }
+    }
+  ],
+  "dependency_migration": [
+    {
+      "revision": "upstream",
+      "retained_passes": 237,
+      "fixed_failures": [
+        "tests/test_map_output.py::TestCATCHJson::test_loading_ontop_netcdf4_driver",
+        "tests/test_map_output.py::TestCATCHJson::test_loading_ontop_qgis_driver"
+      ],
+      "new_failures": [],
+      "skips": 0
+    },
+    {
+      "revision": "pr23_base",
+      "retained_passes": 237,
+      "fixed_failures": [
+        "tests/test_map_output.py::TestCATCHJson::test_loading_ontop_netcdf4_driver",
+        "tests/test_map_output.py::TestCATCHJson::test_loading_ontop_qgis_driver"
+      ],
+      "new_failures": [],
+      "skips": 0
+    },
+    {
+      "revision": "pr23",
+      "retained_passes": 237,
+      "fixed_failures": [
+        "tests/test_map_output.py::TestCATCHJson::test_loading_ontop_netcdf4_driver",
+        "tests/test_map_output.py::TestCATCHJson::test_loading_ontop_qgis_driver"
+      ],
+      "new_failures": [],
+      "skips": 0
+    }
+  ],
+  "focused_time": {
+    "candidate": "a858ecd0e90f162f4dde7c2e2392704edc9ac832",
+    "passed": 108,
+    "failed": 0,
+    "skipped": 0
+  },
+  "import_order": [
+    {
+      "report": "imports-original.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 1,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": true
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": true
+        }
+      ]
+    },
+    {
+      "report": "imports-original-repeat.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 1,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": true
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": true
+        }
+      ]
+    },
+    {
+      "report": "imports-compatible.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 0,
+          "status": "legacy_unassessed",
+          "native_entry_point_diagnostic": false
+        }
+      ]
+    },
+    {
+      "report": "enhanced-original.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 1,
+          "status": "failed",
+          "native_entry_point_diagnostic": true
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 1,
+          "status": "failed",
+          "native_entry_point_diagnostic": true
+        }
+      ]
+    },
+    {
+      "report": "enhanced-compatible.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        }
+      ]
+    },
+    {
+      "report": "final-original.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 1,
+          "status": "failed",
+          "native_entry_point_diagnostic": true
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 1,
+          "status": "failed",
+          "native_entry_point_diagnostic": true
+        }
+      ]
+    },
+    {
+      "report": "final-compatible.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        }
+      ]
+    },
+    {
+      "report": "strict-original.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 1,
+          "status": "failed",
+          "native_entry_point_diagnostic": true
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 1,
+          "status": "failed",
+          "native_entry_point_diagnostic": true
+        }
+      ]
+    },
+    {
+      "report": "strict-compatible.json",
+      "cases": [
+        {
+          "case": "h5py_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_only",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_h5py",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "h5py_then_qgis",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        },
+        {
+          "case": "qgis_then_pytuflow",
+          "returncode": 0,
+          "status": "passed",
+          "native_entry_point_diagnostic": false
+        }
+      ]
+    }
+  ],
+  "hdf5_abi": {
+    "failing_extension": "_errors.cp312-win_amd64.pyd",
+    "missing_runtime_exports": [
+      "H5_libinit_g",
+      "H5_libterm_g"
+    ],
+    "missing_bundled_exports": [],
+    "compatible_extension_missing_runtime": [],
+    "files": {
+      "extension": {
+        "filename": "_errors.cp312-win_amd64.pyd",
+        "sha256": "18e5eb43c50dd91555fa836ad448368e65a077dac012d8f993b5e851f1a039f0"
+      },
+      "runtime": {
+        "filename": "hdf5.dll",
+        "sha256": "e70306113f88230049e916a0e3afefc78bbe6b76d4c1b27a3893889cdcf1552a"
+      },
+      "bundled": {
+        "filename": "hdf5.dll",
+        "sha256": "ef757c52597727566a0c03360bc0006df49760feaa08d807164eb418df59d468"
+      }
+    }
+  },
+  "limitations": [
+    "Issue 30 original VTK control uses h5py 3.14.0 in both profiles to separate the HDF5 ABI defect",
+    "Original h5py 3.16.0 failure remains reproducible; compatible native profile uses h5py 3.14.0",
+    "MDAL has no independent exposed version; bundled provider is identified by QGIS version and DLL hash",
+    "Native acceptance is specific to installed Windows QGIS/Python 3.12; no universal dependency range claimed"
+  ],
+  "runtime_symbol_probe": {
+    "dll": "hdf5.dll",
+    "sha256": "e70306113f88230049e916a0e3afefc78bbe6b76d4c1b27a3893889cdcf1552a",
+    "symbols": {
+      "H5get_libversion": {
+        "present": true,
+        "winerror": 0
+      },
+      "H5_libinit_g": {
+        "present": false,
+        "winerror": 127
+      },
+      "H5_libterm_g": {
+        "present": false,
+        "winerror": 127
+      },
+      "H5Dread_chunk1": {
+        "present": false,
+        "winerror": 127
+      },
+      "H5Tdecode1": {
+        "present": false,
+        "winerror": 127
+      }
+    }
+  },
+  "original_full_native_profile": {
+    "sha": "a858ecd0e90f162f4dde7c2e2392704edc9ac832",
+    "h5py": "3.16.0",
+    "counts": {
+      "failed": 2,
+      "passed": 237
+    },
+    "native_entry_point_diagnostic": true,
+    "checkout_unchanged": true
+  }
+}

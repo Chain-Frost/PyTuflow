@@ -1,6 +1,10 @@
 # Native dependency diagnostics (fork-only)
 
-For issues #30 (VTK/NumPy) and #31 (Windows QGIS/h5py). These files contain *probes only*, no fixes or test-exemptions. Exclude from the curated external upstream PR unless the maintainer requests the diagnostics.
+Completed native findings and the exact supported add-on profile are in
+[Native environment acceptance](../../docs/contributing/NATIVE_ENVIRONMENT_ACCEPTANCE.md).
+Historical limitations below describe the earlier diagnostic checkpoints.
+
+For issues #30 (VTK/NumPy) and #31 (Windows QGIS/h5py). These files contain diagnostics, no production fixes or test-exemptions. Exclude from the curated external upstream PR unless the maintainer requests the diagnostics.
 
 ## Run using an existing interpreter
 

@@ -25,7 +25,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path diagnostic | Out-Null
-          python -X faulthandler ci/diagnostics/h5py_qgis_imports.py --child-case h5py_only 2>&1 | Tee-Object diagnostic/h5py-only.txt
+          python -X faulthandler ci/diagnostics/h5py_qgis_imports.py --case h5py_only --out diagnostic/h5py-only.json 2>&1 | Tee-Object diagnostic/h5py-only.txt
           $status = $LASTEXITCODE
           "h5py_only_exit_code=$status" | Out-File diagnostic/outcome.txt -Encoding utf8
           if ($status -ne 0) { exit $status }

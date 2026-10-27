@@ -1,0 +1,9 @@
+# Validated additive profile for native Windows OSGeo4W Python 3.12 only.
+# Install with --target <outside-repo-directory> --no-deps; keep bundled
+# NumPy 2.5.4, GDAL, Qt, netCDF4 and other OSGeo4W libraries unchanged.
+# This is NOT the project's dependency metadata or a Python 3.11 profile.
+pyvista==0.49.1
+pyvista-validation==0.2.2
+vtk==9.7.1
+rasterio==1.5.2
+h5py==3.14.0
