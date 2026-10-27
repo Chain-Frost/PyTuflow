@@ -466,8 +466,8 @@ class _SaveTransaction:
                 for path, scopes in detached._file_to_scope.items()
             }
 
-            # The canonical eager parser does not create deferred loaded-path
-            # caches.  Populate them for the affected saved reference only.
+            # Restore loaded-path bookkeeping for the affected saved reference
+            # without changing caches belonging to unrelated inputs.
             # Material inputs already populate _files while loading, but do
             # not set _files_loaded; accessing files after a save would append
             # the same file a second time.
@@ -548,9 +548,8 @@ class _SaveTransaction:
 
     @staticmethod
     def _check_include_representation(owner: ControlFileBuildState) -> None:
-        # Ordered/empty/scoped include editing belongs to W6.  Until that
-        # representation exists, fail before publication instead of dropping
-        # a directive or merging distinct occurrences during an edited save.
+        # Reject include edits that the flattened representation cannot
+        # preserve, rather than dropping or merging distinct directives.
         represented = set()
         paths = {}
         unsupported = False
@@ -568,7 +567,7 @@ class _SaveTransaction:
             raise ValueError(
                 f'Cannot safely edit {owner.fpath}: empty, missing, repeated or scoped Read File '
                 'directives are not representable by the current flattened include writer. '
-                'Original files are unchanged; ordered include editing is deferred to W6 / PR #21.'
+                'Original files are unchanged.'
             )
 
     def _stage(self) -> None:

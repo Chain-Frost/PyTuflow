@@ -63,7 +63,7 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
 
     def __init__(self, fpath: PathLike | None = None, *,
                  case_sensitivity: int | None = None, **kwargs):
-        """Load with TUFLOW -cs0/-cs1/-cs2 filename resolution, without deferred APIs.
+        """Load using TUFLOW-compatible -cs0/-cs1/-cs2 filename case modes.
 
         An omitted mode still uses the existing configuration constructor path.
         Its Linux default is now strictly -cs0, following TUFLOW 2026.3.

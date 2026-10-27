@@ -256,8 +256,8 @@ class Grid(MapOutput):
             row = self._info[self._info['data_type'] == dtype].iloc[0]
             static = bool(row['static'])
             info = tuple(row[x] for x in ('dx', 'dy', 'ox', 'oy', 'ncol', 'nrow', 'nodatavalue'))
-            # Use the existing W3 public time contract once, not on every
-            # surface access. Preserve irregular tuples and singleton axes.
+            # Cache the result count from the public time axis rather than
+            # recomputing it per surface. Preserve irregular times and singleton axes.
             count = 0 if static else len(self.times(dtype))
             self._header_cache[key] = (static, info, count)
         return self._header_cache[key]

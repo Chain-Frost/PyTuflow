@@ -3,10 +3,8 @@
 NaN and masked result values are absent observations, not physical zero. Their
 overlap is excluded from both the weighted sum and contributing thickness,
 matching the supported QGIS missing-observation policy. Missing physical
-endpoints follow the explicit Python geometry contract documented in the handoff;
-QGIS can reject whole faces more conservatively. No positive valid overlap gives
-NaN. See docs/contributing/FV_NUMERICAL_CORRECTIONS.md for the evidence and
-explicitly retained provider differences.
+endpoints are not replaced with interior coordinates. QGIS can reject whole
+faces more conservatively. No positive valid overlap gives NaN.
 """
 
 import numpy as np

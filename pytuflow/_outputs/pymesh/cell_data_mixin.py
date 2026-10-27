@@ -83,8 +83,8 @@ class CellDataMixin:
                   to_vertex: bool = False
                   ) -> tuple[np.ndarray, np.ndarray]:
         # QGIS native geometry provides faces but not PyVista's interpolation
-        # arrays. Collect the existing face results first (including W8 depth
-        # reduction), then use the original QGIS face topology and angle weights.
+        # arrays. Collect face results first, including depth reduction, then
+        # use the original QGIS face topology and angle weights.
         # Never reuse wet/data-dependent weights across results or time steps.
         from .mesh_geom import QgisMeshGeometry
         if to_vertex and isinstance(self.geom, QgisMeshGeometry):
