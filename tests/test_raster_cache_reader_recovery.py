@@ -1,6 +1,7 @@
 """Bounded Grid/NCGrid surface cache and exception-safe reader ownership."""
 
 from collections import OrderedDict
+import warnings
 
 import numpy as np
 import pytest
@@ -353,6 +354,38 @@ def test_all_missing_extrema_yield_nan_without_warnings(tmp_path):
     assert np.isnan(reader.maximum("water level"))
     assert np.isnan(reader.minimum("water level"))
     assert reader._surface_cache_bytes == 0
+
+
+
+@pytest.mark.parametrize("masked", [False, True], ids=["all-nan", "fully-masked"])
+def test_static_resident_all_missing_extrema_return_nan_without_warnings(masked):
+    values = (np.ma.array([[7., 8.], [9., 10.]], mask=np.ones((2, 2), dtype=bool))
+              if masked else np.full((2, 2), np.nan))
+    reader = Grid({"dx": 1., "nrow": 2, "ncol": 2,
+                   "data_type": "water level", "data": values})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert np.isnan(reader.maximum("water level"))
+        assert np.isnan(reader.minimum("water level"))
+    assert reader._surface_cache_bytes == 0
+
+
+@pytest.mark.parametrize("masked", [False, True], ids=["all-nan", "all-fill-value"])
+def test_static_netcdf_all_missing_extrema_return_nan_without_warnings(tmp_path, masked):
+    path = make_nc(tmp_path)
+    with Dataset(path, "a") as nc:
+        bed = nc.variables["bed_level"]
+        if masked:
+            bed.setncattr("missing_value", -9999.)
+            bed[:] = -9999.
+        else:
+            bed[:] = np.nan
+    reader = NCGrid(path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert np.isnan(reader.maximum("bed level"))
+        assert np.isnan(reader.minimum("bed level"))
+    assert reader._surface_cache_bytes <= reader._memory_budget_bytes
 
 
 def test_packed_netcdf_block_budget_uses_decoded_float_dtype(tmp_path, monkeypatch):

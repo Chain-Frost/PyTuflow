@@ -422,9 +422,13 @@ class Grid(MapOutput):
         provides working headroom for masks and temporary arrays. Retained lazy
         slices are evicted first so these two budgets cannot silently stack.
         """
-        reducer = np.nanmax if maximum else np.nanmin
         if self._header(dtype)[0]:
-            return float(reducer(self._surface(dtype, -1)))
+            surface = np.asanyarray(self._surface(dtype, -1))
+            valid = surface.compressed() if np.ma.isMaskedArray(surface) else surface.ravel()
+            valid = valid[~np.isnan(valid)]
+            # Static grids use the same warning-free all-missing contract as
+            # streamed temporal blocks; masked backing values must stay excluded.
+            return float((np.max(valid) if maximum else np.min(valid)) if valid.size else np.nan)
         _, _, count = self._header(dtype)
         self._clear_surface_cache()
         if dtype.lower() in self._cached_data:
