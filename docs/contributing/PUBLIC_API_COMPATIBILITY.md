@@ -11,7 +11,8 @@ forever supported.
 | --- | --- |
 | Official original-library comparison | `TUFLOW-Support/PyTuflow@cf908cc922ca8448ed6002834877b0b377329eae` |
 | Initial branch base (08A merged) | `Chain-Frost/PyTuflow:contrib/integration@301a1f8f1de9a71bda4423608abe839394a9e325` |
-| Current review base (08A + eager Linux 09 merged) | `Chain-Frost/PyTuflow:contrib/integration@e9d2dcadc69e25d9cc153041230534b827e009ef` |
+| Previous review base (08A + eager Linux 09 merged) | `Chain-Frost/PyTuflow:contrib/integration@e9d2dcadc69e25d9cc153041230534b827e009ef` |
+| Current review base (also includes result-time PR #23) | `Chain-Frost/PyTuflow:contrib/integration@748068b77fa429485fe1df7be21927c64de1123e` |
 | Reviewed reference | `phantom-branch/PyTuflow` merged PR #22, source head `3c3385b7dd4464de2355dff81891a520087babc7` |
 | Candidate | `contrib/fix-public-api-contracts-13`; obtain and record its full SHA after all commits |
 
@@ -145,6 +146,37 @@ packages. No example above claims a QGIS runtime is available on CI runners.
 | `Context` documentation describes list arguments/scopes, but inherited `__init__` only dispatches `dict` and `str` | **Unresolved inherited API/documentation discrepancy**; a functional fix would need separately justified before/after tests and owner review, not an undocumented change in 08B |
 | `docs/api.rst` repeats `TSCF` | Minor documentation cleanup candidate; no runtime change |
 | Dynamic root `__all__` includes names inherited from wildcard imports and incidental globals | Audit consumer impact before narrowing; do not silently turn it into a strict allowlist |
+
+## Open decisions: significance and recommended disposition
+
+There is **no unapproved breaking change in this test/documentation-only 08B
+candidate**. The remaining questions are recorded for deliberate future
+changes rather than prerequisites to accepting the inventory:
+
+1. **`Context` input forms — inherited discrepancy (follow-up needed).**
+   Its documentation advertises list-of-arguments and list-of-scopes input, but
+   the constructor dispatches only dictionaries or strings; a nonempty list
+   does not get parsed. Prefer adding an isolated reproduction and deciding
+   whether to implement the documented forms in an explicit correctness
+   work package, or correct the documentation to describe the actual API.
+   Do not freeze silent list-ignoring as a supported contract.
+2. **Root export support level — no immediate change.** The root wildcard
+   currently exposes more than the curated documentation (roughly 90 named
+   `_tmf` imports plus additional convenience globals). Keep them available
+   for compatibility. Designating each as explicitly stable vs incidental,
+   and tightening `__all__`, requires downstream consumer evidence and
+   an agreed migration policy. No narrowing is required for this PR.
+3. **Legacy `ResData` deprecation — preserve for PR A.** No removal date
+   or breaking-change authorisation exists. The current warning and import
+   route are regression-tested; discuss removal only in a future major-version
+   policy.
+4. **Type surface — assigned to #14.** Introduce only coherent Python 3.11
+   compatible annotations, the facade stub and optional `py.typed` in 08C.
+   Defer-only additions remain assigned to PR B.
+
+Do **not** treat decisions 1–4 as an excuse to combine unrelated runtime
+changes into this 08B regression inventory. No owner decision is needed
+to retain the present compatible behaviour and merge a validated test-only PR.
 
 ## Acceptance and ownership
 
