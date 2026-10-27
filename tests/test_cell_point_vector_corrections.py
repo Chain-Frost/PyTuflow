@@ -105,3 +105,37 @@ def test_real_public_3d_averaging_is_unchanged(tmp_path):
         reader.data_point((.5, .5), "salinity", 0., averaging_method="depth&0&1.5"),
         40. / 3., rtol=1e-12, atol=1e-12,
     )
+
+
+@pytest.mark.parametrize("dtype", ["V_x", "x_velocity", "V_y", "y_velocity"])
+@pytest.mark.parametrize("shape", [(1,), (1, 1)])
+def test_single_vector_component_dataset_remains_scalar(dtype, shape):
+    """Component metadata may say vector even though this point sample is scalar."""
+    values = np.array([3.0]).reshape(shape)
+    mesh, extractor = _reader(dtype=dtype, vector=True, values=values)
+    result = mesh.data_point((.5, .5), dtype)
+    assert type(result) is float
+    assert result == 3.0
+    assert extractor.is_vector.call_count >= 1
+
+
+@pytest.mark.parametrize("engine", ["netcdf4", "h5py"])
+@pytest.mark.parametrize("dtype", ["V_x", "x_velocity", "V_y", "y_velocity"])
+@pytest.mark.parametrize(("averaging", "expected"), [
+    ("depth&0&1", {"x": 3.0, "y": 4.0}),
+    ("sigma&0&1", {"x": 4.5, "y": 4.0}),
+])
+def test_real_ncmesh_individual_vector_component_point_preserves_float(
+    tmp_path, engine, dtype, averaging, expected
+):
+    """Real public FV reader, including aliases and layer-weighted scalar requests."""
+    path = tmp_path / "individual-components.nc"
+    _write_fv(path)
+    reader = NCMesh(path, driver=engine)
+    result = reader.data_point((.5, .5), dtype, 0., averaging_method=averaging)
+    assert type(result) is float
+    axis = "x" if dtype in {"V_x", "x_velocity"} else "y"
+    np.testing.assert_allclose(result, expected[axis], rtol=1e-12, atol=1e-12)
+    # Valid zero in cell 2 must remain a scalar zero, not a 2D-vector tuple.
+    zero = reader.data_point((4.5, .5), dtype, 0., averaging_method=averaging)
+    assert type(zero) is float and zero == 0.0
