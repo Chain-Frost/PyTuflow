@@ -153,7 +153,7 @@ class Scope:
         Whether the scope is in after an ELSE statement.
     """
 
-    def __new__(cls, type_name: str, name: str = '', var: str = None, else_: bool = False):
+    def __new__(cls, type_name: str, name: str = '', var: str | None = None, else_: bool = False):
         type_ = type_name.upper()
         if type_ == 'GLOBAL':
             cls = GlobalScope
