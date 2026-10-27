@@ -217,7 +217,9 @@ class _SaveTransaction:
         self.reverse: dict[int, object] = {}
         self.outputs: list[_SaveOutput] = []
         self.assigned: dict[int, Path] = {}
-        self.moves: dict[str, Path] = {}
+        # Physical paths are not ownership identifiers: independent inputs
+        # can load the same file and only one of them may be saved.
+        self.reference_moves: dict[int, dict[str, Path]] = {}
         self.saved: set[int] = set()
         self.root = self._clone_control(root, None)
 
@@ -292,6 +294,11 @@ class _SaveTransaction:
         """Update only a detached command, retaining child identity and scopes."""
         command = inp.command()
         value = str(value)
+        # Keep the original directive's directory separator convention on
+        # Windows.  Rewriting a relative forward-slash alias as a backslash
+        # would change text the caller did not choose to modify.
+        if '/' in command.value_orig and '\\' not in command.value_orig:
+            value = value.replace('\\', '/')
         if command.value_orig == value:
             return
         leading = ''.join(re.findall(r'^\n*', command.original_text))
@@ -308,8 +315,17 @@ class _SaveTransaction:
                 raise ValueError(f'One save owner has conflicting destinations: {source}')
             return False
         self.assigned[id(owner)] = destination
-        self.moves[_path_key(source)] = destination
         return True
+
+    def _reference_move(self, inp: InputBuildState, source: PathLike, destination: PathLike) -> None:
+        """Record a path change only for the reference which owns the save."""
+        mapping = self.reference_moves.setdefault(id(inp), {})
+        key = _path_key(source)
+        destination = Path(destination)
+        previous = mapping.get(key)
+        if previous is not None and _path_key(previous) != _path_key(destination):
+            raise ValueError(f'A reference has conflicting save destinations: {source}')
+        mapping[key] = destination
 
     def _plan_children(self, owner: ControlFileBuildState, inc: str | None) -> None:
         self.saved.add(id(owner))
@@ -322,8 +338,9 @@ class _SaveTransaction:
                                    for child in inp.cf):
                 increment_reference = bool(inp.cf) and all(child.loaded for child in inp.cf)
                 for index, child in enumerate(inp.cf):
+                    original = self.reverse[id(child)]
+                    source = Path(original.fpath).absolute()
                     if isinstance(child, DatabaseBuildState):
-                        source = Path(child.fpath).absolute()
                         destination = _increment(source, inc) if child.loaded else source
                         if self._assign(child, source, destination):
                             child.fpath = destination
@@ -331,18 +348,24 @@ class _SaveTransaction:
                             self.outputs.append(_SaveOutput(child, source, destination))
                     else:
                         self._plan_control(child, inc)
-                    # Constructors can canonicalise child.fpath while these
-                    # aligned indexes retain a directory alias.  Keep that
-                    # lexical spelling and advance its filename too, without
-                    # probing or reloading the owned child.
-                    index_name = ('_database_loaded_paths' if isinstance(child, DatabaseBuildState)
-                                  else '_cf_loaded_paths')
-                    loaded_paths = getattr(inp, index_name, ())
-                    if index < len(loaded_paths):
-                        lexical_source = Path(loaded_paths[index]).absolute()
-                        lexical_destination = (_increment(lexical_source, inc)
-                                               if child.loaded else lexical_source)
-                        self.moves.setdefault(_path_key(lexical_source), lexical_destination)
+
+                    # A shared child object can belong to two references;
+                    # a different child with the same source path can belong
+                    # to just one.  Only remap the references actually saved.
+                    destination = self.assigned.get(id(child))
+                    if destination is None:
+                        continue
+                    self._reference_move(inp, source, destination)
+
+                    # A loaded reference may use a directory junction/symlink
+                    # spelling distinct from its child's canonical fpath.
+                    # Keep that lexical spelling for each aligned cache entry.
+                    for name in ('_files', '_rhs_files', '_cf_loaded_paths', '_database_loaded_paths'):
+                        cached = getattr(inp, name, ())
+                        if index < len(cached):
+                            lexical = Path(cached[index])
+                            if lexical.name == source.name:
+                                self._reference_move(inp, lexical, lexical.with_name(destination.name))
                 if increment_reference:
                     self._set_reference(inp, _increment(inp.rhs, inc))
 
@@ -367,8 +390,8 @@ class _SaveTransaction:
             if source_exists and not changed and not any(inp.dirty for inp in trd_inputs):
                 continue
             target = _increment(trd_source, child_inc) if source_exists else trd_source
-            self.moves[_path_key(trd_source)] = target
             ref = details['inpref']
+            self._reference_move(ref, trd_source, target)
             self._set_reference(ref, _increment(ref.rhs, child_inc) if source_exists else ref.rhs)
             updated_refs = set()
             for inp in trd_inputs.inputs(include_hidden=True):
@@ -382,35 +405,85 @@ class _SaveTransaction:
         self.outputs.append(_SaveOutput(owner, source, destination, inputs,
                                        source_text=owner._source_texts.get(_path_key(source))))
 
-    def _map_path(self, value):
+    @staticmethod
+    def _map_path(value, mapping: dict[str, Path]):
         if value is None or str(value) in ('', '.'):
             return value
-        mapped = self.moves.get(_path_key(value))
-        return mapped if mapped is not None else value
+        return mapping.get(_path_key(value), value)
+
+    def _owner_mapping(self, owner) -> dict[str, Path]:
+        """The nearest saved owner supplies the control-file path mapping.
+
+        Inline FV blocks are in their parent's physical file.  An unsaved
+        independent child must not inherit a sibling's identical source path.
+        """
+        while owner is not None:
+            destination = self.assigned.get(id(owner))
+            original = self.reverse.get(id(owner))
+            if destination is not None and original is not None and original.fpath:
+                return {_path_key(original.fpath): destination}
+            owner = getattr(owner, 'parent', None)
+        return {}
 
     def _prepare_objects(self) -> None:
+        root_mapping = self._owner_mapping(self.root)
         for detached in self.copies.values():
-            detached.config.control_file = self._map_path(detached.config.control_file)
-            detached.config.tcf = self._map_path(detached.config.tcf)
+            owner = detached.parent if isinstance(detached, InputBuildState) else detached
+            owner_mapping = self._owner_mapping(owner)
+            # A database can carry its containing TCF as control_file; an
+            # external child can instead carry its own source file.  Only
+            # remap actual owner/root paths, never every matching filename.
+            detached.config.control_file = self._map_path(
+                self._map_path(detached.config.control_file, owner_mapping), root_mapping
+            )
+            detached.config.tcf = self._map_path(detached.config.tcf, root_mapping)
             if not isinstance(detached, InputBuildState):
                 if isinstance(detached, ControlFileBuildState):
-                    detached._fpath = self._map_path(detached.fpath)
+                    # _plan_control has already assigned physical destinations.
+                    # Inline blocks use the nearest saved ancestor instead.
+                    detached._fpath = self._map_path(detached.fpath, owner_mapping)
                 continue
+
             command = detached.command()
-            command.parent = self._map_path(command.parent)
-            command.config.control_file = self._map_path(command.config.control_file)
-            command.config.tcf = self._map_path(command.config.tcf)
-            command.value_expanded_path = self._map_path(command.value_expanded_path)
+            command.parent = self._map_path(command.parent, owner_mapping)
+            command.config.control_file = self._map_path(
+                self._map_path(command.config.control_file, owner_mapping), root_mapping
+            )
+            command.config.tcf = self._map_path(command.config.tcf, root_mapping)
+            reference_mapping = self.reference_moves.get(id(detached), {})
+            command.value_expanded_path = self._map_path(command.value_expanded_path, reference_mapping)
             for name in ('_files', '_rhs_files', '_cf_loaded_paths', '_database_loaded_paths'):
                 if hasattr(detached, name):
-                    setattr(detached, name, [self._map_path(path) for path in getattr(detached, name)])
+                    setattr(detached, name, [
+                        self._map_path(path, reference_mapping) for path in getattr(detached, name)
+                    ])
             detached._file_to_original = {
-                self._map_path(path): self._map_path(pattern)
+                self._map_path(path, reference_mapping): self._map_path(pattern, reference_mapping)
                 for path, pattern in detached._file_to_original.items()
             }
             detached._file_to_scope = {
-                str(self._map_path(path)): scopes for path, scopes in detached._file_to_scope.items()
+                str(self._map_path(path, reference_mapping)): scopes
+                for path, scopes in detached._file_to_scope.items()
             }
+
+            # The canonical eager parser does not create deferred loaded-path
+            # caches.  Populate them for the affected saved reference only.
+            # Material inputs already populate _files while loading, but do
+            # not set _files_loaded; accessing files after a save would append
+            # the same file a second time.
+            if reference_mapping and detached.cf:
+                databases = [child for child in detached.cf
+                             if isinstance(child, DatabaseBuildState) and id(child) in self.assigned]
+                controls = [child for child in detached.cf
+                            if isinstance(child, ControlFileBuildState)
+                            and child.TUFLOW_TYPE not in (const.CONTROLFILE.BLOCK, const.CONTROLFILE.BC_BLOCK)
+                            and id(child) in self.assigned]
+                if databases:
+                    detached._database_loaded_paths = [child.fpath for child in databases]
+                    if detached._files:
+                        detached._files_loaded = True
+                elif controls:
+                    detached._cf_loaded_paths = [child.fpath for child in controls]
 
     def _validate_destinations(self) -> None:
         destinations = {}

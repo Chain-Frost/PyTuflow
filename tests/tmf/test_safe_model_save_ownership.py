@@ -315,3 +315,46 @@ def test_incremented_child_cannot_overwrite_another_loaded_source(
 
     assert _inventory(tmp_path) == before_disk
     assert _state(model) == before_state
+
+
+def test_two_equal_source_references_only_update_the_saved_owner(tmp_path: Path) -> None:
+    """A clean sibling pointing at the same source retains its live context."""
+    original = tmp_path / 'grid_003.tgc'
+    destination = tmp_path / 'grid_011.tgc'
+    original.write_bytes(b'Cell Size == 5\n')
+    root = tmp_path / 'model_010.tcf'
+    root.write_bytes(
+        b'Geometry Control File == grid_003.tgc\n'
+        b'Geometry Control File == grid_003.tgc\n'
+    )
+    model = TCF(root)
+    first, second = model.find_input('Geometry Control File')
+    first_child, second_child = first.cf[0], second.cf[0]
+    assert first_child is not second_child
+    second_files = tuple(second.files)
+    second_originals = dict(second._file_to_original)
+    second_scopes = dict(second._file_to_scope)
+
+    first_child.find_input('Cell Size')[0].rhs = '10'
+    model.write('auto')
+
+    assert first.cf[0] is first_child
+    assert second.cf[0] is second_child
+    assert first.rhs == 'grid_011.tgc'
+    assert second.rhs == 'grid_003.tgc'
+    assert first_child.fpath == destination
+    assert second_child.fpath == original
+    assert first.files == [destination]
+    assert second.files == list(second_files) == [original]
+    assert second._file_to_original == second_originals
+    assert second._file_to_scope == second_scopes
+    assert original.read_bytes() == b'Cell Size == 5\n'
+    assert destination.read_bytes() == b'Cell Size == 10\n'
+
+    context = model.context()
+    refs = context.find_input('Geometry Control File', recursive=False)
+    assert len(refs) == 2
+    assert all(len(ref.cf) == 1 for ref in refs)
+    assert [ref.files for ref in refs] == [[destination], [original]]
+    assert [inp.value for inp in context.find_input('Cell Size')] == [10.0, 5.0]
+
