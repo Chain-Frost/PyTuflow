@@ -53,6 +53,10 @@ from ._fm import GXY, FMDAT
 from .util import TuflowBinaries as TuflowBinaries, TuflowFVBinaries, pytuflow_logging as pytuflow_logging, misc
 from .project import HPCProject as HPCProject, FVProject as FVProject
 
+if _TYPE_CHECKING:
+    # Preserve the existing Scope re-export for static type consumers.
+    from ._tmf.scope import Scope as Scope
+
 
 name = 'PyTuflow'
 __version__ = '1.2.6'
