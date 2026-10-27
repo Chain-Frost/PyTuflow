@@ -10,7 +10,8 @@ forever supported.
 | Role | Exact revision |
 | --- | --- |
 | Official original-library comparison | `TUFLOW-Support/PyTuflow@cf908cc922ca8448ed6002834877b0b377329eae` |
-| Internal review base (08A merged) | `Chain-Frost/PyTuflow:contrib/integration@301a1f8f1de9a71bda4423608abe839394a9e325` |
+| Initial branch base (08A merged) | `Chain-Frost/PyTuflow:contrib/integration@301a1f8f1de9a71bda4423608abe839394a9e325` |
+| Current review base (08A + eager Linux 09 merged) | `Chain-Frost/PyTuflow:contrib/integration@e9d2dcadc69e25d9cc153041230534b827e009ef` |
 | Reviewed reference | `phantom-branch/PyTuflow` merged PR #22, source head `3c3385b7dd4464de2355dff81891a520087babc7` |
 | Candidate | `contrib/fix-public-api-contracts-13`; obtain and record its full SHA after all commits |
 
@@ -90,7 +91,7 @@ ordering, and defaults independently of interpreter-dependent annotation text.
 
 | Entry point | Existing public call form |
 | --- | --- |
-| `TCF` | `TCF(fpath=None, **kwargs)` |
+| `TCF` | `TCF(fpath=None, *, case_sensitivity=None, **kwargs)` — accepted keyword-only eager Linux `-cs` option from #15 / PR #29 |
 | `Context` | `Context(context=(), config=None)` |
 | `Scope` | `Scope(type_name, name='', var=None, else_=False)` |
 | `TPC` | `TPC(fpath)` |
@@ -118,6 +119,7 @@ from pytuflow.results import ResultTypeError
 assert NCMesh is ResultNCMesh
 context = Context({"s1": "DEV", "e1": "01.0p"})
 # TCF("runs/model.tcf")
+# TCF("runs/model.tcf", case_sensitivity=2)  # explicit eager -cs2 policy
 # NCMesh("results/model.nc")  # existing default driver="v1.1"
 # XMDF("results/model.xmdf", twodm="results/model.2dm")
 # TPC("results/model.tpc")
@@ -139,7 +141,7 @@ packages. No example above claims a QGIS runtime is available on CI runners.
 | Missing native backend diagnostics and legacy logging behaviour | 08A / #12; do not reimplement in 08B |
 | Public annotations, installed typing consumer, `py.typed` | 08C / #14 after this inventory; no typing rollout here |
 | Optional `file_resolution`, batches, graph/cache controls | **PR B only** (#16–#21); do not surface or default-enable in PR A |
-| Eager Linux filename case policy | Separate existing-library correction #15 / PR A, with its own behaviour matrix |
+| Eager Linux filename case policy | **Accepted** package 09 / #15 / merged PR #29; optional keyword-only `TCF(case_sensitivity=0|1|2)` is now a reviewed public extension; omitted/default `None` keeps the configuration path, whose Linux default is strict `-cs0`. See `LINUX_CASE_POLICY.md` |
 | `Context` documentation describes list arguments/scopes, but inherited `__init__` only dispatches `dict` and `str` | **Unresolved inherited API/documentation discrepancy**; a functional fix would need separately justified before/after tests and owner review, not an undocumented change in 08B |
 | `docs/api.rst` repeats `TSCF` | Minor documentation cleanup candidate; no runtime change |
 | Dynamic root `__all__` includes names inherited from wildcard imports and incidental globals | Audit consumer impact before narrowing; do not silently turn it into a strict allowlist |
