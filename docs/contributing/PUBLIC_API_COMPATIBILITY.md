@@ -18,9 +18,9 @@ forever supported.
 
 Package 08A / internal PR #27 already integrated the selected import and logging
 improvements from phantom #22. Do **not** repeat its production changes in 08B.
-Package 08C / #14 owns bounded typing and any future `py.typed` marker.
+Package 08C / #14 owns bounded public typing in separately curated upstream PR B, including any future `py.typed` marker.
 Python **3.11 is the minimum**, not the higher minimum advertised by parts of
-the reference fork. This package is in **upstream PR A**, not the deferred PR B.
+the reference fork. This package is in **upstream PR A**; upstream PR B is focused public typing and upstream PR C is optional deferred/batch/graph execution.
 
 ## Import/export inventory (checked against source)
 
@@ -141,7 +141,7 @@ packages. No example above claims a QGIS runtime is available on CI runners.
 | Legacy `ResData` deprecation | Keep class, warning and legacy constructor; removal is **not** approved |
 | Missing native backend diagnostics and legacy logging behaviour | 08A / #12; do not reimplement in 08B |
 | Public annotations, installed typing consumer, `py.typed` | 08C / #14 after this inventory; no typing rollout here |
-| Optional `file_resolution`, batches, graph/cache controls | **PR B only** (#16–#21); do not surface or default-enable in PR A |
+| Optional deferred `file_resolution`, batches, graph reuse and deferred-specific controls | **Upstream PR C only** (#16–#21); do not surface or default-enable in PR A; existing eager raster cache correctness remains PR A package 06 |
 | Eager Linux filename case policy | **Accepted** package 09 / #15 / merged PR #29; optional keyword-only `TCF(case_sensitivity=0|1|2)` is now a reviewed public extension; omitted/default `None` keeps the configuration path, whose Linux default is strict `-cs0`. See `LINUX_CASE_POLICY.md` |
 | `Context` documentation describes list arguments/scopes, but inherited `__init__` only dispatches `dict` and `str` | **Unresolved inherited API/documentation discrepancy**; a functional fix would need separately justified before/after tests and owner review, not an undocumented change in 08B |
 | `docs/api.rst` repeats `TSCF` | Minor documentation cleanup candidate; no runtime change |
@@ -172,7 +172,7 @@ changes rather than prerequisites to accepting the inventory:
    policy.
 4. **Type surface — assigned to #14.** Introduce only coherent Python 3.11
    compatible annotations, the facade stub and optional `py.typed` in 08C.
-   Defer-only additions remain assigned to PR B.
+   Deferred-only additions remain assigned to upstream PR C; existing public typing is upstream PR B.
 
 Do **not** treat decisions 1–4 as an excuse to combine unrelated runtime
 changes into this 08B regression inventory. No owner decision is needed
