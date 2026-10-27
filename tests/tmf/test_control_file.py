@@ -920,18 +920,18 @@ def test_load_pit_inlet_database():
         ecf.unlink()
 
 
-def test_load_rainfall_database():
-    tcf = Path(__file__).parent / 'test.tcf'
-    with tcf.open('w') as f:
-        f.write('READ GRID RF == rainfall.nc')
-    try:
-        cf = TCF(tcf)
-        assert isinstance(cf.rainfall_dbase(), RainfallDatabase)
-        assert cf.rainfall_dbase().TUFLOW_TYPE == const.DB.RAINFALL
-    except Exception as e:
-        raise e
-    finally:
-        tcf.unlink()
+def test_load_rainfall_database(tmp_path):
+    # A rainfall CSV index is a database; a direct NetCDF grid is not.
+    tcf = tmp_path / 'model.tcf'
+    rainfall = tmp_path / 'rainfall_index.csv'
+    rainfall.write_text('0,grid_000.flt\n1,grid_001.flt\n', encoding='utf-8')
+    tcf.write_text('Read Grid RF == rainfall_index.csv\n', encoding='utf-8')
+
+    database = TCF(tcf).rainfall_dbase()
+    assert isinstance(database, RainfallDatabase)
+    assert database.TUFLOW_TYPE == const.DB.RAINFALL
+    assert database.df.shape == (2, 1)
+    assert database.fpath == rainfall
 
 
 def test_figure_out_file_scopes():
@@ -1433,9 +1433,9 @@ def test_write():
         assert tcf_.exists()
         assert tgc_.exists()
         with tcf_.open('r') as f:
-            assert f.read() == 'Solution Scheme == HPC\nHardware == GPU\nGeometry Control File == test_002.tgc\n'
+            assert f.read() == 'Solution Scheme == HPC\nHardware == GPU\nGeometry Control File == test_002.tgc'
         with tgc_.open('r') as f:
-            assert f.read() == 'Read GIS Code == 2d_code_M01_R.shp\n'
+            assert f.read() == 'Read GIS Code == 2d_code_M01_R.shp'
     except Exception as e:
         raise e
     finally:
@@ -1481,13 +1481,13 @@ def test_write_trd():
         assert tcf_trd_.exists()
         assert tgc_trd_.exists()
         with tcf_.open('r') as f:
-            assert f.read() == 'Read File == tcf_trd_002.trd\nGeometry Control File == test_002.tgc\n'
+            assert f.read() == 'Read File == tcf_trd_002.trd\nGeometry Control File == test_002.tgc'
         with tcf_trd_.open() as f:
             assert f.read() == 'Solution Scheme == HPC\nHardware == GPU\n'
         with tgc_.open('r') as f:
-            assert f.read() == 'Read File == tgc_trd_002.trd\n'
+            assert f.read() == 'Read File == tgc_trd_002.trd'
         with tgc_trd_.open('r') as f:
-            assert f.read() == 'Read GIS Code == 2d_code_M01_R.shp\n'
+            assert f.read() == 'Read GIS Code == 2d_code_M01_R.shp'
     except Exception as e:
         raise e
     finally:

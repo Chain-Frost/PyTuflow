@@ -221,7 +221,11 @@ class TestFVBaseFeatureApplyToControlFiles:
         block.append_input('Output Parameters == h, v, d')
         block.append_input('Output Interval == 300.')
         inp = fvc.append_input('Include == outputs.fvc')
-        inp.cf.append(include)
+        # The new Include already has an unloaded placeholder; replace it
+        # with the explicitly constructed child, rather than creating two
+        # competing owners for one physical output (as in phantom PR #18).
+        inp.cf[:] = [include]
+        assert len(inp.cf) == 1
 
         # Apply output_nc feature — should insert via placement_rule which should end up in the include file not main fvc
         (project_dir / 'model').mkdir(parents=True, exist_ok=True)
