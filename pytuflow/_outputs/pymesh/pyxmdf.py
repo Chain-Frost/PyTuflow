@@ -37,7 +37,7 @@ class PyXMDF(PyMesh, Mesh3DMixin, GLTFMixin, AlembicMixin):
                 raise ValueError("QGIS python bindings not found.")
             if not self.qgis_initialized():
                 raise ValueError('QGIS application has not been initialized.')
-            self.extractors = [QgisDataExtractor(twodm, [fpath], layer=self.geom.lyr)]
+            self.extractors = [QgisDataExtractor(twodm, [fpath], layer=getattr(self.geom, 'lyr', None))]
             self.geom.lyr = self.extractors[0].lyr
         elif self.external_engine_available():
             self.extractors = [PyXMDFDataExtractor(fpath, engine)]
