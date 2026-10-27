@@ -1,0 +1,65 @@
+name: TMF pandas compatibility
+on:
+  pull_request:
+    branches:
+      - contrib/integration
+    paths:
+      - 'pytuflow/_tmf/**'
+      - 'tests/tmf/**'
+      - '.github/workflows/tmf-pandas-compatibility.yml'
+permissions:
+  contents: read
+jobs:
+  tmf-compatibility:
+    name: Windows Python ${{ matrix.python }} / pandas ${{ matrix.pandas }}
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12', '3.14']
+        pandas: ['3.0.3', '3.1.0']
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONNOUSERSITE: '1'
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install matched dependencies
+        run: |
+          # GeoPandas 1.1.x is incompatible with pandas 3.1 at import time.
+          # Hold GeoPandas 1.2.0 constant so only pandas varies per pair.
+          Get-Content ci/requirements-regression.txt |
+            Where-Object { $_ -notmatch '^\s*(pandas|geopandas)\s*==' } |
+            Set-Content -Encoding utf8 "$env:RUNNER_TEMP/tmf-matched-requirements.txt"
+          python -m pip install -r "$env:RUNNER_TEMP/tmf-matched-requirements.txt" "geopandas==1.2.0" "pandas==${{ matrix.pandas }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify interpreter and dependency provenance
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/tmf-compat" | Out-Null
+          git rev-parse HEAD | Set-Content "$env:RUNNER_TEMP/tmf-compat/head.txt"
+          python -m pip freeze | Set-Content "$env:RUNNER_TEMP/tmf-compat/dependencies.txt"
+          python -c "import sys, pandas, geopandas; print(sys.version); print('pandas', pandas.__version__); print('geopandas', geopandas.__version__); assert pandas.__version__ == '${{ matrix.pandas }}'; assert geopandas.__version__ == '1.2.0'"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run TMF database, rainfall, GIS and materials contracts
+        run: |
+          python -m pytest -q tests/tmf/test_database.py tests/tmf/test_parser_corrections.py tests/tmf/test_control_file.py::test_load_rainfall_database tests/tmf/test_input.py::test_input_files_ref_in_gis tests/tmf/test_input_context.py::test_input_files_ref_in_gis --junitxml="$env:RUNNER_TEMP/tmf-compat/tests.xml"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Archive exact-head, dependencies and raw test outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmf-py${{ matrix.python }}-pandas-${{ matrix.pandas }}
+          path: ${{ runner.temp }}/tmf-compat/
+          if-no-files-found: warn
+          retention-days: 30
