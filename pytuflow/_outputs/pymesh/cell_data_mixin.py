@@ -272,9 +272,13 @@ class CellDataMixin:
             # A single dataset is not evidence that its sample is scalar.
             # Convert source masks without changing the cached source values.
             components = np.ma.asarray(data, dtype=float).filled(np.nan).reshape(-1)
-            if components.size != 2:
-                raise ValueError("Vector point data must have exactly two components")
-            return float(components[0]), float(components[1])
+            if components.size == 2:
+                return float(components[0]), float(components[1])
+            if components.size != 1:
+                raise ValueError("Vector point data must have one or two components")
+            # NetCDF components such as V_x and x_velocity advertise vector
+            # metadata but each addressable variable contains one scalar.
+            return float(components[0])
         return float(data[0] if isinstance(data, np.ndarray) and data.ndim > 0 else data)
 
     def time_series_from_cell_data(
