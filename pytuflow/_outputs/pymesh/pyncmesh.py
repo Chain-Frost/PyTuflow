@@ -34,7 +34,7 @@ class PyNCMesh(PyMesh, Mesh3DMixin, GLTFMixin):
                 raise ValueError("QGIS python bindings not found.")
             if not self.qgis_initialized():
                 raise ValueError('QGIS application has not been initialized.')
-            self.extractors = [QgisDataExtractor(fpath, extra_datasets=[], layer=self.geom.lyr)]
+            self.extractors = [QgisDataExtractor(fpath, extra_datasets=[], layer=getattr(self.geom, 'lyr', None))]
             self.geom.lyr = self.extractors[0].lyr
         elif self.external_engine_available():
             self.extractors = [PyNCMeshDataExtractor(fpath, engine)]
