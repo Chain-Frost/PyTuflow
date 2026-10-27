@@ -11,7 +11,7 @@ from typing import assert_type
 from pytuflow import Scope, TuflowBinaries
 
 
-def use_supported_optionals(binaries: TuflowBinaries) -> None:
+def use_supported_optionals(binaries: TuflowBinaries) -> tuple[Scope, Scope]:
     optional_path: str | None = binaries.get("not-registered")
     assert_type(optional_path, str | None)
 
@@ -22,5 +22,4 @@ def use_supported_optionals(binaries: TuflowBinaries) -> None:
     # Scope.__new__ is an existing factory returning concrete Scope subclasses.
     scenario: Scope = Scope("SCENARIO", "DEV", var=None)
     variable: Scope = Scope("VARIABLE", "DEV", var="<<VERSION>>")
-    assert_type(scenario, Scope)
-    assert_type(variable, Scope)
+    return scenario, variable
