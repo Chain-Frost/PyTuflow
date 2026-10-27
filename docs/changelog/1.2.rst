@@ -4,7 +4,7 @@ Changelog for 1.2
 1.2.7
 -----
 
-- Python 3.11 is now the minimum supported version.
+- The declared minimum Python version is now 3.11 to match existing library code that already uses Python 3.11-only APIs, including ``string.Template.get_identifiers()``. Several dependencies also require Python 3.10 or newer, so the previous Python 3.9 support declaration did not reflect the library's actual requirements.
 - Corrected filename case handling on Linux, input parsing, and model save operations to better preserve existing control-file content.
 - Corrected result times, compatibility with newer pandas versions, raster cache limits, and recovery from NetCDF reader errors.
 - Corrected depth averaging and selected QGIS mesh calculations, including face positions, vertex interpolation, and vector point extraction.
