@@ -22,7 +22,7 @@ jobs:
       PYTHONNOUSERSITE: '1'
       UPSTREAM_SHA: cf908cc922ca8448ed6002834877b0b377329eae
       BASE_SHA: ee0f6e2f64c80305b5c7734a83b93f7dee18e64e
-      CANDIDATE_SHA: dfc6934e26831d67db4b095e9971a9bf8597db48
+      CANDIDATE_SHA: 696346912c4d29d743ba79b9fce5ca4f251e5de0
     steps:
       - uses: actions/checkout@v5
         with:
