@@ -52,6 +52,7 @@ class Context:
             self.load_context_from_args(context.split())
         #: bool: Whether user defined variables have been loaded into the context object
         self.var_loaded = False
+        self.file_resolution = 'eager'
         if not self.events_loaded:
             self.load_events(self.config.event_db)
 
@@ -409,3 +410,8 @@ class Context:
         return list_
 
 
+
+
+# Capture the original context evaluator for safe fragment reuse checks.
+_CONTEXT_APPEND_ATTRIBUTES = tuple(Context.__dict__.items())
+_CONTEXT_APPEND_MRO = Context.__mro__
