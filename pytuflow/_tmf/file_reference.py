@@ -3,9 +3,9 @@
 References are not existence assertions. A caller can aggregate them across
 contexts and inspect paths, database layers and GIS attributes in bulk.
 """
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 
 from .parsers.command import Command
 from .tfpathlib import TuflowPath
