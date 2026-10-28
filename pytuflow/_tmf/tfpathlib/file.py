@@ -168,9 +168,14 @@ class TuflowPath(Path):
                 raise FileNotFoundError(f"No case-insensitive match for {part} in {current}")
 
             if len(matches) > 1:
-                raise RuntimeError(
-                    f"Ambiguous case-insensitive match for {part} in {current}"
-                )
+                # Prefer a literal spelling before considering case-relaxed aliases.
+                exact = [candidate for candidate in matches if candidate.name == part]
+                if exact:
+                    matches = exact
+                else:
+                    raise RuntimeError(
+                        f"Ambiguous case-insensitive match for {part} in {current}"
+                    )
 
             current = matches[0]
             new_parts.append(current.name)

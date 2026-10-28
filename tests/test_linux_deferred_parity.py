@@ -11,8 +11,8 @@ import pytest
 
 from pytuflow import TCF
 from pytuflow._tmf import TuflowPath
-from pytuflow._tmf.settings import TCFConfig
 from pytuflow._tmf.parsers.command import Command
+from pytuflow._tmf.settings import TCFConfig
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Linux filesystem semantics")
 

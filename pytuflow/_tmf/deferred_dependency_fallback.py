@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class FallbackDependencyResult:
-    """Graph-free dependency records and explicitly scoped operation counts."""
+    """Per-run dependency results and explicit collection counters."""
 
     runs: tuple[BatchDependencyRun, ...]
     elapsed_seconds: float

@@ -343,8 +343,8 @@ def test_event_command_deferred_reconstruction_preserves_event_name(tmp_path):
 def test_eager_event_file_references_preserve_metadata_without_io(tmp_path, state):
     """The new accessor supports EventCommand's four-argument constructor."""
     from pytuflow._tmf.inp.inp_build_state import InputBuildState
-    from pytuflow._tmf.parsers.command import EventCommand
     from pytuflow._tmf.parsers.block import DefineBlock
+    from pytuflow._tmf.parsers.command import EventCommand
 
     cfg = TCFConfig(control_file=tmp_path / 'model.tcf', init_from_tcf=False)
     owner = tmp_path / 'events' / 'model.tef'
@@ -377,6 +377,7 @@ def test_eager_event_file_references_preserve_metadata_without_io(tmp_path, stat
 
 def test_deferred_gpkg_all_materialises_when_files_requested(tmp_path):
     import sqlite3
+
     from pytuflow._tmf.inp.gis import GisInput
 
     gpkg = tmp_path / 'input.gpkg'
