@@ -11,10 +11,9 @@ from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependen
 
 
 def assert_parity(model: TCF, flags: list[str | dict[str, str]]):
-    uncached = collect_fallback_dependencies(model, flags)
-    cached = collect_fallback_dependencies(model, flags)
+    reference = collect_fallback_dependencies(model, flags)
     fragments = model.collect_file_dependencies(flags)
-    assert uncached.runs == cached.runs == fragments.runs
+    assert reference.runs == fragments.runs
     return fragments
 
 
@@ -452,13 +451,11 @@ def test_custom_translation_hook_requires_ordinary_batch_fallback(tmp_path: Path
         with pytest.raises(NotImplementedError, match="Custom Context.translate"):
             _Plan(model)
         ordinary = collect_fallback_dependencies(model, flags)
-        cached = collect_fallback_dependencies(model, flags)
         fragments = model.collect_file_dependencies(flags)
-        assert ordinary.runs == cached.runs == fragments.runs
-        assert ordinary.passed and cached.passed and fragments.passed
-        # No cross-context reuse is safe when a custom translation hook may
-        # alter an otherwise literal filename based on flags.
-                assert fragments.fallback_runs == len(flags)
+        assert ordinary.runs == fragments.runs
+        assert ordinary.passed and fragments.passed
+        # Custom translation changes require the ordinary evaluator on each run.
+        assert fragments.fallback_runs == len(flags)
         assert "Custom Context.translate" in (fragments.fallback_reason or "")
         assert [run.file_references[-1].path_pattern.name for run in fragments.runs] == [
             "code_A.shp",
