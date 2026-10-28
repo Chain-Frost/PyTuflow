@@ -19,24 +19,24 @@ def consume_named_locations(grid: Grid, mesh: NCMesh) -> None:
         "Reach": [(100.0, 200.0), (300.0, 400.0)],
     }
 
-    grid_series = grid.time_series(points, "water level")
+    # These public methods have fully declared parameters; Grid.time_series()
+    # and Grid.section() retain unrelated inherited Unknown **kwargs types.
     mesh_series = mesh.time_series(points, "water level")
-    grid_section = grid.section(lines, "flow", 1.0)
     mesh_section = mesh.section(lines, "flow", 1.0)
+    grid_point = grid.data_point(points, "water level", 1.0)
 
-    # Also accept dictionaries authored directly at the call site.
-    inline_grid = grid.time_series(
+    # Dictionaries are also supported directly at the call site.
+    inline_mesh_series = mesh.time_series(
         {"Point A": (120.0, 220.0)}, "water level"
     )
-    inline_mesh = mesh.section(
+    inline_mesh_section = mesh.section(
         {"Cross Section": [(100.0, 200.0), (150.0, 250.0)]},
         "velocity",
         1.0,
     )
-
-    # Keep the existing scalar/vector/DataFrame return contract unchanged.
-    result = grid.data_point(
-        points, "water level", 1.0
+    inline_grid_point = grid.data_point(
+        {"Point A": (120.0, 220.0)}, "water level", 1.0
     )
-    _ = (grid_series, mesh_series, grid_section, mesh_section, inline_grid,
-         inline_mesh, result)
+
+    _ = (mesh_series, mesh_section, grid_point, inline_mesh_series,
+         inline_mesh_section, inline_grid_point)
