@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger('pytuflow')
 
+_DefaultT = typing.TypeVar('_DefaultT')
+
 
 class TuflowBinaries:
     """Class for managing TUFLOW binary versions and paths. A single instance of this class is created and used
@@ -85,7 +87,7 @@ class TuflowBinaries:
         for item in self.version2bin.items():
             yield item
 
-    def get(self, item: str, default: typing.Any = None) -> str:
+    def get(self, item: str, default: _DefaultT | None = None) -> str | _DefaultT | None:
         return self.version2bin.get(item, default)
 
     @classmethod
