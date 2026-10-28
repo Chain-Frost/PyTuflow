@@ -711,7 +711,6 @@ def test_globbed_gpkg_implicit_default_layer_is_each_concrete_stem(
     config = TCFConfig(
         control_file=tmp_path / "model.tcf",
         init_from_tcf=False,
-        file_resolution="deferred",
     )
     value = "terrain_*.gpkg"
     if explicit_layer:
@@ -780,7 +779,6 @@ def test_implicit_all_gpkg_requires_literal_all_layer(
     config = TCFConfig(
         control_file=tmp_path / "model.tcf",
         init_from_tcf=False,
-        file_resolution="deferred",
     )
     def ref(value: str) -> FileReference:
         return make_file_reference(next(
@@ -824,7 +822,6 @@ def test_single_implicit_gpkg_layer_uses_exact_filename_stem(
     config = TCFConfig(
         control_file=tmp_path / "model.tcf",
         init_from_tcf=False,
-        file_resolution="deferred",
     )
     ref = make_file_reference(next(
         Command("Read GIS Code == single.gpkg", config,
