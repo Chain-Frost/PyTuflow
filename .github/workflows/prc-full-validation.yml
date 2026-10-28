@@ -1,0 +1,85 @@
+name: Validate PR C full original-library parity
+on:
+  push:
+    branches:
+      - "contrib/upstream-deferred-full-validation-20"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  original-parity:
+    name: Full original-library parity Python ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.14"]
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      PYTHONNOUSERSITE: '1'
+      UPSTREAM_SHA: cf908cc922ca8448ed6002834877b0b377329eae
+      BASE_SHA: 696346912c4d29d743ba79b9fce5ca4f251e5de0
+      CANDIDATE_SHA: d1c2dd89b4c0e99bae38ad3b239269f5c4cf809e
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ci/requirements-regression.txt
+
+      - name: Install regression dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -r ci/requirements-regression.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Audit Python 3.11 grammar and regression infrastructure
+        shell: pwsh
+        run: |
+          python ci/python_compatibility.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q tests/ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run immutable canonical upstream, retaining raw failures
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref "$env:UPSTREAM_SHA" --label upstream --report-dir "$env:RUNNER_TEMP/prc-full/upstream"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run exact curated PR B base, retaining raw failures
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref "$env:BASE_SHA" --label review-base --report-dir "$env:RUNNER_TEMP/prc-full/base"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run exact PR C candidate, retaining raw failures
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref "$env:CANDIDATE_SHA" --label candidate --report-dir "$env:RUNNER_TEMP/prc-full/candidate"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Require exact upstream/base/candidate full regression parity
+        shell: pwsh
+        run: |
+          python -m ci.accept_regression --root "$env:RUNNER_TEMP/prc-full" --upstream "$env:UPSTREAM_SHA" --base "$env:BASE_SHA" --candidate "$env:CANDIDATE_SHA"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Archive full raw comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: curated-prc-full-${{ matrix.python }}
+          path: ${{ runner.temp }}/prc-full/
+          if-no-files-found: warn
+          retention-days: 30
