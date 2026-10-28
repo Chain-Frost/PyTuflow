@@ -80,3 +80,7 @@ class DatabaseInput(FileInput):
         # docstring inherited
         ctx = context if context else Context(run_context, config=self.config)
         return ControlFileInputRunState(self, ctx, parent)
+
+
+# Stable built-in evaluator identity for optional fragment collection.
+_DATABASE_INPUT_CONTEXT = DatabaseInput.context

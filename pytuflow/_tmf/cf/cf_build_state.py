@@ -1689,3 +1689,7 @@ class ControlFileBuildState(BuildState, ControlFile):
         self.inputs.amend(inp, new_inp)
         new_inp.uuid = inp.uuid
         return new_inp
+
+
+# Stable built-in evaluator identity for optional fragment collection.
+_CONTROL_FILE_BUILD_CONTEXT = ControlFileBuildState.context
