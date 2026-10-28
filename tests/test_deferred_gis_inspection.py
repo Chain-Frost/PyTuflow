@@ -53,12 +53,12 @@ def test_gpkg_bc_selected_names_only(tmp_path: Path) -> None:
     _make_gpkg(path, layer="2d_bc_boundaries", attributes=attributes, geometry="POLYGON")
     with sqlite3.connect(path) as db:
         db.execute(
-            "INSERT INTO 2d_bc_boundaries "
+            'INSERT INTO "2d_bc_boundaries" '
             "(Type, Flags, Name, d, e, f, g, b) VALUES "
             "('GT', '', 'ActiveBC', '', '', '', '', '0')"
         )
         db.execute(
-            "INSERT INTO 2d_bc_boundaries "
+            'INSERT INTO "2d_bc_boundaries" '
             "(Type, Flags, Name, d, e, f, g, b) VALUES "
             "('IG', '', 'UnusedBC', '', '', '', '', '0')"
         )
@@ -80,7 +80,7 @@ def test_network_matrix_source_is_identified_without_stat(tmp_path: Path) -> Non
     _make_gpkg(path, layer="1d_nwk_test", attributes=columns)
     with sqlite3.connect(path) as db:
         db.execute(
-            "INSERT INTO 1d_nwk_test (ID, Type, Ignore, Inlet_Type) "
+            'INSERT INTO "1d_nwk_test" (ID, Type, Ignore, Inlet_Type) '
             "VALUES ('C1', 'M', '', 'inlet_matrix.csv')"
         )
     request = (path, "1d_nwk_test", True)
