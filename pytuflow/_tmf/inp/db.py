@@ -67,10 +67,12 @@ class DatabaseInput(FileInput):
                     cf = pit_inlet.PitInletDatabase(file, self._command.config, self.parent, self.scope)
                 elif self._command.is_rainfall_grid():
                     if file.suffix.casefold() == '.nc':
-                        # NetCDF is the complete rainfall input, not an index
-                        # table. Do not install a fake database with fpath=None.
-                        continue
-                    cf = rf.RainfallDatabase(file, self._command.config, self.parent, self.scope)
+                        # A direct NetCDF is a raster, not a CSV rainfall index.
+                        # Keep the existing empty RainfallDatabase public API;
+                        # its fpath is None and no CSV is opened or parsed.
+                        cf = rf.RainfallDatabase(None)
+                    else:
+                        cf = rf.RainfallDatabase(file, self._command.config, self.parent, self.scope)
                 elif self._command.is_table_link():
                     cf = xs.CrossSectionDatabase(file, self._command.config, self.parent, self.scope)
                 elif self._command.is_xs_dbase():

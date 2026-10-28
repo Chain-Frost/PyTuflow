@@ -1023,3 +1023,34 @@ def test_material_csv_nonempty_row_without_id_remains_invalid(tmp_path):
     path.write_text("Material ID,Manning's n\n1,0.05\n,0.06\n", encoding='utf-8')
     with pytest.raises(ValueError):
         MatDatabase(path)
+
+def test_direct_netcdf_rainfall_preserves_public_api_and_deferred_inventory(tmp_path: Path) -> None:
+    """Direct NetCDF rainfall inputs are not CSV index databases."""
+    from pytuflow._tmf.db.rf import RainfallDatabase
+
+    tcf_path = tmp_path / "model.tcf"
+    tcf_path.write_text("Read Grid RF == rain.nc\n", encoding="utf-8")
+    model = TCF(tcf_path)
+
+    database = model.rainfall_dbase()
+    assert isinstance(database, RainfallDatabase)
+    assert database.fpath is None
+    assert not database.loaded
+    assert database.df.empty
+
+    # A compatibility placeholder does not represent a file to enter.
+    assert model.context().find_input(lhs="Read Grid RF")
+    assert model.context(file_resolution="deferred").find_input(lhs="Read Grid RF")
+
+    dependencies = model.collect_file_dependencies(["-s1 Existing"])
+    assert dependencies.passed
+    assert [ref.path_pattern.name for ref in dependencies.runs[0].file_references
+            if ref.path_pattern.suffix.casefold() == ".nc"] == ["rain.nc"]
+    assert not dependencies.runs[0].database_sources
+
+    from pytuflow.batch_validation import validate_batch_inputs
+
+    report = validate_batch_inputs(model, ["-s1 Existing"])
+    assert not report.passed
+    assert any(issue.path is not None and issue.path.name == "rain.nc"
+               for issue in report.issues)

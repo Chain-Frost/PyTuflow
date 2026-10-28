@@ -104,7 +104,9 @@ class ControlFileInputRunState(InputRunState):
                 self.cf.append(child.context(context=self.ctx, parent=self.parent))
         else:
             for cf in self.bs.cf:
-                if cf.fpath.resolve() == self.value.resolve():
+                # A direct NetCDF rainfall input exposes an empty database
+                # object for compatibility; it has no database file to enter.
+                if cf.fpath is not None and cf.fpath.resolve() == self.value.resolve():
                     self.cf.append(cf.context(context=self.ctx, parent=self.parent))
 
 
