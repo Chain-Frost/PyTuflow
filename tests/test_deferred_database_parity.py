@@ -1054,3 +1054,90 @@ def test_direct_netcdf_rainfall_preserves_public_api_and_deferred_inventory(tmp_
     assert not report.passed
     assert any(issue.path is not None and issue.path.name == "rain.nc"
                for issue in report.issues)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Linux filename case policy")
+@pytest.mark.parametrize(
+    ("level", "requested"),
+    [
+        (1, "Materials.CSV"),
+        (2, "materials.csv"),
+    ],
+)
+def test_cached_materials_database_respects_filename_case_policy(
+    tmp_path: Path, level: int, requested: str
+) -> None:
+    """A syntactic alias must select an already-loaded physical CSV."""
+    material = tmp_path / "Materials.csv"
+    material.write_text(
+        "Material ID,Manning's n\n1,0.03\n", encoding="utf-8"
+    )
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text(
+        f"Read Materials File == {requested}\n", encoding="utf-8"
+    )
+    model = TCF(tcf, case_sensitivity=level)
+    loaded = model.find_input(lhs="Read Materials File")[0]
+    assert loaded.cf and loaded.cf[0].loaded
+    run = model.context(file_resolution="deferred")
+    with (
+        patch.object(Path, "stat", side_effect=AssertionError("stat")),
+        patch.object(Path, "open", side_effect=AssertionError("open")),
+        patch.object(TuflowPath, "glob", side_effect=AssertionError("glob")),
+        patch("sqlite3.connect", side_effect=AssertionError("SQLite")),
+    ):
+        assert run.database_sources() == ()
+        deps = model.collect_file_dependencies(["-s1 BASE"])
+    assert deps.passed, [item.error for item in deps.runs]
+    assert [ref.path_pattern.name for ref in deps.runs[0].file_references
+            if ref.database_kind == "materials"] == [requested]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Linux filename case policy")
+def test_cached_database_case_collision_uses_exact_name_without_io(
+    tmp_path: Path
+) -> None:
+    """Exact alias wins; case-only nonexact collisions fail closed."""
+    from pytuflow._tmf.context import Context
+
+    cfg = _cfg(tmp_path)
+    cfg.case_sensitivity = 2
+    database_a = SimpleNamespace(loaded=True, fpath=tmp_path / "Materials.csv",
+                                 df=pd.DataFrame({"Manning": [0.03]}))
+    database_b = SimpleNamespace(loaded=True, fpath=tmp_path / "materials.csv",
+                                 df=pd.DataFrame({"Manning": [0.04]}))
+    build = SimpleNamespace(
+        cf=[database_a, database_b],
+        _database_loaded_paths=[database_a.fpath, database_b.fpath],
+    )
+    context = Context(config=cfg)
+    with patch.object(Path, "stat", side_effect=AssertionError("stat")):
+        assert database_source_references(
+            build, context, "materials", cfg,
+            primary_path=database_a.fpath,
+        ) == ()
+        with pytest.raises(DeferredDatabaseResolutionError, match="found 2"):
+            database_source_references(
+                build, context, "materials", cfg,
+                primary_path=tmp_path / "MATERIALS.csv",
+            )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Linux filename case policy")
+def test_cached_database_directory_case_mismatch_fails_closed(tmp_path: Path) -> None:
+    """-cs2 can relax the filename, but not any directory component."""
+    from pytuflow._tmf.context import Context
+
+    cfg = _cfg(tmp_path)
+    cfg.case_sensitivity = 2
+    original = tmp_path / "Area" / "Materials.csv"
+    database = SimpleNamespace(
+        loaded=True, fpath=original,
+        df=pd.DataFrame({"Manning": [0.03]}),
+    )
+    build = SimpleNamespace(cf=[database], _database_loaded_paths=[original])
+    with pytest.raises(DeferredDatabaseResolutionError, match="found 0"):
+        database_source_references(
+            build, Context(config=cfg), "materials", cfg,
+            primary_path=tmp_path / "area" / "materials.csv",
+        )

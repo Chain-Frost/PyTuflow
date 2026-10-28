@@ -3,13 +3,76 @@
 References are not existence assertions. A caller can aggregate them across
 contexts and inspect paths, database layers and GIS attributes in bulk.
 """
+import fnmatch
+import os
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from .parsers.command import Command
 from .tfpathlib import TuflowPath
 from .tfstrings.patterns import globify
+
+
+
+def _cached_filename_matches(
+    filename: str, pattern: str, case_sensitivity: int
+) -> bool:
+    """Match cached names under TUFLOW's filename-only -cs policy."""
+    if os.name == "nt":
+        return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
+    if case_sensitivity == 0:
+        return fnmatch.fnmatchcase(filename, pattern)
+    if case_sensitivity == 1:
+        stem, suffix = os.path.splitext(filename)
+        wanted_stem, wanted_suffix = os.path.splitext(pattern)
+        return (
+            fnmatch.fnmatchcase(stem, wanted_stem)
+            and fnmatch.fnmatchcase(suffix.casefold(), wanted_suffix.casefold())
+        )
+    if case_sensitivity == 2:
+        return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
+    raise ValueError(f"Unsupported TUFLOW filename case policy: {case_sensitivity}")
+
+
+def _cached_path_matches(path: Path, pattern: Path, case_sensitivity: int) -> bool:
+    """Match parsed paths lexically, without filesystem I/O.
+
+    Linux directories remain case-sensitive in every -cs mode. Only the
+    basename follows the configured filename policy.
+    """
+    parts = Path(os.path.normpath(str(path))).parts
+    wanted = Path(os.path.normpath(str(pattern))).parts
+    if len(parts) != len(wanted):
+        return False
+    for actual, expected in zip(parts[:-1], wanted[:-1]):
+        if os.name == "nt":
+            actual, expected = actual.casefold(), expected.casefold()
+        if not fnmatch.fnmatchcase(actual, expected):
+            return False
+    return _cached_filename_matches(parts[-1], wanted[-1], case_sensitivity)
+
+
+def _cached_windows_root_alias_matches(path: Path, pattern: Path) -> bool:
+    """Match only Windows UNC/mapped-drive aliases with identical subpaths.
+
+    A different directory *within* a drive or share is never an alias.
+    This function is lexical and can be tested with PureWindowsPath on POSIX.
+    """
+    actual = PureWindowsPath(path)
+    expected = PureWindowsPath(pattern)
+    if not (actual.is_absolute() and expected.is_absolute()):
+        return False
+    if actual.anchor.casefold() == expected.anchor.casefold():
+        return False
+    first, second = actual.parts[1:], expected.parts[1:]
+    return (
+        len(first) == len(second)
+        and all(
+            fnmatch.fnmatchcase(item.casefold(), requested.casefold())
+            for item, requested in zip(first, second)
+        )
+    )
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
-from .file_reference import FileReference, make_file_reference
+from .file_reference import (
+    FileReference, make_file_reference, _cached_path_matches,
+    _cached_windows_root_alias_matches,
+)
 from .parsers.command import Command
 
 if TYPE_CHECKING:
@@ -197,10 +200,27 @@ def database_source_references(
         # Match the paths captured during initial loading, not physical fpath:
         # resolve() here would probe storage and could change mapped/UNC aliases.
         selected = _cached_database_path_key(primary_path)
-        databases = tuple(
-            database for database, original in zip(databases, loaded_paths)
+        indices = [
+            i for i, original in enumerate(loaded_paths)
             if _cached_database_path_key(original) == selected
-        )
+        ]
+        if not indices:
+            indices = [
+                i for i, original in enumerate(loaded_paths)
+                if _cached_path_matches(
+                    Path(original), Path(primary_path), config.case_sensitivity
+                )
+            ]
+        if not indices and os.name == "nt":
+            indices = [
+                i for i, original in enumerate(loaded_paths)
+                if _cached_windows_root_alias_matches(
+                    Path(original), Path(primary_path)
+                )
+            ]
+        # Exact spellings win. Multiple non-exact case-policy matches
+        # remain ambiguous and must fail closed.
+        databases = tuple(databases[i] for i in indices)
     if len(databases) != 1:
         raise DeferredDatabaseResolutionError(
             f'Expected one cached {kind} database, found {len(databases)}'

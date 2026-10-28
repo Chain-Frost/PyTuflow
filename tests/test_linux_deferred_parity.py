@@ -471,3 +471,26 @@ def test_deferred_case_only_sibling_includes_match_eager(
     assert result.passed, [run.error for run in result.runs]
     assert expected in {ref.path_pattern.name for ref
                         in result.runs[0].file_references}
+
+
+def test_cached_child_suffix_never_selects_different_scenario_ancestor(
+    tmp_path: Path,
+) -> None:
+    """A matching immediate parent and basename cannot bypass other parents."""
+    from types import SimpleNamespace
+
+    from pytuflow._tmf.abc.run_state import ResolveError
+    from pytuflow._tmf.inp.cf import select_deferred_children
+
+    build = SimpleNamespace(
+        lhs="Geometry Control File",
+        config=SimpleNamespace(case_sensitivity=2),
+        cf=(object(),),
+        _cf_loaded_paths=[tmp_path / "Area" / "shared" / "geom.tgc"],
+    )
+    missing = SimpleNamespace(
+        path_pattern=tmp_path / "area" / "shared" / "geom.tgc",
+        unresolved_variables=(),
+    )
+    with pytest.raises(ResolveError, match="No cached nested control file"):
+        select_deferred_children(build, (missing,))

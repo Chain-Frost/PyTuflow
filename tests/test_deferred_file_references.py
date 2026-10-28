@@ -604,11 +604,10 @@ def test_deferred_recursive_geometry_bc_estry_sources_survive_cached_alias(tmp_p
     # Simulate a cached parse whose physical child paths have since been
     # canonicalised to a different drive/share. Do not read these fake paths.
     for inp in model.inputs:
-        for i, child in enumerate(inp.cf):
+        for child in inp.cf:
             child._fpath = tmp_path / 'other_share' / child.fpath.name
-            inp._cf_loaded_paths[i] = (
-                tmp_path / 'other_share' / tmp_path.name / child.fpath.name
-            )
+            # Preserve the lexical paths captured when the include was
+            # initially parsed. Only the loaded object's fpath is an alias.
     with (
         patch.object(TuflowPath, 'glob', side_effect=AssertionError('glob')),
         patch('sqlite3.connect', side_effect=AssertionError('sqlite')),
@@ -891,3 +890,21 @@ def test_batch_preflight_spatial_database_layer_only_reference(tmp_path: Path) -
     assert not missing.passed
     assert any(x.kind == "layer" and x.status == "missing"
                and x.path == gpkg for x in missing.issues)
+
+
+def test_cached_windows_root_alias_requires_matching_directory_hierarchy() -> None:
+    """Only actual drive/share-root differences can describe the same include."""
+    from pathlib import PureWindowsPath
+
+    from pytuflow._tmf.file_reference import _cached_windows_root_alias_matches
+
+    drive = PureWindowsPath("Q:/models/Area/geom.tgc")
+    share = PureWindowsPath(r"\\server\share\models\Area\geom.tgc")
+    wrong_scenario = PureWindowsPath(r"\\server\share\models\Other\geom.tgc")
+    assert _cached_windows_root_alias_matches(drive, share)
+    assert _cached_windows_root_alias_matches(share, drive)
+    assert not _cached_windows_root_alias_matches(drive, wrong_scenario)
+    assert not _cached_windows_root_alias_matches(
+        PureWindowsPath("Q:/models/Area/geom.tgc"),
+        PureWindowsPath("Q:/other/Area/geom.tgc"),
+    )
