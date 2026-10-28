@@ -19,8 +19,51 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger('pytuflow')
 
 
-def select_deferred_children(build_input: typing.Any, references: typing.Iterable[typing.Any]) -> tuple[typing.Any, ...]:
-    """Select already parsed includes with the ordinary deferred matching rules."""
+
+def _cached_filename_matches(
+    filename: str, pattern: str, case_sensitivity: int
+) -> bool:
+    """Match a cached filename with TUFLOW's platform/-cs filename rules."""
+    if os.name == 'nt':
+        return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
+    if case_sensitivity == 0:
+        return fnmatch.fnmatchcase(filename, pattern)
+    if case_sensitivity == 1:
+        stem, suffix = os.path.splitext(filename)
+        requested_stem, requested_suffix = os.path.splitext(pattern)
+        return (fnmatch.fnmatchcase(stem, requested_stem)
+                and fnmatch.fnmatchcase(suffix.casefold(),
+                                       requested_suffix.casefold()))
+    if case_sensitivity == 2:
+        return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
+    raise ValueError(f'Unsupported TUFLOW filename case policy: {case_sensitivity}')
+
+
+def _cached_path_matches(
+    filename: Path, pattern: Path, case_sensitivity: int
+) -> bool:
+    """Match cached inputs without probing disk; Linux directories stay strict."""
+    parts = Path(os.path.normpath(str(filename))).parts
+    expected = Path(os.path.normpath(str(pattern))).parts
+    if len(parts) != len(expected):
+        return False
+    for actual_dir, expected_dir in zip(parts[:-1], expected[:-1]):
+        if os.name == 'nt':
+            actual_dir, expected_dir = actual_dir.casefold(), expected_dir.casefold()
+        if not fnmatch.fnmatchcase(actual_dir, expected_dir):
+            return False
+    return _cached_filename_matches(parts[-1], expected[-1], case_sensitivity)
+
+
+def select_deferred_children(
+    build_input: typing.Any, references: typing.Iterable[typing.Any]
+) -> tuple[typing.Any, ...]:
+    """Select parsed includes using the model's filename case policy.
+
+    Selection is confined to preloaded child paths: no filesystem or GIS I/O.
+    Exact literal spellings take precedence over permitted case-relaxed
+    alternatives. Wildcards can intentionally select several children.
+    """
     from ..abc.run_state import ResolveError
 
     children = tuple(build_input.cf)
@@ -29,37 +72,45 @@ def select_deferred_children(build_input: typing.Any, references: typing.Iterabl
         raise ResolveError(
             f'Cached nested control-file index incomplete: {build_input.lhs}'
         )
-    matched = set()
+    case_sensitivity = getattr(build_input.config, 'case_sensitivity', 0)
+    matched: set[int] = set()
     for ref in references:
         if ref.unresolved_variables:
             raise ResolveError(f'Unresolved child control file: {ref.path_pattern}')
-        pattern = os.path.normpath(str(ref.path_pattern)).casefold()
-        selected = [
-            i for i, original in enumerate(loaded_paths)
-            if fnmatch.fnmatchcase(os.path.normpath(str(original)).casefold(), pattern)
-        ]
+        pattern = Path(os.path.normpath(str(ref.path_pattern)))
+        literal = not any(char in str(pattern) for char in '*?[')
+        selected: list[int] = []
+        if literal:
+            selected = [
+                i for i, original in enumerate(loaded_paths)
+                if os.path.normpath(str(original)) == str(pattern)
+            ]
         if not selected:
-            # UNC versus mapped-drive aliases can differ at their
-            # root. Only accept a common *directory and basename*
-            # suffix from the same input's preloaded children;
-            # basename-only matching could select a wrong scenario.
-            pattern_parts = Path(pattern).parts
-            if len(pattern_parts) >= 2:
-                selected = [
-                    i for i, original in enumerate(loaded_paths)
-                    if len(Path(original).parts) >= 2
-                    and all(fnmatch.fnmatchcase(
-                        Path(original).parts[-n].casefold(),
-                        pattern_parts[-n],
-                    ) for n in (1, 2))
-                ]
+            selected = [
+                i for i, original in enumerate(loaded_paths)
+                if _cached_path_matches(Path(original), pattern, case_sensitivity)
+            ]
+        if not selected and os.name == 'nt':
+            # Mapped-drive and UNC aliases can name one initially parsed
+            # include with different roots. Keep the established directory
+            # + filename suffix fallback for Windows only. On Linux it could
+            # silently select a different case-sensitive directory.
+            for i, original in enumerate(loaded_paths):
+                source = Path(os.path.normpath(str(original)))
+                if (source.anchor and pattern.anchor
+                        and source.anchor.casefold() != pattern.anchor.casefold()
+                        and len(source.parts) >= 2 and len(pattern.parts) >= 2
+                        and fnmatch.fnmatchcase(
+                            source.parts[-2].casefold(), pattern.parts[-2].casefold()
+                        ) and _cached_filename_matches(
+                            source.name, pattern.name, case_sensitivity
+                        )):
+                    selected.append(i)
         if not selected:
             raise ResolveError(
                 f'No cached nested control file for {ref.path_pattern}'
             )
-        if len(selected) > 1 and not any(
-            char in ref.path_pattern.name for char in '*?['
-        ):
+        if len(selected) > 1 and literal:
             raise ResolveError(
                 f'Ambiguous cached child for {ref.path_pattern}'
             )

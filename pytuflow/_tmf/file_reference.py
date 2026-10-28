@@ -79,10 +79,16 @@ class DeferredDatabaseSource:
 
 def make_file_reference(command: Command) -> FileReference:
     """Construct a reference lexically, without filesystem or GIS probes."""
-    # Expand the command's filename without changing its parent directory.
-    # An ancestor folder can contain a token also used as an event wildcard.
+    # The path-expanded value includes an active Spatial Database for GIS
+    # layer-only syntax (e.g. Read GIS Code == 2d_code). Command.value alone
+    # does not include its GeoPackage filename. Deferred path expansion is
+    # lexical and does not scan the filesystem or open the database.
+    # Keep unresolved-variable detection scoped to the command expression:
+    # its owning absolute directory may contain a literal TUFLOW token.
     value = str(command.value).strip()
-    db, layer = TuflowPath(value)._split_db_and_lyr()
+    expanded = (str(command.value_expanded_path).strip()
+                if command.value_expanded_path is not None else value)
+    db, layer = TuflowPath(expanded)._split_db_and_lyr()
     owner = command.parent
     base = (Path(owner).parent if owner and owner != Path() else Path.cwd()).absolute()
     path = Path(str(globify(db, command.config.wildcards)))
@@ -133,7 +139,7 @@ def make_file_reference(command: Command) -> FileReference:
     else:
         kind = None
     return FileReference(
-        base_directory=base, expanded_value=value, path_pattern=Path(path_glob),
+        base_directory=base, expanded_value=expanded, path_pattern=Path(path_glob),
         layer_pattern=layer_glob, origin=command.command_orig,
         requires_directory_scan=any(char in str(globify(db, command.config.wildcards)) for char in '*?['),
         requires_layer_scan=layer_glob is not None,

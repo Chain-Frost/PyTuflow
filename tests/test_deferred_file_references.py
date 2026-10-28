@@ -823,3 +823,71 @@ def test_windows_default_and_case_options_preserve_native_input_lookup(tmp_path,
     material = model.find_input(lhs="Read Materials File")[0]
     assert not material.has_missing_files
     assert material.files
+
+
+def test_spatial_database_layer_only_reference_uses_expanded_gpkg_without_io(
+    tmp_path: Path,
+) -> None:
+    """A layer-only GIS value denotes the configured spatial GeoPackage."""
+    cfg = config(tmp_path)
+    cfg.set_spatial_database("gis/model.gpkg")
+    command = Command("Read GIS Code == 2d_code", cfg)
+    assert command.value == "2d_code"
+    assert "model.gpkg >> 2d_code" in str(command.value_expanded_path)
+
+    with (
+        patch.object(Path, "stat", side_effect=AssertionError("stat")),
+        patch.object(Path, "open", side_effect=AssertionError("open")),
+        patch.object(TuflowPath, "glob", side_effect=AssertionError("glob")),
+        patch("sqlite3.connect", side_effect=AssertionError("SQLite")),
+    ):
+        reference = make_file_reference(command)
+    assert reference.path_pattern == tmp_path / "gis" / "model.gpkg"
+    assert reference.layer_pattern == "2d_code"
+    assert ">> 2d_code" in reference.expanded_value
+    assert reference.requires_layer_scan
+    assert not reference.requires_directory_scan
+    assert not reference.unresolved_variables
+
+
+def test_batch_preflight_spatial_database_layer_only_reference(tmp_path: Path) -> None:
+    """Batch preflight validates the real GPKG and named layer, not a fake file."""
+    import sqlite3
+
+    from pytuflow.batch_validation import validate_batch_inputs
+
+    gpkg = tmp_path / "model.gpkg"
+    with sqlite3.connect(gpkg) as connection:
+        connection.execute("CREATE TABLE gpkg_contents (table_name TEXT)")
+        connection.execute("INSERT INTO gpkg_contents VALUES ('2d_code')")
+        connection.commit()
+
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text(
+        "Spatial Database == model.gpkg\n"
+        "Read GIS Code == 2d_code\n",
+        encoding="utf-8",
+    )
+    model = TCF(tcf)
+    flags = ["-s1 BASE"]
+    syntactic = model.collect_file_dependencies(flags)
+    assert syntactic.passed, [run.error for run in syntactic.runs]
+    refs = [ref for ref in syntactic.runs[0].file_references
+            if ref.layer_pattern == "2d_code"]
+    assert len(refs) == 1
+    assert refs[0].path_pattern == gpkg
+
+    report = validate_batch_inputs(model, flags)
+    assert report.passed, [(x.kind, x.status, x.path, x.detail)
+                           for x in report.issues]
+    assert any(x.kind == "layer" and x.status == "present"
+               and x.path == gpkg and x.layer == "2d_code"
+               for x in report.validation.findings)
+
+    with sqlite3.connect(gpkg) as connection:
+        connection.execute("DELETE FROM gpkg_contents")
+        connection.commit()
+    missing = validate_batch_inputs(model, flags)
+    assert not missing.passed
+    assert any(x.kind == "layer" and x.status == "missing"
+               and x.path == gpkg for x in missing.issues)

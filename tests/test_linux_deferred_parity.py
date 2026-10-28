@@ -359,3 +359,115 @@ def test_spatial_database_case_policy_rejects_wrong_directory(tmp_path: Path) ->
     cfg.set_spatial_database("data/source.gpkg")
     assert cfg.spatial_database == tmp_path / "data/source.gpkg"
     assert not cfg.spatial_database.exists()
+
+
+@pytest.mark.parametrize(
+    ("case_sensitivity", "requested", "expected"),
+    [
+        (0, "geom_A.tgc", "upper"),
+        (0, "geom_a.tgc", "lower"),
+        (1, "geom_A.TGC", "upper"),
+        (2, "geom_A.tgc", "upper"),
+        (2, "geom_a.tgc", "lower"),
+    ],
+)
+def test_cached_include_case_policy_and_exact_precedence(
+    tmp_path: Path, case_sensitivity: int, requested: str, expected: str
+) -> None:
+    """Choose the appropriate preloaded include without a filesystem scan."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from pytuflow._tmf.inp.cf import select_deferred_children
+
+    children = {"upper": object(), "lower": object()}
+    loaded = (tmp_path / "geom_A.tgc", tmp_path / "geom_a.tgc")
+    build = SimpleNamespace(
+        lhs="Geometry Control File",
+        config=SimpleNamespace(case_sensitivity=case_sensitivity),
+        cf=tuple(children.values()),
+        _cf_loaded_paths=list(loaded),
+    )
+    ref = SimpleNamespace(path_pattern=tmp_path / requested,
+                          unresolved_variables=())
+    with patch.object(Path, "stat", side_effect=AssertionError("stat")):
+        selected = select_deferred_children(build, (ref,))
+    assert selected == (children[expected],)
+
+
+def test_cached_include_nonexact_collision_fails_closed(tmp_path: Path) -> None:
+    """Case-insensitive names must fail when neither literal is exact."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from pytuflow._tmf.abc.run_state import ResolveError
+    from pytuflow._tmf.inp.cf import select_deferred_children
+
+    build = SimpleNamespace(
+        lhs="Geometry Control File",
+        config=SimpleNamespace(case_sensitivity=2),
+        cf=(object(), object()),
+        _cf_loaded_paths=[tmp_path / "geom_A.tgc", tmp_path / "geom_a.tgc"],
+    )
+    ref = SimpleNamespace(path_pattern=tmp_path / "geom_A.TGC",
+                          unresolved_variables=())
+    with patch.object(Path, "stat", side_effect=AssertionError("stat")):
+        with pytest.raises(ResolveError, match="Ambiguous cached child"):
+            select_deferred_children(build, (ref,))
+
+
+def test_cached_include_parent_directory_case_is_strict(tmp_path: Path) -> None:
+    """-cs2 relaxes filenames, never the directory containing an include."""
+    from types import SimpleNamespace
+
+    from pytuflow._tmf.abc.run_state import ResolveError
+    from pytuflow._tmf.inp.cf import select_deferred_children
+
+    expected = object()
+    wrong = object()
+    build = SimpleNamespace(
+        lhs="Geometry Control File",
+        config=SimpleNamespace(case_sensitivity=2),
+        cf=(expected, wrong),
+        _cf_loaded_paths=[
+            tmp_path / "Area" / "geom_A.tgc",
+            tmp_path / "area" / "geom_B.tgc",
+        ],
+    )
+    ref = SimpleNamespace(path_pattern=tmp_path / "Area" / "geom_a.tgc",
+                          unresolved_variables=())
+    assert select_deferred_children(build, (ref,)) == (expected,)
+    bad = SimpleNamespace(path_pattern=tmp_path / "AREA" / "geom_A.tgc",
+                          unresolved_variables=())
+    with pytest.raises(ResolveError, match="No cached nested control file"):
+        select_deferred_children(build, (bad,))
+
+
+@pytest.mark.parametrize("scenario,expected", [("A", "upper.shp"), ("a", "lower.shp")])
+def test_deferred_case_only_sibling_includes_match_eager(
+    tmp_path: Path, scenario: str, expected: str
+) -> None:
+    """Scenario-specific cached includes preserve eager selection on Linux."""
+    for name, layer in (("geom_A.tgc", "upper.shp"),
+                        ("geom_a.tgc", "lower.shp")):
+        (tmp_path / name).write_text(
+            f"Read GIS Code == gis/{layer}\n", encoding="utf-8"
+        )
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text("Geometry Control File == geom_<<~s1~>>.tgc\n", encoding="utf-8")
+    model = TCF(tcf)
+    build = model.find_input(lhs="Geometry Control File")[0]
+    assert {Path(child).name for child in build._cf_loaded_paths} == {
+        "geom_A.tgc", "geom_a.tgc",
+    }
+    eager = model.context(f"-s1 {scenario}")
+    deferred = model.context(f"-s1 {scenario}", file_resolution="deferred")
+    def inventory(run):
+        return {reference.path_pattern.name
+                for item in run.find_input(recursive=True)
+                for reference in item.file_references}
+    assert expected in inventory(eager) == inventory(deferred)
+    result = model.collect_file_dependencies([f"-s1 {scenario}"])
+    assert result.passed, [run.error for run in result.runs]
+    assert expected in {ref.path_pattern.name for ref
+                        in result.runs[0].file_references}
