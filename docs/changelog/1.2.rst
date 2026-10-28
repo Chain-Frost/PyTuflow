@@ -1,6 +1,13 @@
 Changelog for 1.2
 =================
 
+1.2.8
+-----
+
+- Added a ``py.typed`` marker and typing declarations for the existing, deprecated ``ResData`` interface to improve editor support and static type checking.
+- Improved type annotations for optional scope variables, TUFLOW executable lookups, and named point and line locations used in result extraction.
+- These typing improvements do not change result calculations or existing runtime behaviour.
+
 1.2.7
 -----
 
