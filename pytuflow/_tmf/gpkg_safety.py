@@ -1,12 +1,9 @@
-"""Shared, read-only GeoPackage inspection primitives.
+"""Read-only helpers for inspecting a stable main GeoPackage file.
 
-These operations belong to PyTUFLOW, not an external preflight consumer.
-They deliberately inspect the checkpointed main GeoPackage only and reject
-journal/alias situations where immutable SQLite could expose uncommitted data.
-
-The ordinary eager parser is not changed to perform additional checks. Its
-existing public behaviour is preserved; validators and future safe readers
-can use this explicit connection context when physical inspection is wanted.
+Physical validation reads the checkpointed main SQLite database, checks
+source identity and rejects unsafe journal or alias conditions. These
+checks are used only for explicitly requested inspection and do not alter
+the normal eager-parser behaviour.
 """
 
 from __future__ import annotations

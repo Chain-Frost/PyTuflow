@@ -79,7 +79,7 @@ class DeferredDatabaseSource:
 
 def make_file_reference(command: Command) -> FileReference:
     """Construct a reference lexically, without filesystem or GIS probes."""
-    # Transform only the supplied path, never the inherited absolute parent.
+    # Expand the command's filename without changing its parent directory.
     # An ancestor folder can contain a token also used as an event wildcard.
     value = str(command.value).strip()
     db, layer = TuflowPath(value)._split_db_and_lyr()

@@ -341,7 +341,7 @@ def test_event_command_deferred_reconstruction_preserves_event_name(tmp_path):
 
 @pytest.mark.parametrize('state', ['build', 'eager_run'])
 def test_eager_event_file_references_preserve_metadata_without_io(tmp_path, state):
-    """The new accessor supports EventCommand's four-argument constructor."""
+    """File-reference access preserves EventCommand source and event metadata."""
     from pytuflow._tmf.inp.inp_build_state import InputBuildState
     from pytuflow._tmf.parsers.block import DefineBlock
     from pytuflow._tmf.parsers.command import EventCommand

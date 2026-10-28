@@ -144,12 +144,11 @@ def _resolved_bc_inline_constant(
     run_contexts: dict[int, Context],
     cached_databases: dict[tuple[str, str], object],
 ) -> bool:
-    """Classify a selected BC row from PyTUFLOW's cached, expanded database.
+    """Classify a selected BC constant using its active run context.
 
-    The old second-stage validator re-read the raw CSV and rejected valid
-    Set Variable constants. Reuse the same cached BC dataframe and Context
-    translation that deferred_database.database_source_references uses.
-    No physical database file is reopened or RunState tree constructed.
+    Resolve the cached BC database row through the same Context translation
+    used for deferred database sources. This preserves Set Variable values
+    without reopening the source CSV or constructing a new run-state tree.
     """
     identity = (activation_uuid, _cached_database_path_key(database_path))
     database = cached_databases.get(identity)

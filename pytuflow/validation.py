@@ -30,7 +30,7 @@ ValidationKind = Literal["file", "wildcard", "layer", "csv_header", "attribute",
 
 
 class DependencyProjection(Protocol):
-    """The common immutable run-record surface of batch and fragment results."""
+    """Immutable per-run dependency records accepted by the physical inspector."""
 
     @property
     def runs(self) -> tuple[BatchDependencyRun, ...]: ...

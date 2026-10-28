@@ -88,9 +88,8 @@ def validate_batch_inputs(
         tcf = TCF(model, case_sensitivity=case)
     parse_seconds = perf_counter() - started
 
-    # The inherited TCF constructor may represent an absent source as an
-    # unloaded model rather than raising FileNotFoundError. An empty
-    # dependency inventory must never certify a missing primary TCF.
+    # A TCF referring to a missing control file can remain unloaded rather
+    # than raise immediately. Never certify its empty dependency inventory.
     if getattr(tcf, "fpath", None) is not None and not tcf.loaded:
         raise FileNotFoundError(f"TUFLOW control file was not loaded: {tcf.fpath}")
     if getattr(tcf, "fpath", None) is None and not tuple(tcf.inputs):
