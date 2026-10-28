@@ -16,7 +16,13 @@ HERE = Path(__file__).absolute().parent
 VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
-def _invoke(label: str, arguments: list[str], *, should_fail: bool = False) -> None:
+def _invoke(
+    label: str,
+    arguments: list[str],
+    *,
+    should_fail: bool = False,
+    expected_error_lines: tuple[int, ...] = (),
+) -> None:
     command = [sys.executable, "-I", "-m", *arguments]
     result = subprocess.run(
         command, cwd=HERE, capture_output=True, text=True, check=False,
@@ -37,6 +43,14 @@ def _invoke(label: str, arguments: list[str], *, should_fail: bool = False) -> N
             raise AssertionError(
                 f"{label} did not identify all three deliberately invalid calls"
             )
+        # For the inline spatial checks, make sure each public call is rejected;
+        # unrelated dictionary construction diagnostics cannot satisfy this.
+        for line in expected_error_lines:
+            if not re.search(
+                rf"(?im)^.*{re.escape(target)}:{line}:\d+ - error:",
+                output,
+            ):
+                raise AssertionError(f"{label} did not reject call on line {line}")
     elif result.returncode != 0:
         raise AssertionError(f"{label} rejected valid public API calls")
 
@@ -95,6 +109,12 @@ def main() -> None:
         "Pyright named locations negative",
         ["pyright", "--pythonversion", VERSION, "public_locations_negative.py"],
         should_fail=True,
+    )
+    _invoke(
+        "Pyright named inline locations negative",
+        ["pyright", "--pythonversion", VERSION, "public_locations_inline_negative.py"],
+        should_fail=True,
+        expected_error_lines=(9, 10, 11),
     )
     _invoke(
         "mypy stubtest",
