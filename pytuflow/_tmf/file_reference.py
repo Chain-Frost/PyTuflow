@@ -91,9 +91,24 @@ def make_file_reference(command: Command) -> FileReference:
     db, layer = TuflowPath(expanded)._split_db_and_lyr()
     owner = command.parent
     base = (Path(owner).parent if owner and owner != Path() else Path.cwd()).absolute()
-    path = Path(str(globify(db, command.config.wildcards)))
-    if not path.is_absolute():
-        path = base / path
+    # Match wildcard tokens in only the portion supplied by the command,
+    # never an ancestor of the owning control file. Absolute paths produced
+    # by the parser can contain literal event-like tokens in their parents.
+    expanded_path = Path(db)
+    if expanded_path.is_absolute():
+        try:
+            relative = expanded_path.relative_to(base)
+        except ValueError:
+            # Spatial Database may point outside the owning control folder.
+            # Preserve its configured directories and only expand the leaf.
+            source_pattern = str(globify(expanded_path.name, command.config.wildcards))
+            path = expanded_path.with_name(source_pattern)
+        else:
+            source_pattern = str(globify(str(relative), command.config.wildcards))
+            path = base / source_pattern
+    else:
+        source_pattern = str(globify(db, command.config.wildcards))
+        path = base / source_pattern
     path_glob = str(path)
     # A layerless GIS/Projection GeoPackage resolves to its stem-named layer
     # in eager TUFLOW materialisation. Preserve that requirement for
@@ -141,7 +156,7 @@ def make_file_reference(command: Command) -> FileReference:
     return FileReference(
         base_directory=base, expanded_value=expanded, path_pattern=Path(path_glob),
         layer_pattern=layer_glob, origin=command.command_orig,
-        requires_directory_scan=any(char in str(globify(db, command.config.wildcards)) for char in '*?['),
+        requires_directory_scan=any(char in source_pattern for char in '*?['),
         requires_layer_scan=layer_glob is not None,
         requires_attribute_scan=attr_scan,
         requires_database_scan=(command.is_read_database() and not command.is_rainfall_grid_nc()),

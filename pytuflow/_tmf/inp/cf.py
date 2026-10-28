@@ -90,22 +90,28 @@ def select_deferred_children(
                 i for i, original in enumerate(loaded_paths)
                 if _cached_path_matches(Path(original), pattern, case_sensitivity)
             ]
-        if not selected and os.name == 'nt':
-            # Mapped-drive and UNC aliases can name one initially parsed
-            # include with different roots. Keep the established directory
-            # + filename suffix fallback for Windows only. On Linux it could
-            # silently select a different case-sensitive directory.
-            for i, original in enumerate(loaded_paths):
-                source = Path(os.path.normpath(str(original)))
-                if (source.anchor and pattern.anchor
-                        and source.anchor.casefold() != pattern.anchor.casefold()
-                        and len(source.parts) >= 2 and len(pattern.parts) >= 2
-                        and fnmatch.fnmatchcase(
-                            source.parts[-2].casefold(), pattern.parts[-2].casefold()
-                        ) and _cached_filename_matches(
-                            source.name, pattern.name, case_sensitivity
-                        )):
-                    selected.append(i)
+        if not selected:
+            # A preloaded child can have a canonical UNC/mapped-drive alias
+            # that differs from the lexical path's root. When exact absolute
+            # paths differ, accept only a matching *last parent directory*
+            # and filename; never a basename-only match. Linux directory
+            # spelling stays strict even for -cs2.
+            pattern_parts = pattern.parts
+            if len(pattern_parts) >= 2:
+                selected = [
+                    i for i, original in enumerate(loaded_paths)
+                    if len(Path(original).parts) >= 2
+                    and (
+                        (Path(original).parts[-2] == pattern_parts[-2])
+                        if os.name != 'nt' else (
+                            Path(original).parts[-2].casefold()
+                            == pattern_parts[-2].casefold()
+                        )
+                    )
+                    and _cached_filename_matches(
+                        Path(original).name, pattern.name, case_sensitivity
+                    )
+                ]
         if not selected:
             raise ResolveError(
                 f'No cached nested control file for {ref.path_pattern}'

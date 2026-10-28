@@ -327,7 +327,10 @@ def test_case_spelling_uses_the_existing_path_policy(tmp_path: Path) -> None:
     (tmp_path / "design_EXG.tgc").write_text("Read GIS Code == EXG.shp\n")
     top = tmp_path / "model.tcf"
     top.write_text("Geometry Control File == design_<<~s1~>>.tgc\n")
-    result = assert_parity(TCF(top), ["-s1 EXG", "-s1 exg", "-s1 EXG"])
+    # A nonexact include spelling requires -cs2; the default Linux
+    # -cs0 policy must not silently select a differently cased file.
+    result = assert_parity(TCF(top, case_sensitivity=2),
+                           ["-s1 EXG", "-s1 exg", "-s1 EXG"])
     assert result.passed
     assert [r.file_references[0].path_pattern.name for r in result.runs] == [
         "design_EXG.tgc",
