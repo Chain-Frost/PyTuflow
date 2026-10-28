@@ -11,13 +11,14 @@ from datetime import datetime
 from os import PathLike
 from typing import TypeAlias
 
+from numpy import float32 as _float32
 from numpy import float64 as _float64
 from numpy.ma.core import MaskedConstant as _MaskedConstant
 
 from .tuflow_results_gpkg import ResData_GPKG as ResData_GPKG
 
 
-_ProfileNumber: TypeAlias = float | _float64 | _MaskedConstant
+_ProfileNumber: TypeAlias = float | _float32 | _float64 | _MaskedConstant
 _XY: TypeAlias = tuple[list[_ProfileNumber], list[_ProfileNumber]]
 _Times: TypeAlias = list[float | None] | list[datetime]
 _SeriesValue: TypeAlias = float | str | None
