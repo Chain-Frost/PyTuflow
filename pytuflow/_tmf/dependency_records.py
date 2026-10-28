@@ -1,8 +1,8 @@
-"""Immutable deferred-dependency records shared by batch and fragment readers.
+"""Immutable records of TUFLOW input dependencies for individual runs.
 
-These records do not depend on compiled graphs, context caches or filesystem
-inspection. Keeping them in a small module lets the fast fragment reader be
-packaged without the optional graph-based batch implementation.
+Capture active commands and file references in source order, preserving their
+control-file ownership and positions. Physical validation of the referenced
+inputs is performed separately.
 """
 
 from __future__ import annotations
