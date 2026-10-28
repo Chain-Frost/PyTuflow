@@ -199,8 +199,8 @@ class _FragmentContext(FragmentContextBase):
         self.file_resolution = "deferred"
 
     def _invalidate(self) -> None:
-        # Match BatchContext's invalidation boundary for accepted event,
-        # scenario and Set Variable changes. No stale signature may survive.
+        # Invalidate cached signatures whenever events, scenarios or
+        # Set Variable declarations change during run preparation.
         self._fragment_signature_values.clear()
         self._compiled_scope_safe = None
         self._compiled_flag_names.clear()
@@ -259,10 +259,9 @@ class _FragmentContext(FragmentContextBase):
     def translate(self, item: Any) -> Any:
         from .tfpathlib import TuflowPath
 
-        # Within a completed run context, the existing BatchContext invalidation
-        # contract covers new flags, events and variable declarations. Repeated
-        # subtree-key checks can therefore reuse the translated value without
-        # rebuilding a cross-run expression binding key each time.
+        # Flags, event definitions and variables invalidate this run's
+        # translation cache when they change. Repeated subtree-key checks can
+        # therefore reuse resolved values within the current run.
         if not self._batch_active or not isinstance(item, (str, TuflowPath)):
             return self.expressions.translate(self, item)
         key = str(item)

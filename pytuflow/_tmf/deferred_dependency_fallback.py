@@ -1,6 +1,6 @@
 """Conservative fallback for unsupported dependency fragments.
 
-The original Context/RunState evaluator remains authoritative when compact,
+The standard Context/RunState evaluator remains authoritative when compact,
 immutable fragment proofs cannot be established. Per-run errors fail closed,
 and only identical *complete* flag strings reuse records in this invocation.
 """
@@ -46,7 +46,7 @@ def _flag_text(flags: str | dict[str, str]) -> str:
 def _variable_assignments(model: TCF) -> tuple[tuple[object, tuple[str, str]], ...] | None:
     """Parse declarations once, but retain normal per-run scope selection.
 
-    Failure to preparse is not a batch-wide failure: the original evaluator
+    Failure to preparse is not a batch-wide failure: the standard evaluator
     must report the relevant errors for each run independently.
     """
     try:
@@ -70,7 +70,7 @@ def collect_fallback_dependencies(
 
     Reuses the parsed model, its loaded TEF/database tables and immutable
     declarations. Context, variables, events and scopes are recomputed per
-    distinct run. The original prepare_run_context selects active values.
+    distinct run. prepare_run_context selects active values.
 
     No post-parse filesystem, GIS or SQLite reads are requested here. Physical
     validation remains a separate consumer step. Errors fail closed and do not

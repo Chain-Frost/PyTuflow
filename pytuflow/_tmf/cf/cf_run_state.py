@@ -70,10 +70,7 @@ def prepare_run_context(build_state: typing.Any, context: typing.Any) -> None:
                 if context.in_context_by_scope(var_input.scope):
                     var_map[var_name] = var_val
         else:
-            var_inputs = getattr(context, '_batch_variable_inputs', None)
-            if var_inputs is None:
-                var_inputs = build_state.find_input(lhs='set variable', recursive=True)
-            for var_input in var_inputs:
+            for var_input in build_state.find_input(lhs='set variable', recursive=True):
                 if context.in_context_by_scope(var_input.scope):
                     var_name, var_val = var_input.command().parse_variable()
                     var_map[var_name] = var_val

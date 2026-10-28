@@ -191,7 +191,8 @@ def _requirements(projection: DependencyProjection) -> tuple[
                     )
                 )
         else:
-            # Older batch projections may not expose per-input identities.
+            # Callers can supply file references without optional command
+            # provenance; still validate the files in that case.
             for reference in run.file_references:
                 requirements.append(
                     _Requirement(

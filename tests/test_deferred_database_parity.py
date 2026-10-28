@@ -1,4 +1,4 @@
-"""Upstream deferred database-kind and secondary-source regression cases."""
+"""Regression tests for deferred database roles and secondary file sources."""
 import ntpath
 import os
 import posixpath

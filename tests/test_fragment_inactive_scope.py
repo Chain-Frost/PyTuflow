@@ -1,8 +1,8 @@
 """Regression contracts for inactive conditional inputs in fragment batches.
 
 All paths and flags here are synthetic; no solver or external model is needed.
-The reference fragment mode deliberately forms inactive-input keys to
-isolate the effect of the early scope guard on complete public run records.
+Compare the normal collector with a controlled variant that also computes
+cache keys for inactive commands, while preserving complete run records.
 """
 
 from __future__ import annotations
@@ -20,8 +20,7 @@ from pytuflow._tmf.fragment_dependencies import _FragmentContext, _Plan
 
 def _four_path_parity(model: TCF, flags: list[str]) -> None:
     """Compare complete run records, not just resolved file paths."""
-    uncached = collect_fallback_dependencies(model, flags)
-    cached = collect_fallback_dependencies(model, flags)
+    reference = collect_fallback_dependencies(model, flags)
     optimized = model.collect_file_dependencies(flags)
 
     original = _Plan.evaluate
@@ -34,10 +33,10 @@ def _four_path_parity(model: TCF, flags: list[str]) -> None:
         return original(plan, inp, ctx)
 
     with patch.object(_Plan, "evaluate", form_inactive_key_first):
-        old_key_order = model.collect_file_dependencies(flags)
+        inactive_key_variant = model.collect_file_dependencies(flags)
 
-    assert uncached.runs == cached.runs == old_key_order.runs == optimized.runs
-    assert optimized.fallback_runs == old_key_order.fallback_runs == 0
+    assert reference.runs == inactive_key_variant.runs == optimized.runs
+    assert optimized.fallback_runs == inactive_key_variant.fallback_runs == 0
 
 
 def test_fourteen_var_cell_size_declarations_skip_thirteen_keys(tmp_path: Path) -> None:

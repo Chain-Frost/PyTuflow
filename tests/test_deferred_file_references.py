@@ -524,7 +524,7 @@ def test_deferred_event_file_under_literal_event_named_parent(tmp_path):
 
 @pytest.mark.parametrize('mode', ['eager', 'deferred'])
 def test_nested_output_variables_are_assignments_not_input_files(tmp_path, mode):
-    """Output-root variables must not create phantom files or split '>>' as GPKG."""
+    """Output-root variables do not create input files or GeoPackage layers."""
     tcf = tmp_path / 'model.tcf'
     source = tmp_path / '2d_code.shp'
     source.touch()

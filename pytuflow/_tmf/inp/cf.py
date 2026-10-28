@@ -71,12 +71,10 @@ class ControlFileInputRunState(InputRunState):
 
     @property
     def files(self) -> list[Path]:
-        """Include already-parsed rainfall-index grid dependencies in eager mode.
+        """Include the CSV index and its referenced grids in eager file inputs.
 
-        The original eager DatabaseInput loaded the CSV as a primary file
-        but returned only that index, silently omitting every grid listed
-        inside it. This uses the cached build-state dataframe and active
-        context; no raster file is re-opened or re-parsed.
+        Secondary grid references come from the already-parsed database
+        and active run context, without reopening the index or raster files.
         """
         primary = InputRunState.files.fget(self)
         if (getattr(self.ctx, 'file_resolution', 'eager') != 'eager'

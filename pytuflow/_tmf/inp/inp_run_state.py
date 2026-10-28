@@ -78,11 +78,6 @@ class InputRunState(RunState, Input):
         """Immutable syntactic references; does not probe files or GIS layers."""
         if not self._rs:
             return ()
-        # An opt-in batch context may share immutable references from static,
-        # literal commands. Dynamic commands use the original resolver.
-        cache = getattr(self.ctx, 'cached_file_references', None)
-        if cache is not None:
-            return cache(self.bs, self._rs)
         return self._rs.file_references
 
     @property
@@ -174,22 +169,18 @@ class InputRunState(RunState, Input):
             run_config.file_resolution = 'deferred'
             run_config.variables = self.ctx.translate
         source_command = self.bs.command()
-        batch_factory = getattr(self.ctx, 'batch_command', None) if deferred else None
-        if batch_factory is not None:
-            self._command = batch_factory(self.bs, source_command, cmd_txt, run_config)
+        from ..parsers.command import EventCommand
+        # Keep the source file, original command position and event metadata.
+        if isinstance(source_command, EventCommand):
+            self._command = EventCommand(
+                cmd_txt, run_config, source_command.parent, source_command.part_index,
+            )
+            self._command.event_name = source_command.event_name
         else:
-            from ..parsers.command import EventCommand
-            # Preserve nested ownership in both eager and single-run deferred.
-            if isinstance(source_command, EventCommand):
-                self._command = EventCommand(
-                    cmd_txt, run_config, source_command.parent, source_command.part_index,
-                )
-                self._command.event_name = source_command.event_name
-            else:
-                self._command = source_command.__class__(
-                    cmd_txt, run_config, source_command.parent,
-                    source_command.part_index, source_command.line_number,
-                )
+            self._command = source_command.__class__(
+                cmd_txt, run_config, source_command.parent,
+                source_command.part_index, source_command.line_number,
+            )
         self._command.define_blocks = source_command.define_blocks
         # A plain Command expands its value in the constructor. On the
         # opt-in deferred batch path, avoid repeating that work only when
