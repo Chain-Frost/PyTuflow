@@ -231,3 +231,64 @@ def test_ragged_reader_endpoint_extent(tmp_path, engine, access):
         # The second cell's missing physical bed is not the same as padding.
         np.testing.assert_allclose(_read(reader, access, "salinity", uri, cell=1), expected,
                                    rtol=1e-12, atol=1e-12, equal_nan=True)
+
+
+@pytest.mark.parametrize("engine", ["netcdf4", "h5py"])
+@pytest.mark.parametrize(
+    ("component", "expected"),
+    [
+        ("V_x", [4.5, 9.0, 0.0, 0.0]),
+        ("x_velocity", [4.5, 9.0, 0.0, 0.0]),
+        ("V_y", [4.0, 8.0, 0.0, 0.0]),
+        ("y_velocity", [4.0, 8.0, 0.0, 0.0]),
+    ],
+)
+def test_individual_3d_velocity_component_is_not_combined_vector(
+    tmp_path: Path, engine: str, component: str, expected: list[float]
+) -> None:
+    """A component marked vector still contains scalar FV layer samples."""
+    path = tmp_path / "velocity_components.nc"
+    _write_fv(path)
+    reader = NCMesh(path, driver=engine)
+    mesh = reader._driver
+    assert mesh.is_vector(mesh.translate_data_type(component)[0])
+    assert len(mesh.translate_data_type(component)) == 1
+
+    face_data, wet = mesh.cell_data(
+        component, 0, "sigma&0&1", to_vertex=False
+    )
+    assert np.asarray(face_data).shape == (4,)
+    np.testing.assert_allclose(
+        face_data, expected, rtol=0, atol=1e-12, equal_nan=True
+    )
+    np.testing.assert_array_equal(wet, [True, True, True, False])
+
+    # The original section defect occurs across multiple cells; one-cell
+    # tests cannot detect splitting scalar layers as XY components.
+    cell_ids = np.array([0, 1, 2, 3])
+    points = np.array([[0.0, 0.5], [2.0, 0.5],
+                       [4.0, 0.5], [6.0, 0.5]])
+    section = mesh.section_from_cell_data(
+        cell_ids, points, component, 0, "sigma&0&1"
+    )
+    assert section.ndim == 2 and section.shape[1] == 2
+    np.testing.assert_allclose(
+        section[:, 1],
+        np.repeat(expected[:3], 2),
+        rtol=0, atol=1e-12, equal_nan=True,
+    )
+
+
+@pytest.mark.parametrize("engine", ["netcdf4", "h5py"])
+def test_two_3d_velocity_components_still_reduce_together(
+    tmp_path: Path, engine: str
+) -> None:
+    """The scalar-component correction retains joint vector missingness."""
+    path = tmp_path / "full_velocity.nc"
+    _write_fv(path)
+    mesh = NCMesh(path, driver=engine)._driver
+    face_data, wet = mesh.cell_data("velocity", 0, "sigma&0&1")
+    assert np.asarray(face_data).shape[-1] == 2
+    np.testing.assert_allclose(face_data[0].reshape(-1), [3.0, 4.0])
+    assert np.isnan(face_data[1]).all()
+    np.testing.assert_array_equal(wet, [True, True, True, False])

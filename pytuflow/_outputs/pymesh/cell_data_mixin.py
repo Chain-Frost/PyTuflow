@@ -26,6 +26,16 @@ def _averaging_data(values: list[np.ndarray], *, combined_vector: bool = False) 
     return values
 
 
+def _contains_vector_components(data: np.ndarray, *, time_axis: bool = False) -> bool:
+    """Identify paired vector samples by layout, not vector family metadata.
+
+    Individual FV NetCDF variables such as V_x/V_y are marked as vector
+    results, but their samples are scalar layers. A combined vector dataset
+    has an explicit trailing axis of length two.
+    """
+    array = np.asanyarray(data)
+    return array.ndim == (3 if time_axis else 2) and array.shape[-1] == 2
+
 
 def _qgis_cell_to_vertex(
     values: np.ndarray, wet: np.ndarray, nodes: np.ndarray, angles: np.ndarray, nvertices: int,
@@ -136,9 +146,20 @@ class CellDataMixin:
             zlevels = self.zlevels(time_index, nlevels, np.arange(nlevels.shape[0]), self.cell_index(slice(None), data_types[0]))
             a_padded = np.full((nlevels.shape[0], max_nlevels), np.nan)
             b_padded = np.full((nlevels.shape[0], max_nlevels + 1), np.nan)
+            source_values = [self.data(dtype, index) for dtype in data_types]
+            combined_vector = (
+                is_vector and len(data_types) == 1
+                and _contains_vector_components(
+                    source_values[0],
+                    time_axis=(not is_static and isinstance(time_index, slice)),
+                )
+            )
+            # A single FV NetCDF velocity component is scalar despite its
+            # vector-family metadata. Preserve scalar output dimensions.
+            if len(data_types) == 1 and not combined_vector:
+                is_vector = False
             averaging_data = dict(zip(data_types, _averaging_data(
-                [self.data(dtype, index) for dtype in data_types],
-                combined_vector=is_vector and len(data_types) == 1,
+                source_values, combined_vector=combined_vector,
             )))
 
         data = np.array([])
@@ -154,8 +175,11 @@ class CellDataMixin:
                 return a, wd
 
             a = averaging_data[dtype] if averaging_data is not None else self.data(dtype, index)
-            combined_vector = averaging_data is not None and is_vector and len(data_types) == 1
-            extracted = [a[..., 0], a[..., 1]] if a.ndim == 3 or combined_vector else [a]
+            split_components = (
+                averaging_data is not None and combined_vector
+                or (a.ndim == 3 and len(data_types) > 1)
+            )
+            extracted = [a[..., 0], a[..., 1]] if split_components else [a]
             for data in extracted:
                 if data.ndim == 2 and data.shape[0] == 1:
                     data = data.flatten()
@@ -360,16 +384,27 @@ class CellDataMixin:
             idx = cells
 
         averaging_data = None
+        combined_vector = False
         if is_3d:
+            source_values = [self.data(dtype, (time_index, idx)) for dtype in data_type]
+            combined_vector = (
+                len(data_type) == 1 and self.is_vector(data_type[0])
+                and _contains_vector_components(source_values[0])
+                and source_values[0].shape[0] == len(idx)
+            )
             averaging_data = dict(zip(data_type, _averaging_data(
-                [self.data(dtype, (time_index, idx)) for dtype in data_type],
-                combined_vector=self.is_vector(data_type[0]) and len(data_type) == 1,
+                source_values, combined_vector=combined_vector,
             )))
 
         values = []
         for dtype in data_type:
             a = averaging_data[dtype] if averaging_data is not None else self.data(dtype, (time_index, idx))
-            extracted = [a[:,0], a[:,1]] if a.ndim == 2 else [a]
+            paired = (
+                combined_vector if is_3d else
+                (len(data_type) == 1 and self.is_vector(dtype)
+                 and _contains_vector_components(a) and a.shape[0] == len(idx))
+            )
+            extracted = [a[:, 0], a[:, 1]] if paired else [a]
             for a in extracted:
                 if is_3d:
                     zlevels = self.zlevels(time_index, nlevels, cells, cell_idx)
