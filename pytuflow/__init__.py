@@ -54,8 +54,9 @@ from .util import TuflowBinaries as TuflowBinaries, TuflowFVBinaries, pytuflow_l
 from .project import HPCProject as HPCProject, FVProject as FVProject
 
 if _TYPE_CHECKING:
-    # Preserve the existing Scope re-export for static type consumers.
+    # Keep existing public class imports statically discoverable.
     from ._tmf.scope import Scope as Scope
+    from ._tmf.cf.tcf import TCF as TCF
 
 
 name = 'PyTuflow'
