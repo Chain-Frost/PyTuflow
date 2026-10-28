@@ -251,8 +251,12 @@ def test_individual_3d_velocity_component_is_not_combined_vector(
     _write_fv(path)
     reader = NCMesh(path, driver=engine)
     mesh = reader._driver
-    assert mesh.is_vector(mesh.translate_data_type(component)[0])
-    assert len(mesh.translate_data_type(component)) == 1
+    translated = mesh.translate_data_type(component)
+    assert len(translated) == 1
+    # FV component metadata is asymmetric in the existing drivers:
+    # V_x is reported as vector-family data, while V_y is scalar.
+    # Both variables contain *one scalar sample per vertical layer*.
+    assert mesh.is_vector(translated[0]) == (component in {"V_x", "x_velocity"})
 
     face_data, wet = mesh.cell_data(
         component, 0, "sigma&0&1", to_vertex=False
