@@ -19,6 +19,7 @@ if typing.TYPE_CHECKING:
     from ..db.soil import SoilDatabase
     from ..db.rf import RainfallDatabase
     from ..db.mat import MatDatabase
+    from ..fragment_dependencies import FragmentBatchResult
 
 
 class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
