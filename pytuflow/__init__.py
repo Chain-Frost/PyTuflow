@@ -60,7 +60,7 @@ if _TYPE_CHECKING:
 
 
 name = 'PyTuflow'
-__version__ = '1.2.8'
+__version__ = '1.2.9'
 
 
 # Preserve the historic from-pytuflow import surface without eagerly loading
