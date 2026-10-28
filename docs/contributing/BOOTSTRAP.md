@@ -10,12 +10,18 @@ to an external contribution by default.
 
 Keep independently reviewable internal work packages. The revised plan has
 **three externally curated PRs**: **A** existing-library fixes, **B** focused
-public typing, **C** optional deferred/batch/graph execution. Reconstruct
+public typing, **C** optional deferred fragments and read-only batch input validation. Reconstruct
 `contrib/upstream-fixes` from actual official upstream; curate
 `contrib/upstream-typing` and `contrib/upstream-deferred` independently after A
 has been accepted upstream. Both use the accepted A baseline, but **C does not
 depend on B**. If either B or C has already landed, the other is reconstructed
 on the latest real upstream head. Typing for new deferred modules belongs in C.
+General compiled control-tree and mutable input-group reuse proposals are
+closed as superseded ([#18](https://github.com/Chain-Frost/PyTuflow/issues/18),
+[#19](https://github.com/Chain-Frost/PyTuflow/issues/19)); active scope
+predicate compilation is a different optimisation. Native provider and
+run-specific full preflight acceptance remains tracked in
+[#20](https://github.com/Chain-Frost/PyTuflow/issues/20).
 See [UPSTREAM_STACK.md](../../UPSTREAM_STACK.md) for curation and separate
 acceptance. No external submission or auto-merge is authorised by the plan.
 
