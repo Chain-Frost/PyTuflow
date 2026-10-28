@@ -1,0 +1,51 @@
+name: PR C targeted deferred and NetCDF regression
+
+on:
+  push:
+    branches:
+      - contrib/upstream-deferred-full-validation-20
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    name: ${{ matrix.os }} Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, python: "3.11"}
+          - {os: windows-latest, python: "3.12"}
+          - {os: windows-latest, python: "3.14"}
+          - {os: ubuntu-latest, python: "3.11"}
+          - {os: ubuntu-latest, python: "3.12"}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install tested candidate and pytest
+        run: python -m pip install -e . pytest==9.2.0 ruff
+      - name: Check syntax and changed files
+        run: |
+          python -m compileall -q pytuflow
+          python -m ruff check pytuflow/_tmf/fragment_dependencies.py pytuflow/validation_links.py pytuflow/validation.py pytuflow/batch_validation.py tests/test_deferred_database_parity.py
+      - name: Verify direct NetCDF rainfall and deferred engine
+        run: >-
+          python -m pytest -q
+          tests/tmf/test_parser_corrections.py::test_direct_netcdf_rainfall_has_no_csv_index
+          tests/test_deferred_database_parity.py
+          tests/test_batch_validation_mvp.py
+          tests/test_fragment_dependencies.py
+          tests/test_fragment_inactive_scope.py
+          tests/test_deferred_file_references.py
+          tests/test_input_validation.py
+          tests/test_compiled_scope.py
+          tests/test_gpkg_safety.py
+          tests/test_deferred_gis_inspection.py
+          tests/test_linux_deferred_parity.py
+          tests/test_effective_dependency_manifests.py
