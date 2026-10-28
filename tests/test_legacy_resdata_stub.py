@@ -202,6 +202,29 @@ def test_tpc_profile_returns_polygons_and_xy_without_conversion(monkeypatch) -> 
     assert reader.getLongProfileData("max", "unknown", "channel")[0] is True
 
 
+
+def test_tpc_temporal_profile_preserves_float32(monkeypatch) -> None:
+    """The existing temporal long-profile reader retains NumPy float32."""
+    from pytuflow.TUFLOW_results import ResData
+
+    backend = ResData()
+    backend.times = np.array([0.], dtype=np.float32)
+    backend.LP.chan_list = ["channel"]
+    backend.LP.H_nd_index = [0]
+    backend.LP.dist_chan_inverts = [0.]
+    backend.LP.chan_inv = [1.]
+    backend.Data_1D.H.loaded = True
+    backend.Data_1D.H.Values = np.ma.array([[np.float32(2.5)]], dtype=np.float32)
+    monkeypatch.setattr(backend, "getLPConnectivity", lambda *_: (False, None))
+    monkeypatch.setattr(backend, "getLPStaticData", lambda: (False, None))
+
+    result = _reader(backend).getLongProfileData(0., "H", "channel")
+    assert result[:2] == (False, "")
+    assert result[2][0] == [0.]
+    assert type(result[2][1][0]) is np.float32
+    assert _accepts(result, _stub_namespace()["_ProfileResult"])
+
+
 def test_unloaded_contracts_and_masked_timesteps() -> None:
     from pytuflow.TUFLOW_results import ResData
 
