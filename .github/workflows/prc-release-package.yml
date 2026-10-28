@@ -1,0 +1,32 @@
+name: PR C proposed 1.2.9 source and installed-package acceptance
+on:
+  push:
+    branches:
+      - contrib/upstream-deferred-full-validation-20
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-package:
+    name: ${{ matrix.os }} Python 3.12 release packaging
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install source and build tooling
+        run: python -m pip install -e . build hatchling pytest==9.2.0
+      - name: Verify public version contract
+        run: python -m pytest -q tests/test_public_typing_version.py
+      - name: Build wheel and source distribution
+        run: python -m build --wheel --sdist --no-isolation
+      - name: Verify packaged documentation, release version and isolated wheel
+        run: python ci/prc_release_check.py
