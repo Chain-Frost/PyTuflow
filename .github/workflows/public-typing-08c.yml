@@ -7,12 +7,14 @@ on:
       - "pytuflow/py.typed"
       - "pytuflow/TUFLOW.pyi"
       - "pytuflow/TUFLOW.py"
+      - "pytuflow/_outputs/map_output.py"
       - "pytuflow/_tmf/tuflow_binaries.py"
       - "pytuflow/_tmf/scope.py"
       - "pytuflow/__init__.py"
       - "pyproject.toml"
       - "tests/test_legacy_resdata_stub.py"
       - "tests/test_public_typing_optionals.py"
+      - "tests/test_public_spatial_locations.py"
       - "tests/typing/**"
       - "docs/contributing/PUBLIC_TYPING.md"
   workflow_dispatch:
@@ -38,7 +40,7 @@ jobs:
         run: python -m pip install -e . pytest build hatchling mypy pyright
 
       - name: Source and public compatibility regressions
-        run: python -m pytest -q tests/test_legacy_resdata_stub.py tests/test_public_api_contracts.py tests/test_public_typing_optionals.py
+        run: python -m pytest -q tests/test_legacy_resdata_stub.py tests/test_public_api_contracts.py tests/test_public_typing_optionals.py tests/test_public_spatial_locations.py
 
       - name: Build wheel and sdist
         run: python -m build --wheel --sdist --no-isolation
@@ -63,13 +65,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path $outside | Out-Null
           Copy-Item "tests/test_legacy_resdata_stub.py" (Join-Path $outside "test_legacy_resdata_stub.py")
           Copy-Item "tests/test_public_typing_optionals.py" (Join-Path $outside "test_public_typing_optionals.py")
+          Copy-Item "tests/test_public_spatial_locations.py" (Join-Path $outside "test_public_spatial_locations.py")
           Copy-Item "tests/typing/*.py" $outside
 
           Push-Location $outside
           try {
             python -I -c "import os,pathlib,pytuflow; p=pathlib.Path(pytuflow.__file__).absolute(); root=pathlib.Path(os.environ['GITHUB_WORKSPACE']).absolute(); assert not p.is_relative_to(root),p; print('Installed package:',p)"
             if ($LASTEXITCODE -ne 0) { throw "Wheel import origin check failed" }
-            python -I -m pytest -q test_legacy_resdata_stub.py test_public_typing_optionals.py
+            python -I -m pytest -q test_legacy_resdata_stub.py test_public_typing_optionals.py test_public_spatial_locations.py
             if ($LASTEXITCODE -ne 0) { throw "Wheel runtime/stub contracts failed" }
             python -I check_static.py
             if ($LASTEXITCODE -ne 0) { throw "Wheel static typing contracts failed" }

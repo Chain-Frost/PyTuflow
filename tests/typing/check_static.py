@@ -79,6 +79,24 @@ def main() -> None:
         should_fail=True,
     )
     _invoke(
+        "mypy named locations positive",
+        ["mypy", "--strict", "--no-incremental", "public_locations_positive.py"],
+    )
+    _invoke(
+        "Pyright named locations positive",
+        ["pyright", "--pythonversion", VERSION, "public_locations_positive.py"],
+    )
+    _invoke(
+        "mypy named locations negative",
+        ["mypy", "--strict", "--no-incremental", "public_locations_negative.py"],
+        should_fail=True,
+    )
+    _invoke(
+        "Pyright named locations negative",
+        ["pyright", "--pythonversion", VERSION, "public_locations_negative.py"],
+        should_fail=True,
+    )
+    _invoke(
         "mypy stubtest",
         ["mypy.stubtest", "--concise", "pytuflow.TUFLOW"],
     )
