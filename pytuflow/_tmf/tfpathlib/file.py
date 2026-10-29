@@ -108,22 +108,14 @@ class TuflowPath(Path):
             dbpath = string
         return dbpath, None
 
-    def _gpkg_layers(self, *, read_only: bool = False) -> list[str]:
-        """List GeoPackage layers using normal or strict read-only access.
-
-        The default retains existing eager behaviour. Strict read_only=True
-        fails explicitly on unsafe journals, changing files or query errors,
-        rather than interpreting an uninspectable source as an empty database.
-        """
+    def _gpkg_layers(self) -> list[str]:
         layers = []
         try:
-            with self.connect(read_only=read_only) as conn:
+            with self.connect() as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT table_name FROM gpkg_contents;")
                 layers = [x[0] for x in cur.fetchall()]
         except Exception as e:
-            if read_only:
-                raise
             logger.debug(f'Error occurred: {e}')
         return layers
 
@@ -217,23 +209,9 @@ class TuflowPath(Path):
         return lyrname
 
     @contextmanager
-    def connect(self, *, read_only: bool = False):
-        """Open SQLite, optionally enforcing read-only GeoPackage inspection.
-
-        Read-only mode uses the shared immutable reader, rejecting active
-        WAL/rollback journals and unstable aliases. It never creates an absent
-        database or writes SQLite sidecars. The default is unchanged for
-        callers that rely on the existing general-purpose connection method.
-        """
-        if read_only:
-            from ..gpkg_safety import readonly_gpkg
-
-            with readonly_gpkg(self.dbpath) as connection:
-                yield connection
-            return
-
+    def connect(self):
+        """Context manager to open a connection to the database."""
         import sqlite3
-
         conn = None
         try:
             conn = sqlite3.connect(self.dbpath)

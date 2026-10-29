@@ -415,20 +415,15 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
     def collect_file_dependencies(
         self,
         run_flags: typing.Iterable[str | dict[str, str]],
-        *,
-        _cache_location: typing.Literal["plan", "input"] = "plan",
     ) -> 'FragmentBatchResult':
-        """Collect references with a private experimental cache-location mode.
+        """Collect immutable, run-specific file references without physical I/O.
 
-        The default retains the accepted invocation-local fragment cache.
-        The input mode attaches temporary dictionaries to parsed inputs and
-        removes them in all exit paths. It is an experimental, non-concurrent
-        comparison only and is not proposed as a public upstream option.
+        Input-owned fragment caches exist only during this synchronous batch;
+        their values are released after collection. Concurrent batches sharing
+        one parsed TCF are not supported.
         """
         from ..fragment_dependencies import collect_file_dependencies
-        return collect_file_dependencies(
-            self, run_flags, _cache_location=_cache_location
-        )
+        return collect_file_dependencies(self, run_flags)
 
 
 # Preserve the original context method for safe fragment eligibility checks.
