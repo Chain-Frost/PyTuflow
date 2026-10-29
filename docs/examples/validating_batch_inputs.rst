@@ -108,7 +108,9 @@ Validation checks the existence of selected input files, GIS layers,
 recognised attribute-linked sources and supported CSV column selectors.
 It deduplicates physical checks while retaining results for each requested
 run and source command. Unsupported GIS schemas or inputs that cannot be
-safely resolved are reported rather than accepted.
+safely resolved are reported rather than accepted. Inline ``Read File``
+declarations remain required inputs even if they expand to no commands or
+the included TRD is deleted after the model is loaded.
 
 GeoPackages are inspected read-only. Active or uncheckpointed SQLite
 journals, unstable aliases and uncertain physical identities cannot be
