@@ -13,8 +13,8 @@ from typing import Any
 from unittest.mock import patch
 
 from pytuflow import TCF
-from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
 from pytuflow._tmf.cf.cf_run_state import prepare_run_context
+from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
 from pytuflow._tmf.fragment_dependencies import _FragmentContext, _Plan
 
 

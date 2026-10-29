@@ -895,6 +895,7 @@ def test_batch_preflight_spatial_database_layer_only_reference(tmp_path: Path) -
 def test_cached_windows_root_alias_requires_matching_directory_hierarchy() -> None:
     """Matching subpaths cannot establish that distinct roots are aliases."""
     from types import SimpleNamespace
+
     from pytuflow._tmf.abc.run_state import ResolveError
     from pytuflow._tmf.inp.cf import select_deferred_children
 
@@ -922,6 +923,7 @@ def test_cached_cs1_wildcards_follow_full_filename_and_stem(
     monkeypatch, filename, pattern, expected,
 ):
     from types import SimpleNamespace
+
     from pytuflow._tmf import file_reference
 
     monkeypatch.setattr(file_reference, 'os', SimpleNamespace(name='posix'))
