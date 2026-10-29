@@ -6,7 +6,6 @@ Changelog for 1.2
 
 - The declared minimum Python version is now 3.11 to match existing library code that already uses Python 3.11-only APIs, including ``string.Template.get_identifiers()``. Several dependencies also require Python 3.10 or newer, so the previous Python 3.9 support declaration did not reflect the library's actual requirements.
 - Corrected filename case handling on Linux and existing model-input parsing.
-- Improved control-file saves by staging affected files, checking ownership and conflicting destinations, and attempting rollback if replacement fails. Unchanged source bytes and text conventions are preserved. Multi-file saves are not crash-atomic.
 - Corrected result times, compatibility with newer pandas versions, raster cache limits, and recovery from NetCDF reader errors.
 - Corrected depth averaging and selected QGIS mesh calculations, including face positions, vertex interpolation, and vector point extraction.
 - Improved package import behaviour, optional mesh backend handling, and logging.

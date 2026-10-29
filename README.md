@@ -27,10 +27,6 @@ For QGIS-backed operations, use a compatible QGIS Python environment.
 
 Start with [Load and Run a TUFLOW Model](https://docs.tuflow.com/pytuflow/1.2/examples/tcf_load_and_run/) or browse the [other examples](https://docs.tuflow.com/pytuflow/1.2/examples/).
 
-## Contributing
-
-Contributor setup, testing and documentation-build instructions are in [CONTRIBUTING.md](CONTRIBUTING.md).
-
 ## Licence
 
 MIT licence. See [LICENSE.txt](LICENSE.txt).
