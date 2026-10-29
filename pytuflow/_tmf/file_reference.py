@@ -15,7 +15,6 @@ from .tfpathlib import TuflowPath
 from .tfstrings.patterns import globify
 
 
-
 def _cached_filename_matches(
     filename: str, pattern: str, case_sensitivity: int
 ) -> bool:
