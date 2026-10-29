@@ -1,0 +1,48 @@
+name: PR D POSIX model-save acceptance
+on:
+  push:
+    branches: ['ci-validation/pr-d-permissions-20261029']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, python: '3.11'}
+          - {os: ubuntu-24.04, python: '3.12'}
+          - {os: ubuntu-24.04, python: '3.14'}
+          - {os: windows-latest, python: '3.12'}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      PYTHONNOUSERSITE: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          path: candidate
+          ref: 622faaa12e0e9b26ca3a3845bdbe8f9ba89c9d0d
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install compatible direct dependencies
+        run: python -m pip install -r harness/ci/requirements-regression.txt
+      - name: Verify exact PR D candidate
+        shell: bash
+        run: |
+          test "$(git -C candidate rev-parse HEAD)" = "622faaa12e0e9b26ca3a3845bdbe8f9ba89c9d0d"
+      - name: Run all model-save and relevant existing regressions
+        working-directory: candidate
+        run: |
+          python -m pytest -q -ra tests/tmf/test_safe_model_permissions.py tests/tmf/test_safe_model_saves.py tests/tmf/test_safe_model_save_inspection.py tests/tmf/test_safe_model_save_ownership.py tests/tmf/test_safe_model_save_aliases.py tests/tmf/test_nested_remove_input_compatibility.py tests/tmf/test_scope_writer_progress.py tests/tmf/test_control_file.py tests/project/test_fv_project.py
+      - name: Build wheel
+        working-directory: candidate
+        run: python -m build --wheel --no-isolation
