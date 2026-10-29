@@ -295,6 +295,15 @@ class GPKGAttributes(GISAttributes):
         if self._db is None:
             raise RuntimeError("GeoPackage attributes reader is closed")
         if not positions:
+            # Preserve one empty attribute mapping per feature even when a
+            # geometry-only layer has no non-FID attribute fields.
+            quoted = _quote_gpkg_identifier(self._tname)
+            cursor = self._db.execute(f"SELECT 1 FROM {quoted}")
+            try:
+                for _ in cursor:
+                    yield ()
+            finally:
+                cursor.close()
             return
         if any(index < 0 or index >= len(self.field_names) for index in positions):
             raise ValueError(f"Attribute index out of range for {self._tname}")
