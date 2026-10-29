@@ -8,11 +8,11 @@ TUFLOW eco-system.
 
 ## Documentation
 
-The documentation for PyTUFLOW can be found at: https://docs.tuflow.com/pytuflow/
+The documentation for PyTUFLOW can be found at: https://docs.tuflow.com/pytuflow/1.2/
 
 ## Installation
 
-You can install PyTUFLOW using pip.
+PyTUFLOW requires Python 3.11 or newer. You can install it using pip.
 
 ```bash
 pip install pytuflow
@@ -20,28 +20,23 @@ pip install pytuflow
 
 ## Dependencies
 
-Most dependencies are automatically installed when you install pytuflow. There are a few additional dependencies
-that are not automatically installed, but are very useful as they will extend the functionality of pytuflow. These
-are:
+Most Python dependencies, including `netCDF4` and `shapely`, are installed automatically. Some functionality
+also requires separately installed native software:
 
-- **netCDF4**: This is required for reading any netCDF files, for example, the ``NC`` time-series output format, or
-  the ``NC`` map output format. It also allows for reading of the ``XMDF`` header information.
-- **GDAL**: This is required for reading GIS files, which extends the :class:`GisInput<pytuflow.GisInput>` class and
-  allows the use of GIS files as locations to extract data from map outputs.
-- **shapely**: Needed for extracting section data from map output formats.
-- **QGIS**: Currently QGIS is required for extracting data from `XMDF`, `NCMesh`,
-  and `CATCHJson` output formats. We hope to remove this dependency in the future,
-  but for now, it is required for these particular output formats. It isn't required for using ``pytuflow`` in general.
+- **GDAL/OGR Python bindings**: Required for GDAL-based GIS input and output operations. The bindings must match
+  the installed GDAL library.
+- **QGIS/MDAL**: Required for QGIS-backed map and mesh operations. Supported Python-based XMDF and NCMesh
+  readers can be used without QGIS.
 
 One of the trickiest libraries to install is GDAL. For Windows, you can download pre-compiled binaries from
 here: https://github.com/cgohlke/geospatial-wheels/releases.
 
-For QGIS, there are some broad instructions on how to set up a [QGIS environment](https://docs.tuflow.com/pytuflow/examples/working_with_tuflow_outputs/#qgis-environment) in the output examples.
+For QGIS, there are some broad instructions on how to set up a [QGIS environment](https://docs.tuflow.com/pytuflow/1.2/examples/working_with_tuflow_outputs/) in the output examples.
 
 ## Quickstart
 
-The best place to get started is the [Load and Run a TUFLOW Model](https://docs.tuflow.com/pytuflow/examples/tcf_load_and_run/) example, or to browse through the other
-[Examples](https://docs.tuflow.com/pytuflow/examples/).
+The best place to get started is the [Load and Run a TUFLOW Model](https://docs.tuflow.com/pytuflow/1.2/examples/tcf_load_and_run/) example, or to browse through the other
+[Examples](https://docs.tuflow.com/pytuflow/1.2/examples/).
 
 ## Development
 
@@ -93,28 +88,25 @@ To run tests for the `map output` classes, you will need to run within a QGIS Py
 python -m unittest tests.test_map_output
 ```
 
-To run the `tmf` tests on Windows:
+To run the `tmf` tests:
 
 ```bash
 # from the pytuflow project root directory
-cd pytuflow/_tmf
-pytest tests/unit_tests/
+python -m pytest tests/tmf
 ```
 
 To run the `fm_to_estry` unit tests:
 
 ```bash
 # from the pytuflow project root directory
-cd pytuflow/_fm_to_estry
-python -m unittest discover -s tests/unit_tests
+python -m pytest tests/fm_lib/unit_tests
 ```
 
 To run the `fm_to_estry` integration tests:
 
 ```bash
 # from the pytuflow project root directory
-cd pytuflow/_fm_to_estry
-python -m unittest discover -s tests/integration_tests
+python -m pytest tests/fm_lib/integration_tests
 ```
 
 ### Building the Package
@@ -126,4 +118,4 @@ python -m build --wheel
 
 ## LICENCE
 
-MIT LICENCE (see `LICENSE` file for details).
+MIT LICENCE (see [LICENSE.txt](LICENSE.txt) for details).
