@@ -418,17 +418,13 @@ class _Plan:
     """Maintain an invocation-local plan for reusable input evaluation."""
 
     def __init__(
-        self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True,
-        cache_location: str = "plan",
+        self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True
     ) -> None:
         """Initialise per-batch fragment and scope caches."""
-        if cache_location not in ("plan", "input"):
-            raise ValueError("cache_location must be plan or input")
         compiled_started = perf_counter()
-        self.cache_location = cache_location
         self._inputs_by_id: dict[int, Any] = {}
-        self._prototype_touched: list[tuple[Any, dict]] = []
-        self._prototype_published: list[DependencyFragment] = []
+        self._owned_inputs: dict[int, tuple[Any, dict]] = {}
+        self.published: list[DependencyFragment] = []
         self.use_scopes = use_scopes
         self.use_manifests = use_manifests
         from .inp.cf import ControlFileInput
@@ -474,7 +470,6 @@ class _Plan:
         self.manifest_hits = 0
         self.manifest_misses = 0
         self.manifest_fallbacks: dict[str, int] = {}
-        self.cache: dict[tuple[int, tuple[object, ...]], DependencyFragment] = {}
         self.pending: dict[tuple[int, tuple[object, ...]], DependencyFragment] = {}
         self.evaluations = 0
         self.reuses = 0
@@ -817,44 +812,42 @@ class _Plan:
     def _cached_fragment(
         self, inp: Any, key: tuple[int, tuple[object, ...]]
     ) -> DependencyFragment | None:
-        """Look up an immutable fragment in either experimental cache layout."""
-        if self.cache_location == "plan":
-            return self.cache.get(key, self.pending.get(key))
-        cache = vars(inp).get("_prototype_batch_fragments")
-        if cache is not None:
-            return cache.get(key[1], self.pending.get(key))
-        return self.pending.get(key)
+        """Read an invocation-owned immutable fragment from its parsed input."""
+        cache = vars(inp).get("_batch_dependency_fragments")
+        if cache is None:
+            return self.pending.get(key)
+        owned = self._owned_inputs.get(id(inp))
+        if owned is None or owned[1] is not cache:
+            raise RuntimeError("Parsed input belongs to another active batch")
+        return cache.get(key[1], self.pending.get(key))
 
     def publish(self) -> None:
-        """Commit complete, successful fragments without publishing failed runs."""
-        if self.cache_location == "plan":
-            self.cache.update(self.pending)
-            return
+        """Commit successful-run fragments to their owning parsed inputs."""
+        # Validate all owners before publishing any part of the run.
+        for identifier, _ in self.pending:
+            inp = self._inputs_by_id[identifier]
+            existing = vars(inp).get("_batch_dependency_fragments")
+            owned = self._owned_inputs.get(identifier)
+            if existing is not None and (owned is None or owned[1] is not existing):
+                raise RuntimeError("Parsed input belongs to another active batch")
         for (identifier, signature), fragment in self.pending.items():
             inp = self._inputs_by_id[identifier]
-            attrs = vars(inp)
-            cache = attrs.get("_prototype_batch_fragments")
-            if cache is None:
-                cache = {}
-                attrs["_prototype_batch_fragments"] = cache
-                self._prototype_touched.append((inp, cache))
-            elif not any(owner is inp and owned is cache for owner, owned in self._prototype_touched):
-                raise RuntimeError("Concurrent or foreign per-input fragment cache")
+            owned = self._owned_inputs.get(identifier)
+            if owned is None:
+                cache: dict[tuple[object, ...], DependencyFragment] = {}
+                vars(inp)["_batch_dependency_fragments"] = cache
+                self._owned_inputs[identifier] = (inp, cache)
+            else:
+                cache = owned[1]
             cache[signature] = fragment
-            self._prototype_published.append(fragment)
-
-    def fragments(self) -> tuple[DependencyFragment, ...]:
-        """Return fragments in original successful-publication order."""
-        if self.cache_location == "plan":
-            return tuple(self.cache.values())
-        return tuple(self._prototype_published)
+            self.published.append(fragment)
 
     def cleanup(self) -> None:
-        """Remove experiment-only caches from source inputs after every batch."""
-        for inp, cache in self._prototype_touched:
-            if vars(inp).get("_prototype_batch_fragments") is cache:
-                del vars(inp)["_prototype_batch_fragments"]
-        self._prototype_touched.clear()
+        """Clear input-owned temporary fragments after the complete batch."""
+        for inp, cache in self._owned_inputs.values():
+            if vars(inp).get("_batch_dependency_fragments") is cache:
+                del vars(inp)["_batch_dependency_fragments"]
+        self._owned_inputs.clear()
 
     def evaluate(self, inp: Any, ctx: Any) -> DependencyFragment:
         """Resolve the expression using safe compiled substitutions."""
@@ -903,29 +896,27 @@ class _Plan:
             )
         else:
             result = self._project_state(inp.context(context=ctx, parent=None))
-        count = (len(self._prototype_published) if self.cache_location == "input"
-                 else len(self.cache))
-        if count + len(self.pending) < _LIMIT:
+        if len(self.published) + len(self.pending) < _LIMIT:
             self.pending[key] = result
         return result
 
 
 def collect_file_dependencies(
-    model: Any, run_flags: Iterable[str | dict[str, str]], *,
-    _cache_location: str = "plan",
+    model: Any, run_flags: Iterable[str | dict[str, str]]
 ) -> FragmentBatchResult:
     """Project file dependencies with shared immutable subtree evaluations.
 
-    Source models must remain read-only throughout this synchronous call. No
-    callbacks expose mutable parser state. Unsupported source types use the
-    existing Context/RunState evaluator; a failed run publishes no partial fragments.
+    The parsed input objects temporarily own the immutable fragment caches,
+    which are cleared on exit. Do not run simultaneous batches on one TCF.
+    Unsupported source types use the existing Context/RunState evaluator;
+    failed runs publish no partial fragments.
     """
     from .cf.cf_run_state import prepare_run_context
     from .deferred_dependency_fallback import collect_fallback_dependencies
 
     started = perf_counter()
     try:
-        plan = _Plan(model, cache_location=_cache_location)
+        plan = _Plan(model)
     except Exception as exc:  # noqa: BLE001 - incomplete compilation uses the authoritative evaluator
         fallback = collect_fallback_dependencies(model, run_flags)
         return FragmentBatchResult(
@@ -989,7 +980,7 @@ def collect_file_dependencies(
             raise ValueError("At least one simulation context is required")
         return FragmentBatchResult(
             tuple(results),
-            plan.fragments(),
+            tuple(plan.published),
             plan.evaluations,
             plan.reuses,
             plan.expressions.evaluations,
