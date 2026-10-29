@@ -52,6 +52,7 @@ class ValidationOptions:
         maximum_header_bytes: Bound the bytes read while inspecting a CSV header.
         case_sensitivity: Linux TUFLOW filename policy (0, 1 or 2); None uses
             the parsed model's policy.
+
     """
 
     check_files: bool = True

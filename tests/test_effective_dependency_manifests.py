@@ -451,7 +451,7 @@ def test_custom_translation_hook_requires_ordinary_batch_fallback(tmp_path: Path
         return result
 
     with patch.object(Context, "translate", dynamic_translate):
-        with pytest.raises(NotImplementedError, match="Custom Context.translate"):
+        with pytest.raises(NotImplementedError, match=r"Custom Context\.translate"):
             _Plan(model)
         ordinary = collect_fallback_dependencies(model, flags)
         fragments = model.collect_file_dependencies(flags)
