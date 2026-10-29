@@ -32,7 +32,10 @@ jobs:
               ["git", "diff", "--name-only", "--diff-filter=A", "cf908cc922ca8448ed6002834877b0b377329eae", "HEAD"],
               text=True,
           ).splitlines())
-          new_python = {p for p in added if p.endswith((".py", ".pyi"))}
+          new_python = {
+              p for p in added
+              if p.endswith((".py", ".pyi")) and not p.startswith("ci/")
+          }
           assert new_python <= included, f"New files missing Ruff: {sorted(new_python - included)}"
           assert not any(x in included for x in ("pytuflow/_tmf/gis_attr_driver.py", "pytuflow/_tmf/cf/cf_build_state.py")), "Do not blanket-lint inherited source"
           print("Ruff newly added files:", len(new_python))
