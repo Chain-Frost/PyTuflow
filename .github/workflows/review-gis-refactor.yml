@@ -40,6 +40,7 @@ jobs:
           tests/test_deferred_database_parity.py
           tests/test_fragment_dependencies.py
           tests/test_effective_dependency_manifests.py
+          tests/test_resolution_modes.py
           tests/tmf/test_input.py::test_input_files_ref_in_gis
           tests/tmf/test_input_context.py::test_input_files_ref_in_gis
   lint:

@@ -75,6 +75,7 @@ pytuflow-project = "pytuflow.project.__main__:main"
 target-version = "py311"
 line-length = 120
 include = [
+    "pytuflow/_tmf/options.py",
     "pytuflow/_tmf/compiled_scope.py",
     "pytuflow/_tmf/deferred_database.py",
     "pytuflow/_tmf/deferred_dependency_fallback.py",
@@ -88,6 +89,7 @@ include = [
     "pytuflow/validation.py",
     "pytuflow/validation_gis.py",
     "pytuflow/validation_links.py",
+    "tests/test_resolution_modes.py",
     "tests/test_batch_validation_mvp.py",
     "tests/test_compiled_scope.py",
     "tests/test_deferred_database_parity.py",
