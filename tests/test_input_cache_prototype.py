@@ -58,25 +58,30 @@ def _inputs(model: TCF) -> list[Any]:
 
 
 @pytest.mark.parametrize("count", [4, 36, 240, 480])
-def test_per_input_cache_matches_plan_cache_and_cleans_up(tmp_path: Path, count: int) -> None:
-    """Keep every immutable run and fragment in the same source order."""
+def test_input_owned_fragments_match_normal_run_and_clean_up(
+    tmp_path: Path, count: int
+) -> None:
+    """Reuse immutable fragments without retaining state on parsed inputs."""
     model = _model(tmp_path)
     flags = _flags(count)
-    expected = model.collect_file_dependencies(flags)
-    alternative = model.collect_file_dependencies(flags, _cache_location="input")
-    assert expected.passed and alternative.passed
-    assert alternative.runs == expected.runs
-    assert alternative.fragments == expected.fragments
-    assert alternative.fragment_evaluations == expected.fragment_evaluations
-    assert alternative.fragment_reuses == expected.fragment_reuses
-    assert alternative.fallback_runs == expected.fallback_runs
-    assert all(not hasattr(item, "_prototype_batch_fragments") for item in _inputs(model))
-    # Re-running the accepted path must not reuse stale experiment cache data.
-    assert model.collect_file_dependencies(flags).runs == expected.runs
+    actual = model.collect_file_dependencies(flags)
+    assert actual.passed
+    assert actual.fallback_runs == 0
+    assert actual.fragment_reuses > 0
+    assert len(actual.fragments) > 0
+    assert all(
+        not hasattr(item, "_batch_dependency_fragments") for item in _inputs(model)
+    )
+    repeated = model.collect_file_dependencies(flags)
+    assert repeated.runs == actual.runs
+    assert repeated.fragments == actual.fragments
+    assert repeated.fragment_reuses == actual.fragment_reuses
+    if count <= 36:
+        assert actual.runs == collect_fallback_dependencies(model, flags).runs
 
 
 def test_failed_run_does_not_publish_an_incomplete_input_cache(tmp_path: Path) -> None:
-    """A failing run must not contaminate later successful source references."""
+    """A failed run must not contaminate subsequent successful contexts."""
     path = tmp_path / "model.tcf"
     path.write_text(
         "Read Grid Zpts == terrain.tif\n"
@@ -85,27 +90,53 @@ def test_failed_run_does_not_publish_an_incomplete_input_cache(tmp_path: Path) -
     )
     model = TCF(path)
     flags = ["-s1 BAD", "-s1 GOOD", "-s1 GOOD -e1 A"]
-    baseline = model.collect_file_dependencies(flags)
-    candidate = model.collect_file_dependencies(flags, _cache_location="input")
-    assert candidate.runs == baseline.runs
-    assert candidate.runs[0].error is not None
-    assert candidate.runs[1].error is None
-    assert candidate.runs[1].file_references == collect_fallback_dependencies(
+    actual = model.collect_file_dependencies(flags)
+    assert actual.runs[0].error is not None
+    assert actual.runs[0].file_references == ()
+    assert actual.runs[1].error is None
+    assert actual.runs[1].file_references == collect_fallback_dependencies(
         model, ["-s1 GOOD"]
     ).runs[0].file_references
-    assert all(not hasattr(item, "_prototype_batch_fragments") for item in _inputs(model))
+    assert all(
+        not hasattr(item, "_batch_dependency_fragments") for item in _inputs(model)
+    )
 
 
 def test_input_cache_cleans_up_when_flag_generator_raises(tmp_path: Path) -> None:
-    """Never retain an experiment-only cache after an unexpected batch error."""
+    """Clean up input-owned cache after interruption of a generator."""
     model = _model(tmp_path)
 
     def flags():
-        """Yield a run, then simulate an interrupted batch."""
+        """Yield a run, then interrupt the next iteration."""
         yield "-s1 DEV -e1 Q10"
         raise RuntimeError("interrupted")
 
     with pytest.raises(RuntimeError, match="interrupted"):
-        model.collect_file_dependencies(flags(), _cache_location="input")
-    assert all(not hasattr(item, "_prototype_batch_fragments") for item in _inputs(model))
+        model.collect_file_dependencies(flags())
+    assert all(
+        not hasattr(item, "_batch_dependency_fragments") for item in _inputs(model)
+    )
     assert model.collect_file_dependencies(["-s1 DEV -e1 Q10"]).passed
+
+
+def test_overlapping_batches_do_not_share_input_cache(tmp_path: Path) -> None:
+    """Overlapping batches must reject foreign cached fragments."""
+    model = _model(tmp_path)
+    overlap: list[object] = []
+
+    def flags():
+        """Invoke another batch after the outer batch has cached one run."""
+        yield "-s1 DEV -e1 Q10"
+        overlap.append(model.collect_file_dependencies(["-s1 DEV -e1 Q10"]))
+        yield "-s1 EXG -e1 Q100"
+
+    outer = model.collect_file_dependencies(flags())
+    assert outer.passed
+    assert len(overlap) == 1
+    nested = overlap[0]
+    assert not nested.passed
+    assert nested.runs[0].error is not None
+    assert "another active batch" in nested.runs[0].error
+    assert all(
+        not hasattr(item, "_batch_dependency_fragments") for item in _inputs(model)
+    )

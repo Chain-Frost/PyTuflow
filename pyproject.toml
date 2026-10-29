@@ -91,7 +91,6 @@ include = [
     "pytuflow/validation_links.py",
     "tests/test_gpkg_reader_prototype.py",
     "tests/test_input_cache_prototype.py",
-    "tests/benchmark_gpkg_model_cache.py",
     "tests/test_resolution_modes.py",
     "tests/test_batch_validation_mvp.py",
     "tests/test_compiled_scope.py",
