@@ -116,6 +116,12 @@ class TuflowPath(Path):
                 cur.execute("SELECT table_name FROM gpkg_contents;")
                 layers = [x[0] for x in cur.fetchall()]
         except Exception as e:
+            from ..gpkg_safety import GeoPackageSafetyError
+
+            if isinstance(e, GeoPackageSafetyError):
+                # An active WAL, ambiguous alias or changing source is not an
+                # empty layer inventory. Do not silently certify it as such.
+                raise
             logger.debug(f'Error occurred: {e}')
         return layers
 
