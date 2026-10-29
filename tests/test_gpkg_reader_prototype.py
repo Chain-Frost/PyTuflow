@@ -77,9 +77,9 @@ def test_default_gpkg_reader_keeps_original_provider_dispatch(gpkg: Path, monkey
     monkeypatch.setattr(driver, "has_gdal", False)
     with GISAttributes(_source(gpkg)) as reader:
         assert isinstance(reader, GPKGAttributes)
-        assert list(reader)[0]["Inlet_Type"] == "inlet.csv"
+        assert next(iter(reader))["Inlet_Type"] == "inlet.csv"
     with GPKGAttributes(_source(gpkg)) as reader:
-        assert list(reader)[0]["Inlet_Type"] == "inlet.csv"
+        assert next(iter(reader))["Inlet_Type"] == "inlet.csv"
 
 
 def test_strict_gpkg_reader_requires_explicit_read_only_for_shared_connection(gpkg: Path) -> None:
