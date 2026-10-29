@@ -69,3 +69,28 @@ Changelog = "https://docs.tuflow.com/pytuflow/#changelog"
 
 [project.scripts]
 pytuflow-project = "pytuflow.project.__main__:main"
+
+# Ruff checks are scoped to new feature modules; legacy modules are unchanged.
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+include = [
+    "pytuflow/_tmf/compiled_scope.py",
+    "pytuflow/_tmf/deferred_database.py",
+    "pytuflow/_tmf/deferred_dependency_fallback.py",
+    "pytuflow/_tmf/dependency_records.py",
+    "pytuflow/_tmf/effective_dependencies.py",
+    "pytuflow/_tmf/file_reference.py",
+    "pytuflow/_tmf/fragment_context.py",
+    "pytuflow/_tmf/fragment_dependencies.py",
+    "pytuflow/_tmf/gpkg_safety.py",
+    "pytuflow/batch_validation.py",
+    "pytuflow/validation.py",
+    "pytuflow/validation_gis.py",
+    "pytuflow/validation_links.py",
+]
+
+[tool.ruff.lint]
+# Core rules adapted from ryan-tools; D adds required API documentation.
+select = ["E4", "E7", "E9", "F", "B", "BLE", "I", "UP", "RUF", "D"]
+ignore = ["D203", "D213"]
