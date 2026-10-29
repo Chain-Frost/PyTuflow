@@ -1141,3 +1141,18 @@ def test_cached_database_directory_case_mismatch_fails_closed(tmp_path: Path) ->
             build, Context(config=cfg), "materials", cfg,
             primary_path=tmp_path / "area" / "materials.csv",
         )
+
+
+def test_cached_database_different_root_is_not_an_alias(tmp_path: Path) -> None:
+    from pytuflow._tmf.context import Context
+
+    cfg = _cfg(tmp_path)
+    original = Path('Q:/models/Materials.csv')
+    database = SimpleNamespace(loaded=True, fpath=original,
+                               df=pd.DataFrame({'Manning': [0.03]}))
+    build = SimpleNamespace(cf=[database], _database_loaded_paths=[original])
+    for requested in (Path('R:/models/Materials.csv'),
+                      Path(r'\\server\share\models\Materials.csv')):
+        with pytest.raises(DeferredDatabaseResolutionError, match='found 0'):
+            database_source_references(build, Context(config=cfg), 'materials', cfg,
+                                       primary_path=requested)

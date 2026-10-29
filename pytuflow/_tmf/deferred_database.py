@@ -11,7 +11,6 @@ import numpy as np
 
 from .file_reference import (
     FileReference, make_file_reference, _cached_path_matches,
-    _cached_windows_root_alias_matches,
 )
 from .parsers.command import Command
 
@@ -209,13 +208,6 @@ def database_source_references(
                 i for i, original in enumerate(loaded_paths)
                 if _cached_path_matches(
                     Path(original), Path(primary_path), config.case_sensitivity
-                )
-            ]
-        if not indices and os.name == "nt":
-            indices = [
-                i for i, original in enumerate(loaded_paths)
-                if _cached_windows_root_alias_matches(
-                    Path(original), Path(primary_path)
                 )
             ]
         # Exact spellings win. Multiple non-exact case-policy matches

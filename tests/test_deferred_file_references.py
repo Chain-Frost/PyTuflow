@@ -893,18 +893,19 @@ def test_batch_preflight_spatial_database_layer_only_reference(tmp_path: Path) -
 
 
 def test_cached_windows_root_alias_requires_matching_directory_hierarchy() -> None:
-    """Only actual drive/share-root differences can describe the same include."""
-    from pathlib import PureWindowsPath
+    """Matching subpaths cannot establish that distinct roots are aliases."""
+    from types import SimpleNamespace
+    from pytuflow._tmf.abc.run_state import ResolveError
+    from pytuflow._tmf.inp.cf import select_deferred_children
 
-    from pytuflow._tmf.file_reference import _cached_windows_root_alias_matches
-
-    drive = PureWindowsPath("Q:/models/Area/geom.tgc")
-    share = PureWindowsPath(r"\\server\share\models\Area\geom.tgc")
-    wrong_scenario = PureWindowsPath(r"\\server\share\models\Other\geom.tgc")
-    assert _cached_windows_root_alias_matches(drive, share)
-    assert _cached_windows_root_alias_matches(share, drive)
-    assert not _cached_windows_root_alias_matches(drive, wrong_scenario)
-    assert not _cached_windows_root_alias_matches(
-        PureWindowsPath("Q:/models/Area/geom.tgc"),
-        PureWindowsPath("Q:/other/Area/geom.tgc"),
-    )
+    requested = Path('Q:/models/Area/geom.tgc')
+    for cached in (
+        Path('R:/models/Area/geom.tgc'),
+        Path(r'\\server\share\models\Area\geom.tgc'),
+        Path('Q:/other/Area/geom.tgc'),
+    ):
+        build = SimpleNamespace(cf=[object()], _cf_loaded_paths=[cached],
+                                config=SimpleNamespace(case_sensitivity=2), lhs='Geometry Control File')
+        ref = SimpleNamespace(path_pattern=requested, unresolved_variables=())
+        with pytest.raises(ResolveError, match='No cached nested control file'):
+            select_deferred_children(build, [ref])
