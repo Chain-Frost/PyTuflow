@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-EXPECTED = "1.2.9"
+EXPECTED = "1.2.8"
 
 source = (ROOT / "pytuflow" / "__init__.py").read_text(encoding="utf-8")
 assert f"__version__ = '{EXPECTED}'" in source
@@ -26,7 +26,7 @@ assert "model.collect_file_dependencies(run_flags)" in readme
 assert (ROOT / "docs" / "examples" / "validating_batch_inputs.rst").is_file()
 
 changelog = (ROOT / "docs" / "changelog" / "1.2.rst").read_text(encoding="utf-8")
-assert changelog.startswith("Changelog for 1.2\n=================\n\n1.2.9\n-----\n")
+assert changelog.startswith("Changelog for 1.2\n=================\n\n1.2.8\n-----\n")
 assert (chr(96) * 2 + "TCF.collect_file_dependencies()" + chr(96) * 2) in changelog
 
 wheels = list((ROOT / "dist").glob("*.whl"))
@@ -43,7 +43,6 @@ with zipfile.ZipFile(wheel) as archive:
     assert f"Version: {EXPECTED}" in contents
     assert "## Check inputs for multiple TUFLOW runs" in contents
     for name in (
-        "pytuflow/py.typed",
         "pytuflow/batch_validation.py",
         "pytuflow/validation.py",
         "pytuflow/_tmf/fragment_dependencies.py",

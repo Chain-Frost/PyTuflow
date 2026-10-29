@@ -1,8 +1,8 @@
-"""W10: original QGIS cell-centred surface -> vertex compatibility tests.
+"""QGIS/MDAL cell-centred surface-to-vertex regression tests.
 
 This is a *real-QGIS/MDAL* acceptance module. It deliberately requires QGIS
 at collection time: it is not a standalone-Python substitute for provider
-validation. Initially reproduces the inherited unimplemented-weight gap.
+validation. These cases exercise the implemented interpolation path.
 """
 from pathlib import Path
 from math import atan2, pi
@@ -33,7 +33,7 @@ def qapp():
 
 @pytest.fixture
 def fv(qapp, tmp_path: Path) -> Path:
-    path = tmp_path / "w10-cell-to-vertex.nc"
+    path = tmp_path / "cell-to-vertex.nc"
     _write_fv(path)
     return path
 

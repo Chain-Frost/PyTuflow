@@ -21,8 +21,8 @@ jobs:
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
       PYTHONNOUSERSITE: '1'
       UPSTREAM_SHA: cf908cc922ca8448ed6002834877b0b377329eae
-      BASE_SHA: 6e383990ffd1e412ed119d7916c972e402c13af0
-      CANDIDATE_SHA: 4a979e3f43565e24d176dfd2a8b77814866fcb91
+      BASE_SHA: 784ca2a7d8c8d1131865e564b7d9554ea4192f14
+      CANDIDATE_SHA: aba4e770c08af3e1676884262546215451b82394
     steps:
       - uses: actions/checkout@v5
         with:
@@ -55,7 +55,7 @@ jobs:
           python ci/run_regression.py --source . --ref "$env:UPSTREAM_SHA" --label upstream --report-dir "$env:RUNNER_TEMP/prc-full/upstream"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run exact curated PR B base, retaining raw failures
+      - name: Run exact PR A base, retaining raw failures
         shell: pwsh
         continue-on-error: true
         run: |
