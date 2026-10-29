@@ -9,9 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
-from .file_reference import (
-    FileReference, make_file_reference, _cached_path_matches,
-)
+from .file_reference import FileReference, _cached_path_matches, make_file_reference
 from .parsers.command import Command
 
 if TYPE_CHECKING:

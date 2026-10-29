@@ -28,10 +28,13 @@ from .scope import (
 
 @dataclass(frozen=True, slots=True)
 class ScopePredicate:
+    """Represent an immutable, evaluated set of builtin scope requirements."""
+
     # Each condition is an OR of names; conditions are joined with AND.
     conditions: tuple[tuple[str, frozenset[str], bool], ...]
 
     def evaluate(self, ctx: Any) -> bool:
+        """Check the selected run against the compiled scope requirements."""
         for kind, names, negated in self.conditions:
             available = ctx._compiled_membership(kind)
             if bool(names & available) == negated:
@@ -40,10 +43,12 @@ class ScopePredicate:
 
 
 def builtin_translation() -> bool:
+    """Check whether Context.translate retains its original implementation."""
     return Context.translate is dict(_CONTEXT_APPEND_ATTRIBUTES)["translate"]
 
 
 def _builtin_definitions() -> bool:
+    """Detect modified context or scope implementations before optimisation."""
     # A Context extension may redefine membership or the available scope set.
     # Compiling the built-in rule would bypass that hook, so retain its evaluator.
     original = dict(_CONTEXT_APPEND_ATTRIBUTES)
@@ -61,6 +66,7 @@ def _builtin_definitions() -> bool:
 
 
 def _custom_attributes(scope: Any) -> bool:
+    """Detect extension-defined scope attributes that affect evaluation."""
     attributes = cast(dict[str, object], vars(scope))
     return any(callable(value) for value in attributes.values())
 
@@ -69,12 +75,14 @@ class ScopeProgram:
     """Compile stable parsed scope lists once; never retain mutable contexts."""
 
     def __init__(self) -> None:
+        """Initialise an invocation-local cache only when builtin scopes are intact."""
         self.enabled = _builtin_definitions()
         self.plans: dict[int, tuple[object, ScopePredicate | None]] = {}
         self.evaluations = 0
         self.fallbacks = 0
 
     def compile(self, scopes: Any) -> ScopePredicate | None:
+        """Retrieve or construct a predicate for eligible builtin scopes."""
         prior = self.plans.get(id(scopes))
         if prior is not None and prior[0] is scopes:
             return prior[1]
@@ -85,6 +93,7 @@ class ScopeProgram:
 
     @staticmethod
     def _compile(scopes: Any) -> ScopePredicate | None:
+        """Compile supported scope objects without changing their semantics."""
         if scopes is None:
             return ScopePredicate(())
         if type(scopes) is not ScopeList:
@@ -127,6 +136,7 @@ class ScopeProgram:
         return ScopePredicate(tuple(conditions))
 
     def evaluate(self, scopes: Any, ctx: Any) -> bool | None:
+        """Check the selected run against the compiled scope requirements."""
         predicate = self.compile(scopes)
         if predicate is None or not ctx._compiled_scope_eligible():
             self.fallbacks += 1

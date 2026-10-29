@@ -40,7 +40,7 @@ class GeoPackageSafetyError(RuntimeError):
 
 
 def gpkg_source_identity(source: os.stat_result) -> tuple[int, int]:
-    """The physical file that a lexical alias currently names."""
+    """Return the physical identity named by a lexical file alias."""
     return source.st_dev, source.st_ino
 
 
@@ -79,6 +79,7 @@ def _gpkg_journal_error(path: Path, target: Path) -> str | None:
 def _pin_gpkg(
     path: Path, expected_stat: os.stat_result | None = None
 ) -> tuple[Path, os.stat_result, os.stat_result]:
+    """Pin the actual GeoPackage and reject unsafe journal states."""
     target = path.resolve(strict=True)
     alias = path.lstat()
     source = target.stat()
@@ -101,6 +102,7 @@ def _confirm_gpkg(
     path: Path, target: Path,
     alias_before: os.stat_result, source_before: os.stat_result
 ) -> None:
+    """Check that the pinned GeoPackage remains unchanged after inspection."""
     if path.resolve(strict=True) != target:
         raise GeoPackageSafetyError(_GPKG_SOURCE_CHANGED_ERROR)
     if (

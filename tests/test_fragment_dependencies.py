@@ -7,8 +7,8 @@ from unittest.mock import patch
 import pytest
 
 from pytuflow import TCF
-from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
 from pytuflow._tmf.context import Context
+from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
 from pytuflow._tmf.fragment_dependencies import ExpressionPool
 from pytuflow._tmf.inp.inp_run_state import InputRunState
 

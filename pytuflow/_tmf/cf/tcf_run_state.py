@@ -34,6 +34,8 @@ class _IndexedRunInput:
 
 @dataclass(frozen=True, slots=True)
 class _RunInputIndex:
+    """Index the ordered run inputs by UUID without sharing mutable run state."""
+
     ordered: tuple[_IndexedRunInput, ...]
     by_uuid: Mapping[str, tuple[_IndexedRunInput, ...]]
 

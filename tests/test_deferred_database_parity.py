@@ -534,7 +534,7 @@ def test_ad_bc_fails_closed_if_global_database_is_ambiguous(tmp_path):
             encoding="utf-8",
         )
     _bc_csv(tmp_path / "ad_bc.csv", "source.csv")
-    with pytest.raises(ValueError, match="Multiple active ad global|requires one active"):
+    with pytest.raises(ValueError, match=r"Multiple active ad global|requires one active"):
         TCF(tcf).context(file_resolution="deferred").deferred_database_sources()
 
 

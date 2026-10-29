@@ -14,6 +14,7 @@ _FLAG = re.compile(r"[SE][1-9]?")
 
 
 def _name(token: str) -> str:
+    """Normalise TUFLOW variable tokens for manifest lookup."""
     name = token.upper()
     if re.fullmatch(r"~[SE]~", name):
         name = name[:-1] + "1~"
@@ -21,6 +22,7 @@ def _name(token: str) -> str:
 
 
 def _references(text: str) -> tuple[str, ...] | None:
+    """Find dependencies in a variable expression or decline unsupported syntax."""
     if any(mark in _TOKEN.sub("", text) for mark in ("<<", ">>")):
         return None
     return tuple(sorted({_name(match.group(1)) for match in _TOKEN.finditer(text)}))
@@ -28,6 +30,8 @@ def _references(text: str) -> tuple[str, ...] | None:
 
 @dataclass(frozen=True, slots=True)
 class EffectiveDependencyManifest:
+    """Record effective variable dependencies for one input."""
+
     source_identity: int
     variables: tuple[str, ...]
     predicates: tuple[ScopePredicate, ...]
@@ -44,6 +48,7 @@ class EffectiveDependencyManifest:
         assignments: Any,
         program: ScopeProgram,
     ) -> EffectiveDependencyManifest:
+        """Compile a manifest of transitive variable and scope dependencies."""
         declarations: dict[str, set[str]] = {}
         for _, (name, value) in assignments:
             declarations.setdefault(str(name).upper(), set()).add(str(value))
@@ -52,6 +57,7 @@ class EffectiveDependencyManifest:
         reason: str | None = None
 
         def visit(name: str) -> None:
+            """Traverse a referenced variable, reporting cycles conservatively."""
             nonlocal reason
             if name in visiting:
                 reason = "cyclic-variable"
@@ -100,6 +106,7 @@ class EffectiveDependencyManifest:
         )
 
     def bindings(self, ctx: Any) -> tuple[object, ...] | None:
+        """Resolve the variable values that distinguish one reusable fragment."""
         values: list[object] = []
         for name, allowed in self.allowed_values:
             value = ctx.var_map.get(name)

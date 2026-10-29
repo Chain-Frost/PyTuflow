@@ -33,6 +33,7 @@ _LIMIT = 10000
 
 
 def _variable_name(token: str) -> str:
+    """Normalise variable names for compiled expression caching."""
     name = token.upper()
     if re.fullmatch(r"~[SE]~", name):
         name = name[:-1] + "1~"
@@ -57,6 +58,7 @@ class CompiledExpression:
 
     @classmethod
     def compile(cls, text: str) -> CompiledExpression:
+        """Compile an expression while preserving variable substitution order."""
         operations: list[tuple[bool, str]] = []
         names: set[str] = set()
         end = 0
@@ -69,6 +71,7 @@ class CompiledExpression:
         return cls(text, tuple(operations), tuple(sorted(names)))
 
     def bindings(self, ctx: Any) -> tuple[object, ...]:
+        """Compute the transitive variable values used in cache keys."""
         # Follow actual variable values transitively, including scoped Set
         # Variable declarations. Cycles terminate; Context decides errors.
         pending = list(self.variables)
@@ -121,6 +124,7 @@ class CompiledExpression:
         return tuple(sorted(found.items())), events
 
     def evaluate(self, ctx: Any) -> Any:
+        """Resolve the expression using safe compiled substitutions."""
         # Only use the token join when no replacement can trigger a subsequent
         # replacement, numeric coercion, or arbitrary TEF substitution.
         # Even a single angle bracket can combine with another binding
@@ -146,12 +150,14 @@ class ExpressionPool:
     """Compile expressions once and share evaluations by effective bindings."""
 
     def __init__(self) -> None:
+        """Initialise per-batch fragment and scope caches."""
         self.plans: dict[str, CompiledExpression] = {}
         self.values: dict[tuple[str, tuple[object, ...]], Any] = {}
         self.evaluations = 0
         self.reuses = 0
 
     def translate(self, ctx: Any, text: Any) -> Any:
+        """Evaluate an expression using compiled substitutions where safe."""
         from .tfpathlib import TuflowPath
 
         if not isinstance(text, (str, TuflowPath)):
@@ -174,6 +180,8 @@ class ExpressionPool:
 
 
 class _FragmentContext(FragmentContextBase):
+    """Hold one run's variable and scope dependency state."""
+
     event_variables: dict[str, str]
     _batch_variable_assignments: tuple[tuple[Any, tuple[str, str]], ...]
 
@@ -184,6 +192,7 @@ class _FragmentContext(FragmentContextBase):
         expressions: ExpressionPool,
         scopes: ScopeProgram | None = None,
     ) -> None:
+        """Initialise per-batch fragment and scope caches."""
         self._scope_program = scopes
         self._compiled_scope_safe: bool | None = None
         self._compiled_flag_names: dict[str, frozenset[str]] = {}
@@ -199,6 +208,7 @@ class _FragmentContext(FragmentContextBase):
         self.file_resolution = "deferred"
 
     def _invalidate(self) -> None:
+        """Invalidate compilation results when the run context changes."""
         # Invalidate cached signatures whenever events, scenarios or
         # Set Variable declarations change during run preparation.
         self._fragment_signature_values.clear()
@@ -208,6 +218,7 @@ class _FragmentContext(FragmentContextBase):
         super()._invalidate()
 
     def _compiled_scope_eligible(self) -> bool:
+        """Check whether this context permits safe builtin scope compilation."""
         if self._compiled_scope_safe is None:
             self._compiled_scope_safe = all(
                 type(value) is str and "<<" not in value
@@ -219,6 +230,7 @@ class _FragmentContext(FragmentContextBase):
         )
 
     def _compiled_membership(self, kind: str) -> frozenset[str]:
+        """Find the selected scope names for compiled membership tests."""
         from .scope import Scope
 
         names = self._compiled_flag_names.get(kind)
@@ -250,6 +262,7 @@ class _FragmentContext(FragmentContextBase):
         return names
 
     def in_context_by_scope(self, req_scope: Any) -> bool:
+        """Check scope membership, falling back to original evaluation as needed."""
         if self._scope_program is not None:
             active = self._scope_program.evaluate(req_scope, self)
             if active is not None:
@@ -257,6 +270,7 @@ class _FragmentContext(FragmentContextBase):
         return super().in_context_by_scope(req_scope)
 
     def translate(self, item: Any) -> Any:
+        """Evaluate an expression using compiled substitutions where safe."""
         from .tfpathlib import TuflowPath
 
         # Flags, event definitions and variables invalidate this run's
@@ -289,6 +303,7 @@ _EMPTY_FRAGMENT = DependencyFragment()
 
 
 def _join(fragments: Iterable[DependencyFragment]) -> DependencyFragment:
+    """Merge ordered fragments while retaining all input provenance."""
     commands: list[BatchInputCommand] = []
     refs: list[BatchInputReference] = []
     sources: list[DeferredDatabaseSource] = []
@@ -322,6 +337,8 @@ def _join(fragments: Iterable[DependencyFragment]) -> DependencyFragment:
 
 @dataclass(frozen=True, slots=True)
 class FragmentBatchResult:
+    """Expose collected dependencies and fragment-reuse statistics."""
+
     runs: tuple[BatchDependencyRun, ...]
     fragments: tuple[DependencyFragment, ...]
     fragment_evaluations: int
@@ -334,6 +351,7 @@ class FragmentBatchResult:
 
     @property
     def passed(self) -> bool:
+        """Report whether all requested runs resolved their dependencies."""
         return bool(self.runs) and all(run.error is None for run in self.runs)
 
 
@@ -396,9 +414,12 @@ def _original_control_file_context(cf: Any) -> bool:
 
 
 class _Plan:
+    """Maintain an invocation-local plan for reusable input evaluation."""
+
     def __init__(
         self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True
     ) -> None:
+        """Initialise per-batch fragment and scope caches."""
         compiled_started = perf_counter()
         self.use_scopes = use_scopes
         self.use_manifests = use_manifests
@@ -484,6 +505,7 @@ class _Plan:
         self.compilation_seconds = perf_counter() - compiled_started
 
     def _compile(self, inp: Any, ancestors: set[int]) -> None:
+        """Compile one input and its nested descendants into dependency fragments."""
         from .inp.cf import ControlFileInput
         from .inp.db import DatabaseInput
 
@@ -571,6 +593,7 @@ class _Plan:
     def _manifest_signature(
         self, manifest: EffectiveDependencyManifest, ctx: Any
     ) -> tuple[object, ...] | None:
+        """Compute the variable bindings required for a safe fragment key."""
         reason = manifest.fallback_reason
         if not self._builtin_manifest_translation:
             reason = "custom-context-translation"
@@ -604,6 +627,7 @@ class _Plan:
         )
 
     def _key(self, inp: Any, ctx: Any) -> tuple[int, tuple[object, ...]]:
+        """Compute the conservative cache key for an input and run context."""
         if not self.use_manifests:
             return self._full_key(inp, ctx)
         signature = self._manifest_signature(self.manifests[id(inp)], ctx)
@@ -633,6 +657,7 @@ class _Plan:
         return id(inp), ("manifest", signature, selected)
 
     def _full_key(self, inp: Any, ctx: Any) -> tuple[int, tuple[object, ...]]:
+        """Construct a full-context key when a reduced key is unsafe."""
         self.full_keys += 1
         # Equality is based on effective values, not entire flag dictionaries.
         # This covers transitive variables and TEF changes without guessing that
@@ -680,6 +705,7 @@ class _Plan:
     def _include_selection(
         self, inp: Any, ctx: Any
     ) -> tuple[DependencyFragment, tuple[Any, ...]]:
+        """Identify nested inputs that apply to the selected run."""
         from .inp.cf import select_deferred_children
         from .inp.inp_run_state import InputRunState
 
@@ -722,6 +748,7 @@ class _Plan:
 
     @staticmethod
     def _project_state(state: Any) -> DependencyFragment:
+        """Capture resolved input references as immutable records."""
         from .cf.tcf_run_state import TCFRunState
 
         refs: tuple[FileReference, ...] = tuple(state.file_references)
@@ -778,6 +805,7 @@ class _Plan:
         return result
 
     def evaluate(self, inp: Any, ctx: Any) -> DependencyFragment:
+        """Resolve the expression using safe compiled substitutions."""
         from .inp.cf import ControlFileInput
 
         # Inactive inputs cannot contribute commands or dependencies. Avoid

@@ -26,6 +26,7 @@ class FragmentContextBase(Context):
     """Only the per-run scope/translation state needed by fragment projection."""
 
     def __init__(self, run_flags: str | dict[str, str], *, config: Any) -> None:
+        """Initialise the independent scenario/event context for one batch run."""
         self._batch_active = False
         self._batch_scopes: ScopeList | None = None
         self._batch_scope_decisions: dict[int, tuple[object, bool]] = {}
@@ -38,11 +39,13 @@ class FragmentContextBase(Context):
         self._batch_active = True
 
     def _invalidate(self) -> None:
+        """Clear compiled scope state after modifying run selections."""
         self._batch_scopes = None
         self._batch_scope_decisions.clear()
         self._batch_translations.clear()
 
     def load_context_from_dict(self, context: dict) -> None:
+        """Update flags while invalidating cached membership."""
         was_active = self._batch_active
         self._batch_active = False
         self._invalidate()
@@ -53,6 +56,7 @@ class FragmentContextBase(Context):
             self._batch_active = was_active
 
     def load_events(self, event_db: Any) -> None:
+        """Load selected events without sharing old scope state."""
         # Event definitions become visible sequentially while being loaded.
         was_active = self._batch_active
         self._batch_active = False
@@ -64,6 +68,7 @@ class FragmentContextBase(Context):
             self._batch_active = was_active
 
     def load_variables(self, var_map: Any) -> None:
+        """Apply scoped variables and invalidate compiled expressions."""
         self._invalidate()
         try:
             super().load_variables(var_map)
@@ -72,6 +77,7 @@ class FragmentContextBase(Context):
 
     @property
     def available_scopes(self) -> ScopeList:
+        """Expose the selected scopes to the ordinary evaluator."""
         if not self._batch_active:
             return super().available_scopes
         if self._batch_scopes is None:
@@ -82,6 +88,7 @@ class FragmentContextBase(Context):
         return self._batch_scopes
 
     def in_context_by_scope(self, req_scope: ScopeList) -> bool:
+        """Evaluate scope membership while retaining fallback semantics."""
         if not self._batch_active:
             return super().in_context_by_scope(req_scope)
         saved = self._batch_scope_decisions.get(id(req_scope))

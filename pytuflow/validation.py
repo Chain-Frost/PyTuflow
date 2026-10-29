@@ -3,7 +3,7 @@
 Dependency collection and control-file interpretation remain entirely separate.
 This module accepts immutable per-run dependency projections and inspects only
 the selected source paths, GeoPackage metadata and ordinary BC CSV headers.
-No TUFLOW solver, QGIS runtime or ryan-tools dependency is required.
+Inspection does not execute TUFLOW or require the QGIS runtime.
 """
 
 from __future__ import annotations
@@ -33,12 +33,27 @@ class DependencyProjection(Protocol):
     """Immutable per-run dependency records accepted by the physical inspector."""
 
     @property
-    def runs(self) -> tuple[BatchDependencyRun, ...]: ...
+    def runs(self) -> tuple[BatchDependencyRun, ...]:
+        """Return the immutable run dependencies to inspect."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
 class ValidationOptions:
-    """Explicit physical inspection policy; no IO occurs until validation."""
+    """Configure supported physical checks and their resource limits.
+
+    Args:
+        check_files: Verify selected input paths exist and are readable.
+        check_gpkg_layers: Verify selected GeoPackage layers.
+        check_bc_csv_headers: Check referenced BC CSV column names.
+        io_workers: Maximum concurrent workers for independent input checks.
+        maximum_directory_entries: Limit names visited per wildcard directory.
+        maximum_header_lines: Limit lines inspected for a BC CSV header.
+        maximum_header_bytes: Bound the bytes read while inspecting a CSV header.
+        case_sensitivity: Linux TUFLOW filename policy (0, 1 or 2); None uses
+            the parsed model's policy.
+
+    """
 
     check_files: bool = True
     check_gpkg_layers: bool = True
@@ -52,6 +67,7 @@ class ValidationOptions:
     case_sensitivity: int | None = None
 
     def __post_init__(self) -> None:
+        """Reject invalid resource limits and filename-case modes."""
         if self.case_sensitivity is not None and (
             type(self.case_sensitivity) is not int
             or self.case_sensitivity not in (0, 1, 2)
@@ -69,7 +85,12 @@ class ValidationOptions:
 
 @dataclass(frozen=True, slots=True)
 class ValidationFinding:
-    """One physical-inspection result attributed to one requested simulation."""
+    """Record the status of one input and its source-command provenance.
+
+    The status is present, missing, unresolved or unsupported. Source ownership,
+    input UUID and run index identify the original model declaration, allowing
+    the same physical file to be reported separately for each affected run.
+    """
 
     run_index: int
     flags: str
@@ -89,7 +110,12 @@ class ValidationFinding:
 
 @dataclass(frozen=True, slots=True)
 class ValidationReport:
-    """Ordered findings plus deduplicated physical-inspection counters."""
+    """Report physical preflight findings for selected scenario/event runs.
+
+    A report passes only if at least one run was inspected and all requirements
+    are present. Physical inspection counts represent deduplicated I/O rather
+    than a separate file read for every run.
+    """
 
     findings: tuple[ValidationFinding, ...]
     run_count: int
@@ -100,6 +126,7 @@ class ValidationReport:
 
     @property
     def passed(self) -> bool:
+        """Return whether every inspected source was present."""
         return bool(self.run_count) and all(
             item.status == "present" for item in self.findings
         )
@@ -107,6 +134,8 @@ class ValidationReport:
 
 @dataclass(frozen=True, slots=True)
 class _Requirement:
+    """Identify one requirement and its original run and command."""
+
     run_index: int
     flags: str
     path: Path
@@ -124,6 +153,8 @@ class _Requirement:
 
 @dataclass(frozen=True, slots=True)
 class _Inspection:
+    """Record an inspected file and its associated validation status."""
+
     status: ValidationStatus
     detail: str = ""
     layers: tuple[str, ...] = ()
@@ -135,7 +166,7 @@ class _Inspection:
 
 
 def _implicit_gpkg_layer(reference: FileReference) -> bool:
-    """True only when the parser inferred the layer from the filename stem.
+    """Return whether the parser inferred the layer from the filename stem.
 
     The original syntactic value distinguishes a GeoPackage without a
     `>> layer` selector from an explicit wildcard layer. A globbed filename
@@ -159,6 +190,7 @@ def _implicit_gpkg_layer(reference: FileReference) -> bool:
 def _requirements(projection: DependencyProjection) -> tuple[
     list[_Requirement], list[ValidationFinding]
 ]:
+    """Collect per-run physical requirements with provenance."""
     requirements: list[_Requirement] = []
     errors: list[ValidationFinding] = []
     for run in projection.runs:
@@ -268,6 +300,7 @@ def _requirements(projection: DependencyProjection) -> tuple[
 
 
 def _has_wildcards(path: str) -> bool:
+    """Return whether a path contains glob metacharacters."""
     return any(char in path for char in "*?[")
 
 
@@ -305,7 +338,6 @@ def _scan_wildcard_patterns(
     dict[Path, tuple[Path, ...]], dict[Path, tuple[ValidationStatus, str]], int
 ]:
     """Scan a directory once for all requested filename patterns in it."""
-
     found: dict[Path, tuple[Path, ...]] = {}
     failures: dict[Path, tuple[ValidationStatus, str]] = {}
     grouped: dict[Path, list[Path]] = defaultdict(list)
@@ -465,6 +497,7 @@ def _shapefile_companions(path: Path) -> tuple[Path, Path]:
 
 
 def _stat_source(path: Path) -> tuple[ValidationStatus, str]:
+    """Check whether the input is an ordinary readable file."""
     try:
         info = path.stat()
     except FileNotFoundError:
@@ -520,6 +553,7 @@ def _gpkg_contents(path: Path) -> tuple[tuple[str, ...], str]:
 def _layer_status(
     requested: str, existing: tuple[str, ...], *, implicit: bool = False
 ) -> tuple[ValidationStatus, str]:
+    """Check the selected GeoPackage layer against available names."""
     names = tuple(name.casefold() for name in existing)
     # A GeoPackage filename *stem* is a literal layer requirement, even if
     # spelled "all" or containing [bracket] syntax. TUFLOW's >> all and
@@ -587,6 +621,7 @@ def _csv_records(
             inside_quotes = False
 
             def lines() -> Iterator[str]:
+                """Yield bounded CSV rows while respecting multiline quoted fields."""
                 nonlocal remaining, record_started, inside_quotes
                 for number in range(lines_limit):
                     line = source.readline(remaining + 1)
@@ -644,6 +679,7 @@ def _select_csv_header(
 def _header_status(
     header: tuple[str, ...], required: tuple[str, ...]
 ) -> tuple[ValidationStatus, str]:
+    """Check that referenced BC CSV columns are unique and present."""
     if len(required) != 2 or any(
         not column.strip() or "<<" in column for column in required
     ):
@@ -681,7 +717,6 @@ def validate_dependencies(
     File results are shared only within this invocation; finding ownership is
     restored independently for each run and source declaration.
     """
-
     policy = options if options is not None else ValidationOptions()
     if not projection.runs:
         raise ValueError("At least one run is required for input validation")
@@ -694,6 +729,7 @@ def validate_dependencies(
         path: Path,
         detail: str = "",
     ) -> ValidationFinding:
+        """Construct a finding with source-command attribution."""
         return ValidationFinding(
             item.run_index,
             item.flags,
@@ -720,9 +756,11 @@ def validate_dependencies(
     }
 
     def add(item: _Requirement, result: ValidationFinding) -> None:
+        """Associate a finding with its source requirement."""
         by_requirement[id(item)].append(result)
 
     def ordered_findings() -> tuple[ValidationFinding, ...]:
+        """Preserve source and run ordering in the final report."""
         by_run: dict[int, list[ValidationFinding]] = defaultdict(list)
         for item in requirements:
             by_run[item.run_index].extend(by_requirement[id(item)])
@@ -826,6 +864,7 @@ def validate_dependencies(
     files = {path for _, path in concrete}
 
     def inspect(path: Path) -> tuple[Path, _Inspection]:
+        """Inspect a source and any requested GIS or CSV metadata."""
         status, detail = _stat_source(path)
         if status != "present":
             return path, _Inspection(status, detail)

@@ -3,6 +3,7 @@
 References are not existence assertions. A caller can aggregate them across
 contexts and inspect paths, database layers and GIS attributes in bulk.
 """
+
 import fnmatch
 import os
 import re
@@ -12,7 +13,6 @@ from pathlib import Path
 from .parsers.command import Command
 from .tfpathlib import TuflowPath
 from .tfstrings.patterns import globify
-
 
 
 def _cached_filename_matches(
@@ -43,7 +43,7 @@ def _cached_path_matches(path: Path, pattern: Path, case_sensitivity: int) -> bo
     wanted = Path(os.path.normpath(str(pattern))).parts
     if len(parts) != len(wanted):
         return False
-    for actual, expected in zip(parts[:-1], wanted[:-1]):
+    for actual, expected in zip(parts[:-1], wanted[:-1], strict=True):
         if os.name == "nt":
             actual, expected = actual.casefold(), expected.casefold()
         if not fnmatch.fnmatchcase(actual, expected):
