@@ -324,6 +324,7 @@ class TCFConfig:
         return event_text, event_name
 
     def set_spatial_database(self, value: str | Path | None):
+        """Apply a spatial database reference under the model filename policy."""
         value = str(value)
         if value.upper() == 'TCF':
             self.spatial_database = self.spatial_database_tcf
