@@ -65,10 +65,12 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
 
     def __init__(self, fpath: PathLike | None = None, *,
                  case_sensitivity: CaseSensitivity | None = None, **kwargs):
-        """Load using TUFLOW-compatible -cs0/-cs1/-cs2 filename case modes.
+        """Load a model using a TUFLOW Linux filename-case policy.
 
-        An omitted mode still uses the existing configuration constructor path.
-        Its Linux default is now strictly -cs0, following TUFLOW 2026.3.
+        The optional ``CaseSensitivity`` enum identifies TUFLOW's -cs0
+        (strict), -cs1 (extension only) and -cs2 (whole filename) modes.
+        An omitted mode uses the configured value, defaulting to -cs0 on
+        Linux. Windows retains ordinary filesystem filename matching.
         """
         if case_sensitivity is not None and kwargs.get('config') is not None:
             raise ValueError('Pass case_sensitivity or config, not both')
@@ -393,7 +395,14 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
                 context: Context | None = None,
                 parent: ControlFileRunState | None = None,
                 *, file_resolution: FileResolution | None = None) -> 'TCFRunState':
-        """Create a model run context; eager input evaluation remains the default."""
+        """Create a run context with explicit file-resolution behaviour.
+
+        ``FileResolution.EAGER`` is the default and keeps PyTuflow's
+        original file and GIS inspection behaviour. ``DEFERRED`` records
+        file references for an explicit later inspection. It avoids
+        repeated physical enumeration across many selected runs; parsing
+        the original TCF may still read control files and databases.
+        """
         from .tcf_run_state import TCFRunState
         ctx = context if context else Context(run_context, config=self.config)
         if file_resolution is not None:

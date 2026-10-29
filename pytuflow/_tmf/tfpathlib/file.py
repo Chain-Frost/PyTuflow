@@ -234,11 +234,13 @@ class TuflowPath(Path):
     @staticmethod
     def init_case_policy_path(path: str | Path, base_dir: str | Path = '',
                               case_sensitivity: CaseSensitivity = CaseSensitivity.STRICT) -> 'TuflowPath':
-        """TUFLOW Linux -cs: 0 strict, 1 extension, 2 filename and extension.
+        """Apply ``CaseSensitivity`` to a single Linux TUFLOW filename.
 
-        Parent directories stay strict. Exact existing spellings win.
-        Missing references stay lexical; non-exact collisions raise.
-        The separate legacy init_case_insensitive_path helper is not changed.
+        ``STRICT`` (-cs0) requires exact case; ``EXTENSION_INSENSITIVE``
+        (-cs1) relaxes only the extension; ``FILENAME_INSENSITIVE`` (-cs2)
+        relaxes the filename and extension, never parent directories.
+        Exact existing spellings win; missing names remain lexical and
+        ambiguous case-relaxed matches raise. Windows is unchanged.
         """
         case_sensitivity = parse_case_sensitivity(case_sensitivity)
         value = TuflowPath(path)
@@ -445,7 +447,13 @@ class TuflowPath(Path):
             return TuflowPath(p)
 
     def glob(self, pattern, **kwargs):
-        """Override method so can do some stuff with TUFLOW style wildcards/variables and also GPKG databases."""
+        """Expand TUFLOW wildcard references and GIS database layers.
+
+        ``case_sensitivity`` accepts the documented ``CaseSensitivity``
+        policy for Linux filename matching. Matching can inspect the
+        filesystem and GeoPackage metadata; use deferred reference
+        collection when physical inspection must be postponed.
+        """
         case_sensitivity = parse_case_sensitivity(kwargs.pop('case_sensitivity', CaseSensitivity.STRICT))
         case_sensitivity = parse_case_sensitivity(case_sensitivity)
 
