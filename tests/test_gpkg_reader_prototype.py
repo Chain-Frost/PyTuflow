@@ -132,3 +132,28 @@ def test_gpkg_path_readonly_connection_never_creates_missing_file(tmp_path: Path
             pass
     assert not missing.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+
+def test_nonspatial_attribute_table_remains_readable(tmp_path: Path) -> None:
+    """Keep existing ordinary attribute-table reads without geometry metadata."""
+    gpkg = tmp_path / "attributes.gpkg"
+    with sqlite3.connect(gpkg) as db:
+        db.execute(
+            "CREATE TABLE gpkg_contents (table_name TEXT, data_type TEXT)"
+        )
+        db.execute(
+            "INSERT INTO gpkg_contents VALUES ('lookup', 'attributes')"
+        )
+        db.execute(
+            "CREATE TABLE lookup (fid INTEGER PRIMARY KEY, value TEXT, code TEXT)"
+        )
+        db.execute(
+            "INSERT INTO lookup (value, code) VALUES ('alpha', 'one')"
+        )
+
+    with GISAttributes(TuflowPath(f"{gpkg} >> lookup")) as reader:
+        assert isinstance(reader, GPKGAttributes)
+        assert reader.field_names == ("value", "code")
+        assert list(reader) == [{"value": "alpha", "code": "one"}]
+    assert {p.name for p in tmp_path.iterdir()} == {"attributes.gpkg"}
