@@ -111,7 +111,7 @@ class TuflowPath(Path):
     def _gpkg_layers(self) -> list[str]:
         layers = []
         try:
-            with self.connect() as conn:
+            with self.connect(read_only=True) as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT table_name FROM gpkg_contents;")
                 layers = [x[0] for x in cur.fetchall()]
@@ -209,9 +209,23 @@ class TuflowPath(Path):
         return lyrname
 
     @contextmanager
-    def connect(self):
-        """Context manager to open a connection to the database."""
+    def connect(self, *, read_only: bool = False):
+        """Open SQLite, optionally enforcing read-only GeoPackage inspection.
+
+        Read-only mode uses the shared immutable reader, rejecting active
+        WAL/rollback journals and unstable aliases. It never creates an absent
+        database or writes SQLite sidecars. The default is unchanged for
+        callers that rely on the existing general-purpose connection method.
+        """
+        if read_only:
+            from ..gpkg_safety import readonly_gpkg
+
+            with readonly_gpkg(self.dbpath) as connection:
+                yield connection
+            return
+
         import sqlite3
+
         conn = None
         try:
             conn = sqlite3.connect(self.dbpath)
