@@ -390,7 +390,7 @@ class CellDataMixin:
             combined_vector = (
                 len(data_type) == 1 and self.is_vector(data_type[0])
                 and _contains_vector_components(source_values[0])
-                and source_values[0].shape[0] == len(idx)
+                and source_values[0].shape[0] == int(np.sum(nlevels))
             )
             averaging_data = dict(zip(data_type, _averaging_data(
                 source_values, combined_vector=combined_vector,
