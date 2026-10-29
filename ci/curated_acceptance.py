@@ -8,7 +8,7 @@ import sys
 
 UPSTREAM = 'cf908cc922ca8448ed6002834877b0b377329eae'
 INTEGRATION = '251387feeae0e53e48fddae762d59b13b2a8f525'
-CANDIDATE = 'd2c4bebe3beb87484cf7c0254342937ac182d2b0'
+CANDIDATE = '5f5609efe339735d1c60263544c7cb491f709b88'
 HARNESS = Path(__file__).resolve().parents[1]
 
 def main():
