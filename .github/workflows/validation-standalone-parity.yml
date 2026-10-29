@@ -1,0 +1,62 @@
+name: Standalone feature vs upstream regression parity
+on:
+  push:
+    branches:
+      - contrib/validate-validation-standalone
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  parity:
+    name: Original-library parity Windows Python ${{ matrix.python }}
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.14"]
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      PYTHONNOUSERSITE: '1'
+      UPSTREAM_SHA: cf908cc922ca8448ed6002834877b0b377329eae
+      CANDIDATE_SHA: c5e7c67d772e9d9c598ec2cb3408472d7944631d
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ci/requirements-regression.txt
+      - name: Install regression dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -r ci/requirements-regression.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run immutable upstream original-library tests
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref "$env:UPSTREAM_SHA" --label upstream --report-dir "$env:RUNNER_TEMP/standalone/upstream"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run standalone candidate original-library tests
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          python ci/run_regression.py --source . --ref "$env:CANDIDATE_SHA" --label candidate --report-dir "$env:RUNNER_TEMP/standalone/candidate"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Require no new original-library regressions
+        shell: pwsh
+        run: |
+          python -m ci.accept_regression --root "$env:RUNNER_TEMP/standalone" --upstream "$env:UPSTREAM_SHA" --base "$env:UPSTREAM_SHA" --candidate "$env:CANDIDATE_SHA"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-upstream-parity-${{ matrix.python }}
+          path: ${{ runner.temp }}/standalone/
+          if-no-files-found: warn
+          retention-days: 30

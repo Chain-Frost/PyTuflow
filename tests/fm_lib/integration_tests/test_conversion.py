@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from typing import TypeVar
 import pyproj
 
 from pytuflow._fm.parsers.dat import DAT
@@ -29,15 +30,29 @@ class Setup:
 
 class Result:
 
-    def __init__(self, folder: Path) -> None:
+    def __init__(self, folder: Path, *, csv_subdir: str = '.', gis_subdir: str = '.') -> None:
         self.pre_conv_folder = folder
-        self.csvs = list(folder.glob('**/*.csv'))
-        self.ecfs = list(folder.glob('**/*.ecf'))
-        self.gis_files = list(folder.glob('**/*.gpkg'))
+        self.csv_root = folder / csv_subdir
+        self.gis_root = folder / gis_subdir
+
+        def relative_name(path: Path) -> str:
+            return path.relative_to(folder).as_posix()
+
+        self.csvs = sorted(folder.glob('**/*.csv'), key=relative_name)
+        self.ecfs = sorted(folder.glob('**/*.ecf'), key=relative_name)
+        self.gis_files = sorted(folder.glob('**/*.gpkg'), key=relative_name)
         self.gis_layers = []
         for gis_file in self.gis_files:
             with VectorLayer(gis_file) as v:
-                self.gis_layers.extend([f'{gis_file} >> {x}' for x in v.layers()])
+                self.gis_layers.extend(f'{gis_file} >> {name}' for name in sorted(v.layers()))
+
+    @classmethod
+    def converted(cls, folder: Path) -> 'Result':
+        # The committed reference archive is flat. The converter's declared
+        # output layout places CSV and GIS files in separate category folders.
+        # Compare relative identities within these explicit roots; never discard
+        # arbitrary directory components or flatten nested output names.
+        return cls(folder, csv_subdir='csv', gis_subdir='gis')
 
 
 def run_conversion(setup):
@@ -51,15 +66,55 @@ def run_conversion(setup):
     output_writer.finalize()
 
 
-def compare(result1, result2):
-    assert len(result1.csvs) == len(result2.csvs), f'compare(result1, result2): number of csvs do not match\nresult1: {len(result1.csvs)}\nresult2: {len(result2.csvs)}'
-    assert len(result1.gis_layers) == len(result2.gis_layers), f'compare(result1, result2): length of gis alyers do not match\nresult1: {len(result1.gis_layers)}\nresult2: {len(result2.gis_layers)}'
-    for csv1, csv2 in zip(result1.csvs, result2.csvs):
-        compare_csv(csv1, csv2)
-    for ecf1, ecf2 in zip(result1.ecfs, result2.ecfs):
-        compare_txt(ecf1, ecf2)
-    for lyr1, lyr2 in zip(result1.gis_layers, result2.gis_layers):
-        compare_vector_layer(lyr1, lyr2)
+def _relative_files(root: Path, paths: list[Path]) -> dict[str, Path]:
+    return {path.relative_to(root).as_posix(): path for path in paths}
+
+
+def _relative_layers(result: Result) -> dict[tuple[str, str], str]:
+    layers = {}
+    for layer in result.gis_layers:
+        path, name = layer.split(' >> ', 1)
+        key = (Path(path).relative_to(result.gis_root).as_posix(), name)
+        assert key not in layers, f'Duplicate GPKG layer identity: {key}'
+        layers[key] = layer
+    return layers
+
+
+Key = TypeVar("Key", bound=str | tuple[str, str])
+Value = TypeVar("Value")
+
+
+def _assert_matching_identities(
+    kind: str, first: dict[Key, Value], second: dict[Key, Value],
+) -> None:
+    assert first.keys() == second.keys(), (
+        f'{kind} identities do not match: '
+        f'only in result1={sorted(first.keys() - second.keys())}; '
+        f'only in result2={sorted(second.keys() - first.keys())}'
+    )
+
+
+def compare(result1: Result, result2: Result) -> None:
+    csv1, csv2 = _relative_files(result1.csv_root, result1.csvs), _relative_files(result2.csv_root, result2.csvs)
+    ecf1 = _relative_files(result1.pre_conv_folder, result1.ecfs)
+    ecf2 = _relative_files(result2.pre_conv_folder, result2.ecfs)
+    gpkg1 = _relative_files(result1.gis_root, result1.gis_files)
+    gpkg2 = _relative_files(result2.gis_root, result2.gis_files)
+    layers1, layers2 = _relative_layers(result1), _relative_layers(result2)
+
+    # Validate the complete output inventory before comparing any contents. Pairing
+    # glob results with zip() can hide missing files or pair unrelated names.
+    for kind, first, second in (
+        ('CSV', csv1, csv2), ('ECF', ecf1, ecf2),
+        ('GPKG', gpkg1, gpkg2), ('GPKG layer', layers1, layers2),
+    ):
+        _assert_matching_identities(kind, first, second)
+    for name in sorted(csv1):
+        compare_csv(csv1[name], csv2[name])
+    for name in sorted(ecf1):
+        compare_txt(ecf1[name], ecf2[name])
+    for name in sorted(layers1):
+        compare_vector_layer(layers1[name], layers2[name])
 
 
 class TestConversion(unittest.TestCase):
@@ -69,7 +124,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_replicates(self):
@@ -77,7 +132,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_interpolates(self):
@@ -85,7 +140,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_junctions(self):
@@ -93,7 +148,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_symmetrical_conduit(self):
@@ -101,7 +156,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_asymmetrical_conduit(self):
@@ -109,7 +164,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_circular_conduit(self):
@@ -117,7 +172,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_rectangular_conduit(self):
@@ -125,7 +180,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_full_arch_conduit(self):
@@ -133,7 +188,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_sprung_arch_conduit(self):
@@ -141,7 +196,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_orifice(self):
@@ -149,7 +204,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_inverted_syphon(self):
@@ -157,7 +212,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_outfall(self):
@@ -165,7 +220,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_flood_relief_arch(self):
@@ -173,15 +228,37 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
+
+    def test_flood_relief_arch_ecf_registers_both_nwk_layers(self):
+        """A converted Flood Relief opening must actually be loaded by ESTRY."""
+        dat_path = Path('./tests/fm_lib/data/River_Sections_Flood_Relief_Arch.dat')
+        setup = Setup(dat_path)
+        run_conversion(setup)
+
+        commands = [
+            f'Read GIS Network == 1d_nwk_RIVER_{setup.name}',
+            f'Read GIS Table Links == 1d_xs_RIVER_{setup.name}',
+            f'Read GIS Network == 1d_nwk_ORIFICE_{setup.name}',
+        ]
+        for path in (
+            setup.settings.output_dir / f'{setup.name}.ecf',
+            setup.pre_conv_folder / f'{setup.name}.ecf',
+        ):
+            # Blank separators are cosmetic; command presence and order are not.
+            actual = [line.strip() for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+            self.assertEqual(
+                commands, actual,
+                f'{path}: both the converted and reference ECF must load the Flood Relief network',
+            )
 
     def test_convert_river_broad_crested_weir(self):
         dat_path = Path('./tests/fm_lib/data/River_Sections_Broad_Crested_Weir.dat')
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_crump_weir(self):
@@ -189,7 +266,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_flat_v_weir(self):
@@ -197,7 +274,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_flow_head_weir(self):
@@ -205,7 +282,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_gated_weir(self):
@@ -213,7 +290,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_notional_weir(self):
@@ -221,7 +298,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_labyrinth_weir(self):
@@ -229,7 +306,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_sharp_crested_weir(self):
@@ -237,7 +314,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_syphon(self):
@@ -245,7 +322,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_general_weir(self):
@@ -253,7 +330,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_InLine_Spill(self):
@@ -261,7 +338,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_vertical_sluice(self):
@@ -269,7 +346,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_radial_sluice(self):
@@ -277,7 +354,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_arch_bridge_irreg_basic(self):
@@ -289,7 +366,7 @@ class TestConversion(unittest.TestCase):
         setup.pre_conv_folder = setup.pre_conv_folder.parent / 'River_Sections_w_Arch_Bridge_Irregular_Basic'
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_arch_bridge_barch_basic(self):
@@ -301,7 +378,7 @@ class TestConversion(unittest.TestCase):
         setup.pre_conv_folder = setup.pre_conv_folder.parent / 'River_Sections_w_Arch_Bridge_BArch_Basic'
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_arch_bridge_irreg_2arches_as_one(self):
@@ -314,7 +391,7 @@ class TestConversion(unittest.TestCase):
         setup.pre_conv_folder = setup.pre_conv_folder.parent / 'River_Sections_w_Arch_Bridge_Irregular_2Arches_as_one'
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_arch_bridge_irreg_2arches_as_multi(self):
@@ -327,7 +404,7 @@ class TestConversion(unittest.TestCase):
         setup.pre_conv_folder = setup.pre_conv_folder.parent / 'River_Sections_w_Arch_Bridge_Irregular_2Arches_as_multi'
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_arch_bridge_wspill(self):
@@ -337,7 +414,7 @@ class TestConversion(unittest.TestCase):
         setup.settings.arch_bridge_culv_approach = 'MULTI'
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_pier_loss_bridge(self):
@@ -345,7 +422,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_w_usbpr_bridge(self):
@@ -353,7 +430,7 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
 
     def test_convert_river_culvert_inlet_outlet(self):
@@ -361,5 +438,5 @@ class TestConversion(unittest.TestCase):
         setup = Setup(dat_path)
         pre_cooked_result = Result(setup.pre_conv_folder)
         run_conversion(setup)
-        result = Result(setup.settings.output_dir)
+        result = Result.converted(setup.settings.output_dir)
         compare(result, pre_cooked_result)
