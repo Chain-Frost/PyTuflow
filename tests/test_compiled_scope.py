@@ -5,11 +5,24 @@ from __future__ import annotations
 from itertools import product
 from typing import Any
 
+import pytest
+
 from pytuflow._tmf.compiled_scope import ScopeProgram
 from pytuflow._tmf.context import Context
 from pytuflow._tmf.fragment_dependencies import ExpressionPool, _FragmentContext
 from pytuflow._tmf.scope import Scope, ScopeList
 from pytuflow._tmf.settings import TCFConfig
+
+
+@pytest.mark.parametrize('index', range(1, 10))
+@pytest.mark.parametrize(('flag', 'kind'), [('s', 'SCENARIO'), ('e', 'EVENT')])
+def test_all_nine_flags_participate_in_scope_membership(index, flag, kind):
+    flags = {f'{flag}1': 'first', f'{flag}{index}': 'selected'}
+    ordinary = Context(flags)
+    compiled = _FragmentContext(flags, TCFConfig(), ExpressionPool(), ScopeProgram())
+    for context in (ordinary, compiled):
+        assert context.in_context_by_scope(ScopeList([Scope(kind, 'selected')]))
+        assert not context.in_context_by_scope(ScopeList([Scope(kind, '!selected')]))
 
 
 def test_literal_predicates_match_original_membership() -> None:

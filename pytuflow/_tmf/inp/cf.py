@@ -6,9 +6,7 @@ from pathlib import Path
 from .file import FileInput
 from .inp_run_state import InputRunState
 from ..context import Context
-from ..file_reference import (
-    _cached_path_matches, _cached_windows_root_alias_matches,
-)
+from ..file_reference import _cached_path_matches
 from ..abc.bld_state import BuildState
 from .. import const
 
@@ -58,14 +56,9 @@ def select_deferred_children(
                 i for i, original in enumerate(loaded_paths)
                 if _cached_path_matches(Path(original), pattern, case_sensitivity)
             ]
-        if not selected and os.name == "nt":
-            # Only the root may differ (e.g. Q: vs \\server\share).
-            # Compare the complete remaining directory hierarchy. Never
-            # accept a same-basename child from a different scenario folder.
-            selected = [
-                i for i, original in enumerate(loaded_paths)
-                if _cached_windows_root_alias_matches(Path(original), pattern)
-            ]
+        # The captured load path preserves mapped-drive/UNC spelling even
+        # when the child object's fpath is canonicalised. Different roots
+        # are not evidence of aliases and must never select another cache.
         if not selected:
             raise ResolveError(
                 f'No cached nested control file for {ref.path_pattern}'
