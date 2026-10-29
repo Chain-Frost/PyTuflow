@@ -2,7 +2,7 @@
 
 The standard Context/RunState evaluator remains authoritative when compact,
 immutable fragment proofs cannot be established. Per-run errors fail closed,
-and only identical *complete* flag strings reuse records in this invocation.
+and only identical structured flags reuse records in this invocation.
 """
 
 from __future__ import annotations
@@ -78,13 +78,15 @@ def collect_fallback_dependencies(
     """
     started = perf_counter()
     assignments = _variable_assignments(model)
-    seen: dict[str, BatchDependencyRun] = {}
+    seen: dict[tuple, BatchDependencyRun] = {}
     results: list[BatchDependencyRun] = []
     constructed = reused = 0
 
     for index, flags in enumerate(run_flags):
         flag_text = _flag_text(flags)
-        previous = seen.get(flag_text)
+        # Keep type, dictionary order, keys and values; display text is lossy.
+        flag_key = ('str', flags) if isinstance(flags, str) else ('dict', tuple(flags.items()))
+        previous = seen.get(flag_key)
         if previous is not None:
             result = BatchDependencyRun(
                 index, flag_text,
@@ -145,7 +147,7 @@ def collect_fallback_dependencies(
                 result = BatchDependencyRun(
                     index, flag_text, (), (), (), f"{type(exc).__name__}: {exc}"
                 )
-            seen[flag_text] = result
+            seen[flag_key] = result
 
         results.append(result)
         if on_run is not None:

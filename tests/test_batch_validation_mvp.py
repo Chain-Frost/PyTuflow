@@ -50,6 +50,20 @@ def test_existing_files_and_named_layers_across_conditional_runs(tmp_path: Path)
     assert result.dependencies.runs == model.collect_file_dependencies(flags).runs
 
 
+def test_bc_source_key_preserves_provenance_delimiter(tmp_path: Path) -> None:
+    _bc_gpkg(tmp_path / 'bc.gpkg', name='Inlet row 1')
+    (tmp_path / 'bc.csv').write_text(
+        'Name,Source,Column 1,Column 2\nInlet row 1,inflow.csv,Time,Flow\n', encoding='utf-8',
+    )
+    (tmp_path / 'inflow.csv').write_text('Time,Flow\n0,10\n', encoding='utf-8')
+    top = tmp_path / 'model.tcf'
+    top.write_text('BC Database == bc.csv\nRead GIS BC == bc.gpkg >> 2d_bc_lines\n', encoding='utf-8')
+    result = validate_batch_inputs(top, ['-s1 Existing'])
+    assert result.passed, result.issues
+    assert result.dependencies.runs[0].database_sources[0].entry_name == 'Inlet row 1'
+    assert result.validation.csv_headers_examined == 1
+
+
 def test_nonexistent_layer_is_reported_for_exact_run(tmp_path: Path) -> None:
     _gpkg(tmp_path / "model.gpkg", "other_layer")
     (tmp_path / "model.tcf").write_text(

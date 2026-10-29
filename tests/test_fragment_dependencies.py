@@ -194,6 +194,26 @@ def test_custom_context_hook_uses_reported_fallback(tmp_path: Path) -> None:
     assert actual.runs == collect_fallback_dependencies(model, flags).runs
 
 
+def test_fallback_reuse_preserves_structured_flag_identity(tmp_path: Path) -> None:
+    top = tmp_path / 'model.tcf'
+    top.write_text('Read Grid Zpts == <<~s1~>>.tif\n')
+    model = TCF(top)
+    original = model.context
+    model.context = lambda *args, **kwargs: original(*args, **kwargs)
+    flags = [{'s1': 'A -s2 B'}, {'s1': 'A', 's2': 'B'}, '-s1 A -s2 B', {'s1': 'A -s2 B'}]
+    fallback = collect_fallback_dependencies(model, flags)
+    assert fallback.passed
+    assert fallback.contexts_constructed == 3
+    assert fallback.contexts_reused == 1
+    assert len({run.flags for run in fallback.runs}) == 1
+    assert [run.file_references[0].path_pattern.name for run in fallback.runs] == [
+        'A -s2 B.tif', 'A.tif', 'A.tif', 'A -s2 B.tif',
+    ]
+    actual = model.collect_file_dependencies(flags)
+    assert actual.fallback_runs == 4
+    assert actual.runs == fallback.runs
+
+
 def test_failed_database_projection_invalidates_entire_run(tmp_path: Path) -> None:
     (tmp_path / "bc.csv").write_text("Name,Source,Column 1,Column 2\nflow,<<MISSING>>.csv,Time,Flow\n")
     top = tmp_path / "model.tcf"
