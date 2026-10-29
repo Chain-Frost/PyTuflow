@@ -135,3 +135,17 @@ def test_material_parser_pads_before_dataframe_construction(
     assert actual.shape == (3, 3)
     assert actual.loc[2, 3] == 2
     assert pd.isna(actual.loc[1, 3])
+
+def test_control_file_parser_preserves_unicode_and_utf8_bom(tmp_path: Path) -> None:
+    from pytuflow._tmf.parsers.non_recursive_basic_parser import get_commands
+    from pytuflow._tmf.settings import TCFConfig
+
+    path = tmp_path / "unicode.tcf"
+    path.write_bytes(
+        b"\xef\xbb\xbfHardware == GPU\r\n"
+        + "Set Variable Sigma == \u03a3\n".encode("utf-8")
+    )
+    commands = list(get_commands(path, TCFConfig()))
+
+    assert [cmd.command for cmd in commands] == ["HARDWARE", "SET VARIABLE SIGMA"]
+    assert commands[1].value_orig == "\u03a3"
