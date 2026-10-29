@@ -6,6 +6,7 @@ import logging
 from contextlib import contextmanager
 from pathlib import Path, PosixPath, WindowsPath
 
+from ..options import CaseSensitivity, parse_case_sensitivity
 from .vector_file_open import OGROpen, PyOGRIOOpen
 from .raster_open_file import RasterIOOpen, GDALRasterOpen
 
@@ -232,17 +233,16 @@ class TuflowPath(Path):
 
     @staticmethod
     def init_case_policy_path(path: str | Path, base_dir: str | Path = '',
-                              case_sensitivity: int = 0) -> 'TuflowPath':
+                              case_sensitivity: CaseSensitivity = CaseSensitivity.STRICT) -> 'TuflowPath':
         """TUFLOW Linux -cs: 0 strict, 1 extension, 2 filename and extension.
 
         Parent directories stay strict. Exact existing spellings win.
         Missing references stay lexical; non-exact collisions raise.
         The separate legacy init_case_insensitive_path helper is not changed.
         """
-        if type(case_sensitivity) is not int or case_sensitivity not in (0, 1, 2):
-            raise ValueError('case_sensitivity must be 0, 1 or 2')
+        case_sensitivity = parse_case_sensitivity(case_sensitivity)
         value = TuflowPath(path)
-        if os.name == 'nt' or case_sensitivity == 0:
+        if os.name == 'nt' or case_sensitivity == CaseSensitivity.STRICT:
             return value
 
         db, layer = value._split_db_and_lyr()
@@ -251,7 +251,7 @@ class TuflowPath(Path):
         if (search_parent / requested.name).exists():
             return value
         try:
-            if case_sensitivity == 1:
+            if case_sensitivity == CaseSensitivity.EXTENSION_INSENSITIVE:
                 names = [item.name for item in search_parent.iterdir()
                          if item.stem == requested.stem
                          and item.suffix.casefold() == requested.suffix.casefold()]
@@ -446,12 +446,11 @@ class TuflowPath(Path):
 
     def glob(self, pattern, **kwargs):
         """Override method so can do some stuff with TUFLOW style wildcards/variables and also GPKG databases."""
-        case_sensitivity = kwargs.pop('case_sensitivity', 0)
-        if type(case_sensitivity) is not int or case_sensitivity not in (0, 1, 2):
-            raise ValueError('case_sensitivity must be 0, 1 or 2')
+        case_sensitivity = parse_case_sensitivity(kwargs.pop('case_sensitivity', CaseSensitivity.STRICT))
+        case_sensitivity = parse_case_sensitivity(case_sensitivity)
 
         def iter_matching(pattern_value):
-            if os.name == 'nt' or case_sensitivity == 0:
+            if os.name == 'nt' or case_sensitivity == CaseSensitivity.STRICT:
                 yield from Path(self).glob(str(pattern_value))
                 return
             file_pattern = Path(pattern_value)
@@ -470,7 +469,7 @@ class TuflowPath(Path):
                 matches = [
                     candidate for candidate in directory.iterdir()
                     if fnmatch.fnmatchcase(candidate.name.casefold(), file_pattern.name.casefold())
-                    and (case_sensitivity != 1
+                    and (case_sensitivity != CaseSensitivity.EXTENSION_INSENSITIVE
                          or fnmatch.fnmatchcase(candidate.stem, file_pattern.stem))
                 ]
                 if not wildcard and len(matches) > 1:

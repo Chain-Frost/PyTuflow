@@ -1,3 +1,4 @@
+from .options import FileResolution
 import logging
 import re
 import typing
@@ -52,7 +53,7 @@ class Context:
             self.load_context_from_args(context.split())
         #: bool: Whether user defined variables have been loaded into the context object
         self.var_loaded = False
-        self.file_resolution = 'eager'
+        self.file_resolution = FileResolution.EAGER
         if not self.events_loaded:
             self.load_events(self.config.event_db)
 

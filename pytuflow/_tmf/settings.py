@@ -6,6 +6,7 @@ import re
 import platform
 import logging
 
+from .options import CaseSensitivity, FileResolution, parse_case_sensitivity
 from .event import EventDatabase
 from .tfpathlib import TuflowPath
 from .gis import GisFormat
@@ -43,7 +44,7 @@ def get_cache_dir() -> str:
     return str(Path.home() / '.tuflow_model_files')
 
 
-def _case_policy_file(value: str | Path, control_file: Path, case_sensitivity: int) -> Path:
+def _case_policy_file(value: str | Path, control_file: Path, case_sensitivity: CaseSensitivity) -> Path:
     """Resolve a reference relative to the calling control file under TUFLOW -cs.
 
     Missing inputs remain lexical. Linux directory components remain strict.
@@ -90,8 +91,8 @@ class _ParseContext:
     time_format: str = 'HOURS'
     check_file_prefix_1d: str = ''
     check_file_prefix_2d: str = ''
-    file_resolution: typing.Literal['eager', 'deferred'] = 'eager'
-    case_sensitivity: int = 0
+    file_resolution: FileResolution = FileResolution.EAGER
+    case_sensitivity: CaseSensitivity = CaseSensitivity.STRICT
 
     def set_spatial_database(self, value: 'str | Path | None',
                              control_file: Path | None = None):
@@ -147,13 +148,16 @@ class TCFConfig:
     time_format: str = field(default='HOURS', repr=False)   
     check_file_prefix_1d: str = field(default='', repr=False)
     check_file_prefix_2d: str = field(default='', repr=False)
-    file_resolution: typing.Literal['eager', 'deferred'] = field(default='eager', repr=False)
-    case_sensitivity: int = field(default=0, repr=False)
+    file_resolution: FileResolution = field(default=FileResolution.EAGER, repr=False)
+    case_sensitivity: CaseSensitivity = field(default=CaseSensitivity.STRICT, repr=False)
     init_from_tcf: bool = field(default=True, repr=False)
 
     def __post_init__(self):
-        if type(self.case_sensitivity) is not int or self.case_sensitivity not in (0, 1, 2):
-            raise ValueError('case_sensitivity must be 0, 1 or 2 (TUFLOW -cs0/-cs1/-cs2)')
+        self.case_sensitivity = parse_case_sensitivity(self.case_sensitivity)
+        try:
+            self.file_resolution = FileResolution(self.file_resolution)
+        except ValueError as exc:
+            raise ValueError('file_resolution must be eager or deferred') from exc
         if not self.wildcards:
             self.wildcards = [r'(<<.{1,}?>>)']
         self.tcf = TuflowPath(self.tcf) if self.tcf else TuflowPath()  # ensure tcf is a TuflowPath object
