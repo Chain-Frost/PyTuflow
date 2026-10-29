@@ -19,6 +19,7 @@ if typing.TYPE_CHECKING:
     from ..db.soil import SoilDatabase
     from ..db.rf import RainfallDatabase
     from ..db.mat import MatDatabase
+    from ..fragment_dependencies import FragmentBatchResult
 
 
 class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
@@ -61,7 +62,41 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
     """
     TUFLOW_TYPE = const.CONTROLFILE.TCF
 
-    def __init__(self, fpath: PathLike | None = None, **kwargs):
+    def __init__(self, fpath: PathLike | None = None, *,
+                 case_sensitivity: int | None = None, **kwargs):
+        """Load using TUFLOW-compatible -cs0/-cs1/-cs2 filename case modes.
+
+        An omitted mode still uses the existing configuration constructor path.
+        Its Linux default is now strictly -cs0, following TUFLOW 2026.3.
+        """
+        if case_sensitivity is not None and kwargs.get('config') is not None:
+            raise ValueError('Pass case_sensitivity or config, not both')
+        if case_sensitivity is not None or kwargs.get('config') is not None:
+            from pathlib import Path
+            from ..settings import TCFConfig
+            from ..tfpathlib import TuflowPath
+            mode = (case_sensitivity if case_sensitivity is not None
+                    else kwargs['config'].case_sensitivity)
+            if fpath is not None:
+                fpath = TuflowPath.init_case_policy_path(fpath, Path.cwd(), mode)
+            if case_sensitivity is not None:
+                existing = fpath if fpath is not None and Path(fpath).is_file() else None
+                kwargs['config'] = TCFConfig(tcf=existing, case_sensitivity=mode)
+        # ControlFileBuildState replaces a falsey configuration with the
+        # default config when loading. Initialise a supplied empty config here
+        # instead, preserving its selected -cs mode, variables and settings.
+        # Do not mutate the caller's configuration object.
+        if fpath is not None and kwargs.get('config') is not None:
+            supplied = kwargs['config']
+            from pathlib import Path
+            if not supplied and Path(fpath).is_file():
+                from ..settings import from_config
+                from ..tfpathlib import TuflowPath
+                config = from_config(supplied)
+                config.tcf = TuflowPath(fpath)
+                config.model_name = config.get_model_name(config.tcf)
+                config.read_tcf()
+                kwargs['config'] = config
         super(TCF, self).__init__(fpath, **kwargs)
 
     def tgc(self, context: Context = None) -> 'TGC':
@@ -355,8 +390,28 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
     def context(self,
                 run_context: str | dict[str, str] = '',
                 context: Context | None = None,
-                parent: ControlFileRunState | None = None) -> 'TCFRunState':
-        # docstring inherited
+                parent: ControlFileRunState | None = None,
+                *, file_resolution: str | None = None) -> 'TCFRunState':
+        """Create a model run context; eager input evaluation remains the default."""
         from .tcf_run_state import TCFRunState
         ctx = context if context else Context(run_context, config=self.config)
+        if file_resolution is not None:
+            if file_resolution not in ('eager', 'deferred'):
+                raise ValueError("file_resolution must be 'eager' or 'deferred'")
+            ctx.file_resolution = file_resolution
         return TCFRunState(self, ctx, parent)
+
+    def collect_file_dependencies(
+        self,
+        run_flags: typing.Iterable[str | dict[str, str]],
+    ) -> 'FragmentBatchResult':
+        """Collect immutable, ordered file references for the specified runs.
+
+        No physical file or GIS inspection occurs during dependency collection.
+        """
+        from ..fragment_dependencies import collect_file_dependencies
+        return collect_file_dependencies(self, run_flags)
+
+
+# Preserve the original context method for safe fragment eligibility checks.
+_TCF_CONTEXT = TCF.context

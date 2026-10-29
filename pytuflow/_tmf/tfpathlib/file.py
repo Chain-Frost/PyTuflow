@@ -1,3 +1,4 @@
+import fnmatch
 import os
 import re
 import sys
@@ -167,9 +168,14 @@ class TuflowPath(Path):
                 raise FileNotFoundError(f"No case-insensitive match for {part} in {current}")
 
             if len(matches) > 1:
-                raise RuntimeError(
-                    f"Ambiguous case-insensitive match for {part} in {current}"
-                )
+                # Prefer a literal spelling before considering case-relaxed aliases.
+                exact = [candidate for candidate in matches if candidate.name == part]
+                if exact:
+                    matches = exact
+                else:
+                    raise RuntimeError(
+                        f"Ambiguous case-insensitive match for {part} in {current}"
+                    )
 
             current = matches[0]
             new_parts.append(current.name)
@@ -223,6 +229,45 @@ class TuflowPath(Path):
             return TuflowPath._resolve_case_insensitive(path, base_dir)
         except FileNotFoundError:
             return TuflowPath(path)
+
+    @staticmethod
+    def init_case_policy_path(path: str | Path, base_dir: str | Path = '',
+                              case_sensitivity: int = 0) -> 'TuflowPath':
+        """TUFLOW Linux -cs: 0 strict, 1 extension, 2 filename and extension.
+
+        Parent directories stay strict. Exact existing spellings win.
+        Missing references stay lexical; non-exact collisions raise.
+        The separate legacy init_case_insensitive_path helper is not changed.
+        """
+        if type(case_sensitivity) is not int or case_sensitivity not in (0, 1, 2):
+            raise ValueError('case_sensitivity must be 0, 1 or 2')
+        value = TuflowPath(path)
+        if os.name == 'nt' or case_sensitivity == 0:
+            return value
+
+        db, layer = value._split_db_and_lyr()
+        requested = Path(db)
+        search_parent = requested.parent if requested.is_absolute() else Path(base_dir) / requested.parent
+        if (search_parent / requested.name).exists():
+            return value
+        try:
+            if case_sensitivity == 1:
+                names = [item.name for item in search_parent.iterdir()
+                         if item.stem == requested.stem
+                         and item.suffix.casefold() == requested.suffix.casefold()]
+            else:
+                names = [item.name for item in search_parent.iterdir()
+                         if item.name.casefold() == requested.name.casefold()]
+        except (FileNotFoundError, NotADirectoryError):
+            return value
+        if not names:
+            return value
+        if len(names) != 1:
+            raise ValueError(
+                f'Ambiguous TUFLOW -cs{case_sensitivity} filename {requested.name} in {search_parent}'
+            )
+        corrected = requested.with_name(names[0])
+        return TuflowPath(corrected) if layer is None else TuflowPath(f'{corrected} >> {layer}')
 
     def geometry_types(self):
         if not self.is_vector_gis():
@@ -401,6 +446,39 @@ class TuflowPath(Path):
 
     def glob(self, pattern, **kwargs):
         """Override method so can do some stuff with TUFLOW style wildcards/variables and also GPKG databases."""
+        case_sensitivity = kwargs.pop('case_sensitivity', 0)
+        if type(case_sensitivity) is not int or case_sensitivity not in (0, 1, 2):
+            raise ValueError('case_sensitivity must be 0, 1 or 2')
+
+        def iter_matching(pattern_value):
+            if os.name == 'nt' or case_sensitivity == 0:
+                yield from Path(self).glob(str(pattern_value))
+                return
+            file_pattern = Path(pattern_value)
+            directory_pattern = str(file_pattern.parent)
+            if any(char in directory_pattern for char in '*?['):
+                directories = Path(self).glob(directory_pattern)
+            else:
+                directories = (Path(self) / file_pattern.parent,)
+            wildcard = any(char in file_pattern.name for char in '*?[')
+            for directory in directories:
+                if not directory.is_dir():
+                    continue
+                if not wildcard and (directory / file_pattern.name).exists():
+                    yield directory / file_pattern.name
+                    continue
+                matches = [
+                    candidate for candidate in directory.iterdir()
+                    if fnmatch.fnmatchcase(candidate.name.casefold(), file_pattern.name.casefold())
+                    and (case_sensitivity != 1
+                         or fnmatch.fnmatchcase(candidate.stem, file_pattern.stem))
+                ]
+                if not wildcard and len(matches) > 1:
+                    raise ValueError(
+                        f'Ambiguous TUFLOW -cs{case_sensitivity} filename: {file_pattern}'
+                    )
+                yield from matches
+
         p = TuflowPath(pattern)
         self_db, self_lyrname = self._split_db_and_lyr()
         db, lyr = p._split_db_and_lyr()
@@ -418,10 +496,10 @@ class TuflowPath(Path):
                              'multiple layers (e.g. GPKG or NetCDF).')
 
         if lyr is None:
-            yield from Path(self).glob(pattern)
+            yield from iter_matching(pattern)
             return
 
-        iter = [db] if glob_lyrname_only else Path(self).glob(db)
+        iter = [db] if glob_lyrname_only else iter_matching(db)
 
         for p in iter:
             layers = TuflowPath(p)._gpkg_layers() if p.suffix.lower() == '.gpkg' else TuflowPath(p)._nc_layers()
