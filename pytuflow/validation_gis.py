@@ -213,6 +213,48 @@ def _scan_file_reference_rows(
     return tuple(sorted(sources)), tuple(sorted(database_identifiers))
 
 
+def _attribute_column_indexes(layer: str, field_count: int) -> tuple[int, ...]:
+    """Select positional TUFLOW fields required to inspect input dependencies.
+
+    The schema decision is shared by the GIS attribute readers and the
+    GeoPackage SQL projection, avoiding duplicate channel/BC field rules.
+    """
+    bc_index = _bc_name_field_index(layer)
+    if bc_index is not None:
+        if field_count <= bc_index or (bc_index == 2 and field_count <= 7):
+            raise ValueError(f"Missing required BC Name/Type/b columns in {layer}")
+        return (0, 2, 7) if bc_index == 2 else (bc_index,)
+
+    index = _file_field_index(layer)
+    if index is None:
+        raise ValueError(f"Unsupported GIS attribute-linked layer type: {layer}")
+    network = bool(re.match(r"^1d_nwk[eb]?_", layer, re.IGNORECASE))
+    pit = bool(re.match(r"^1d_pit_", layer, re.IGNORECASE))
+    if field_count <= index or ((network or pit) and field_count <= 2):
+        raise ValueError(f"Required file-reference attribute index {index} absent from {layer}")
+    if network:
+        return (1, 2, index)
+    if pit:
+        return (1, index)
+    return (index,)
+
+
+def _interpret_attribute_rows(
+    rows: Iterable[Sequence[object]],
+    *,
+    layer: str,
+    geometry_type: str,
+    parent: Path,
+) -> tuple[tuple[Path, ...], tuple[str, ...], tuple[str, ...]]:
+    """Interpret the selected TUFLOW attributes regardless of GIS format."""
+    if _bc_name_field_index(layer) is not None:
+        return (), (), _bc_identifiers_from_rows(rows, layer)
+    sources, identifiers = _scan_file_reference_rows(
+        rows, layer=layer, geometry_type=geometry_type, parent=parent
+    )
+    return sources, identifiers, ()
+
+
 def _scan_attribute_rows(
     rows: Iterable[Sequence[object]],
     *,
@@ -221,42 +263,12 @@ def _scan_attribute_rows(
     geometry_type: str,
     parent: Path,
 ) -> tuple[tuple[Path, ...], tuple[str, ...], tuple[str, ...]]:
-    """Interpret positional TUFLOW fields across existing GIS providers.
-
-    The parser's existing reader supplies attributes and field ordering;
-    this single adapter applies the same dependency classification to
-    Shapefile, MIF and MID records.
-    """
-    bc_index = _bc_name_field_index(layer)
-    index = _file_field_index(layer)
-    if bc_index is not None:
-        if field_count <= bc_index or (
-            bc_index == 2 and field_count <= 7
-        ):
-            raise ValueError(f"Missing required BC Name/Type/b columns in {layer}")
-        if bc_index == 2:
-            selected = ((row[0], row[2], row[7]) for row in rows)
-        else:
-            selected = ((row[bc_index],) for row in rows)
-        return (), (), _bc_identifiers_from_rows(selected, layer)
-    if index is None:
-        raise ValueError(f"Unsupported GIS attribute-linked layer type: {layer}")
-    network = bool(re.match(r"^1d_nwk[eb]?_", layer, re.IGNORECASE))
-    pit = bool(re.match(r"^1d_pit_", layer, re.IGNORECASE))
-    if field_count <= index or ((network or pit) and field_count <= 2):
-        raise ValueError(
-            f"Required file-reference attribute index {index} absent from {layer}"
-        )
-    if network:
-        selected = ((row[1], row[2], row[index]) for row in rows)
-    elif pit:
-        selected = ((row[1], row[index]) for row in rows)
-    else:
-        selected = ((row[index],) for row in rows)
-    sources, identifiers = _scan_file_reference_rows(
+    """Apply shared field selection to PyTuflow's existing GIS readers."""
+    columns = _attribute_column_indexes(layer, field_count)
+    selected = (tuple(row[i] for i in columns) for row in rows)
+    return _interpret_attribute_rows(
         selected, layer=layer, geometry_type=geometry_type, parent=parent
     )
-    return sources, identifiers, ()
 
 
 def _scan_shapefile(
