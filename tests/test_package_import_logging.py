@@ -1,4 +1,4 @@
-"""Public logging API and handler lifecycle regression tests for 08A."""
+"""Public logging API and handler lifecycle regression tests."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import pytest
 def _run_python(source: str, *, log_directory: Path | None = None) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     if log_directory is not None:
-        environment["PYTUFLOW_08A_LOG_DIR"] = str(log_directory)
+        environment["PYTUFLOW_TEST_LOG_DIR"] = str(log_directory)
     return subprocess.run(
         [sys.executable, "-c", textwrap.dedent(source)],
         capture_output=True,
@@ -50,13 +50,13 @@ def test_public_logging_levels_and_no_duplicate_console_handler() -> None:
         assert logger.level == logging.DEBUG
         assert len(owned()) == 1
         assert owned()[0].level == logging.DEBUG
-        logger.info("08a-info-probe")
-        logger.debug("08a-debug-probe")
+        logger.info("logging-info-probe")
+        logger.debug("logging-debug-probe")
         """
     )
     _assert_success(process)
-    assert process.stdout.count("08a-info-probe") == 1
-    assert process.stdout.count("08a-debug-probe") == 1
+    assert process.stdout.count("logging-info-probe") == 1
+    assert process.stdout.count("logging-debug-probe") == 1
 
 
 def test_application_handler_is_not_reconfigured() -> None:
@@ -100,7 +100,7 @@ def test_rotating_file_handler_is_real_and_idempotent(tmp_path: Path) -> None:
         import pytuflow
         from pytuflow import pytuflow_logging
 
-        directory = Path(os.environ["PYTUFLOW_08A_LOG_DIR"])
+        directory = Path(os.environ["PYTUFLOW_TEST_LOG_DIR"])
         logger = logging.getLogger("pytuflow")
         pytuflow_logging.set_logging_level("DEBUG", directory)
         pytuflow.set_logging_level("DEBUG", directory)
@@ -114,7 +114,7 @@ def test_rotating_file_handler_is_real_and_idempotent(tmp_path: Path) -> None:
         assert owned[0].maxBytes == 51200
         assert owned[0].backupCount == 2
         for _ in range(20):
-            logger.info("08A-ROTATION-" + "x" * 3500)
+            logger.info("LOG-ROTATION-" + "x" * 3500)
         owned[0].flush()
         assert (directory / "pytuflow_logs.log").exists()
         assert (directory / "pytuflow_logs.log.1").exists()
@@ -132,7 +132,7 @@ def test_missing_logging_directory_fails_without_new_handler(tmp_path: Path) -> 
         from pathlib import Path
         from pytuflow import pytuflow_logging
 
-        missing = Path(os.environ["PYTUFLOW_08A_LOG_DIR"]) / "missing" / "pytuflow_logs.log"
+        missing = Path(os.environ["PYTUFLOW_TEST_LOG_DIR"]) / "missing" / "pytuflow_logs.log"
         try:
             pytuflow_logging.set_logging_level("INFO", missing)
         except ValueError as exception:
@@ -220,7 +220,7 @@ def test_uncreated_legacy_log_filename_is_accepted(tmp_path: Path) -> None:
         from pathlib import Path
         from pytuflow._tmf.logging_ import set_logging_level
 
-        directory = Path(os.environ["PYTUFLOW_08A_LOG_DIR"])
+        directory = Path(os.environ["PYTUFLOW_TEST_LOG_DIR"])
         requested = directory / "legacy-name-does-not-exist.log"
         assert not requested.exists()
         set_logging_level("INFO", requested)
@@ -258,7 +258,7 @@ def test_deferred_result_reader_public_exports_and_identity() -> None:
         assert "XMDF" in dir(_outputs)
         for mod in (pytuflow, _outputs):
             try:
-                getattr(mod, "nonexistent_08a_reader")
+                getattr(mod, "nonexistent_result_reader")
             except AttributeError:
                 pass
             else:
@@ -290,7 +290,7 @@ def test_rotating_file_handler_deduplicates_lexical_aliases(tmp_path: Path) -> N
         from pathlib import Path
         from pytuflow import pytuflow_logging
 
-        root = Path(os.environ["PYTUFLOW_08A_LOG_DIR"])
+        root = Path(os.environ["PYTUFLOW_TEST_LOG_DIR"])
         logs = root / "logs"
         logs.mkdir()
         logger = logging.getLogger("pytuflow")
@@ -305,10 +305,10 @@ def test_rotating_file_handler_deduplicates_lexical_aliases(tmp_path: Path) -> N
             if getattr(h, "_pytuflow_owned_file", None) is not None
         ]
         assert len(handlers) == 1, handlers
-        logger.info("08A-DEDUPLICATION-SENTINEL")
+        logger.info("LOG-DEDUPLICATION-SENTINEL")
         handlers[0].flush()
         contents = (logs / "pytuflow_logs.log").read_text(encoding="utf-8")
-        assert contents.count("08A-DEDUPLICATION-SENTINEL") == 1
+        assert contents.count("LOG-DEDUPLICATION-SENTINEL") == 1
         """,
         log_directory=tmp_path,
     )
@@ -325,7 +325,7 @@ def test_explicit_missing_mesh_providers_raise_capability_errors(tmp_path: Path)
 
         from pytuflow import NCMesh, XMDF, NCGrid
 
-        root = Path(os.environ["PYTUFLOW_08A_LOG_DIR"])
+        root = Path(os.environ["PYTUFLOW_TEST_LOG_DIR"])
         nc = root / "missing-provider.nc"
         nc.write_bytes(b"not a real NetCDF file")
         xmdf = root / "missing-provider.xmdf"

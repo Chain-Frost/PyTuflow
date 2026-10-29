@@ -1,4 +1,4 @@
-"""W10: provider-independent contract for existing corner-angle interpolation.
+"""Provider-independent tests for cell-to-vertex corner-angle interpolation.
 
 Real QGIS/MDAL public surfaces are exercised separately. These cases verify
 the same weighting rule on mixed faces, masked observations and wet/dry changes.

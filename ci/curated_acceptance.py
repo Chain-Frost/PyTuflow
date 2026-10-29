@@ -7,8 +7,7 @@ import subprocess
 import sys
 
 UPSTREAM = 'cf908cc922ca8448ed6002834877b0b377329eae'
-INTEGRATION = '251387feeae0e53e48fddae762d59b13b2a8f525'
-CANDIDATE = 'e35707a8342e466b96434d6c21b9b2e5297569fd'
+CANDIDATE = '571cd46581cedcef9b92cd9e75cd4e11f3b3fa81'
 HARNESS = Path(__file__).resolve().parents[1]
 
 def main():
@@ -31,17 +30,13 @@ def main():
     assert git('rev-parse','HEAD') == CANDIDATE
     assert not git('status','--porcelain')
     assert git('merge-base',UPSTREAM,CANDIDATE) == UPSTREAM
-    # The reviewed update is an intentionally narrow post-curation fix:
-    # only the 3D scalar-component reader and its existing FV regression module.
-    updated=git('diff','--name-only','ee0f6e2f64c80305b5c7734a83b93f7dee18e64e',CANDIDATE).splitlines()
-    assert set(updated)=={
-        'pytuflow/_outputs/pymesh/cell_data_mixin.py',
-        'tests/test_numerical_fv_reader.py',
-    }, updated
-    assert git('rev-parse',INTEGRATION+':tests/ci/test_fm_comparison.py') == git('rev-parse',CANDIDATE+':tests/test_fm_comparison.py')
+    # The save-transaction contribution is independently reviewed in PR D.
+    # Compare this corrected PR A head directly with the immutable upstream.
     paths=git('diff','--name-only',UPSTREAM,CANDIDATE).splitlines()
     assert not any(p.startswith(('.github/','ci/','tests/ci/','docs/contributing/')) or p in ('AGENTS.md','UPSTREAM_STACK.md') or p.endswith(('.pyi','py.typed')) for p in paths)
-    (out/'provenance.json').write_text(json.dumps({'candidate':CANDIDATE,'upstream':UPSTREAM,'accepted_integration':INTEGRATION,'python':sys.version,'paths':paths,'post_curation_correction':True},indent=2))
+    assert 'pytuflow/_tmf/cf/cf_build_state.py' not in paths
+    assert not any('test_safe_model_save' in path or 'test_nested_remove_input_compatibility' in path or 'test_scope_writer_progress' in path for path in paths)
+    (out/'provenance.json').write_text(json.dumps({'candidate':CANDIDATE,'upstream':UPSTREAM,'python':sys.version,'paths':paths,'save_overhaul_excluded':True},indent=2))
     run('grammar',[sys.executable,HARNESS/'ci/python_compatibility.py'])
     if args.case_only:
         run('case-policy',[sys.executable,'-m','pytest','-q','-ra','tests/test_linux_case_policy.py','--junitxml='+str(out/'case.xml')])
@@ -57,11 +52,11 @@ def main():
     modules=['fm_comparison','package_import_logging','mesh_backend_capability','public_api_contracts','result_time_correctness','pandas31_output_compatibility','raster_cache_reader_recovery','numerical_depth_averaging','numerical_mesh_reductions','numerical_fv_reader','qgis_centroid_math','qgis_vertex_angle_math','cell_point_vector_corrections']
     run('focused',[sys.executable,'-m','pytest','-q','-ra',*['tests/test_'+m+'.py' for m in modules],'--junitxml='+str(out/'focused.xml')])
     run('case-policy',[sys.executable,'-m','pytest','-q','-ra','tests/test_linux_case_policy.py','--junitxml='+str(out/'case.xml')])
-    for role,sha in [('upstream',UPSTREAM),('base',INTEGRATION),('candidate',CANDIDATE)]:
+    for role,sha in [('upstream',UPSTREAM),('candidate',CANDIDATE)]:
         run(role,[sys.executable,HARNESS/'ci/run_regression.py','--source',source,'--ref',sha,'--label',role,'--report-dir',out/role],required=False)
         report=json.loads((out/role/'report.json').read_text())
         assert report['completed'] and report['source']['sha']==sha and report['source']['checkout_unchanged']
-    for baseline in ['upstream','base']:
+    for baseline in ['upstream']:
         run(baseline+'-comparison',[sys.executable,HARNESS/'ci/compare_regression.py','--baseline',out/baseline/'report.json','--candidate',out/'candidate/report.json','--output',out/(baseline+'-comparison.json')])
     # Installed public-API tests are copied outside every checkout and run in -I mode.
     import shutil

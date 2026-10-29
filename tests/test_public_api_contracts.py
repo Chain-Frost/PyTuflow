@@ -1,4 +1,4 @@
-"""Contract tests for established, user-facing PyTUFLOW APIs (08B / #13).
+"""Contract tests for established, user-facing PyTUFLOW APIs.
 
 These tests assert existing behaviour. They intentionally do not introduce new
 imports, backends, return types, or an expanded public API.
@@ -14,7 +14,7 @@ import warnings
 import pytest
 
 
-# The complete, explicitly maintained result-reader facade introduced in 08A.
+# The maintained result-reader facade is part of the public package API.
 # The module is the existing public re-export location, not necessarily the
 # object's defining __module__ (for example, FormatConvention).
 OUTPUT_EXPORTS: dict[str, str] = {
@@ -45,7 +45,7 @@ OUTPUT_EXPORTS: dict[str, str] = {
     "FormatConvention": "pymesh",
 }
 
-# Root aliases have existed independently of the 08A lazy output facade.
+# Root aliases are part of the existing public package API.
 TMF_PUBLIC_SYMBOLS = (
     "TCF", "ECF", "TGC", "TBC", "TEF", "QCF", "TOC", "TRFC",
     "TSCF", "TESF", "ADCF", "FVC", "FVWQ", "FVSed", "FVPTM",
@@ -144,7 +144,7 @@ def test_existing_constructor_names_and_defaults(
             name, parameter_name
         )
     if name == "TCF":
-        # Eager -cs opt-in added by accepted package 09; keep it keyword-only.
+        # Filename-case selection is opt-in and remains keyword-only.
         assert signature.parameters["case_sensitivity"].kind is (
             inspect.Parameter.KEYWORD_ONLY
         )
@@ -194,7 +194,7 @@ def test_unknown_result_reader_does_not_succeed_silently() -> None:
 
     for namespace in (pytuflow, _outputs):
         with pytest.raises(AttributeError):
-            getattr(namespace, "missing_api_contract_08b")
+            getattr(namespace, "missing_api_contract")
 
 
 def test_installed_project_cli_target_remains_callable() -> None:
