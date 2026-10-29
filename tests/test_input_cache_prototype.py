@@ -47,7 +47,7 @@ def _flags(count: int) -> list[str]:
     """Generate explicitly distinct run flag sets without changing the model."""
     return [
         f"-s1 {('DEV', 'EXG')[i % 2]} "
-        f"-e1 {('Q10', 'Q100')[(i // 2) % 2]} -e2 unused{i}"
+        f"-e1 {('Q10', 'Q100')[(i // 2) % 2]} -s2 unused{i}"
         for i in range(count)
     ]
 

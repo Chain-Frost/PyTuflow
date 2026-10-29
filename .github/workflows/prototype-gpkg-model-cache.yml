@@ -45,7 +45,9 @@ jobs:
           tests/tmf/test_input_context.py::test_input_files_ref_in_gis
       - name: Matched synthetic 480-run cache A/B
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
-        run: python tests/benchmark_gpkg_model_cache.py --runs 480 --blocks 3
+        run: |
+          python tests/benchmark_gpkg_model_cache.py --runs 480 --blocks 3
+          python tests/benchmark_gpkg_model_cache.py --runs 480 --blocks 3 --event-variants
 
   lint:
     runs-on: ubuntu-latest

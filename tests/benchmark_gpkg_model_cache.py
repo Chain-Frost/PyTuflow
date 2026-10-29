@@ -23,6 +23,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=480)
     parser.add_argument("--blocks", type=int, default=2)
+    parser.add_argument("--event-variants", action="store_true")
     args = parser.parse_args()
     if args.runs < 1 or args.blocks < 1:
         parser.error("runs and blocks must be positive")
@@ -34,7 +35,26 @@ def main() -> None:
     measures: dict[str, list[float]] = {"plan": [], "input": []}
     with tempfile.TemporaryDirectory(prefix="pytuflow_cache_prototype_") as d:
         model = make_model(Path(d))
-        flags = make_flags(args.runs)
+        if args.event_variants:
+            # Exercise the expensive TEF-varying part of the real M480 pattern.
+            # Build and parse before the collection timer; no private model.
+            events = Path(d) / "events.tef"
+            events.write_text(
+                "".join(
+                    f"Define Event == E{i:04d}\n"
+                    f" BC Event Source == _event_ | value{i:04d}\n"
+                    "End Define\n"
+                    for i in range(args.runs)
+                ),
+                encoding="utf-8",
+            )
+            model = type(model)(Path(d) / "model.tcf")
+            flags = [
+                f"-s1 {('DEV', 'EXG')[i % 2]} -e1 E{i:04d}"
+                for i in range(args.runs)
+            ]
+        else:
+            flags = make_flags(args.runs)
         expected = model.collect_file_dependencies(flags)
         if not expected.passed:
             raise RuntimeError("Baseline synthetic fragment collection failed")
@@ -62,7 +82,8 @@ def main() -> None:
     print(
         json.dumps(
             {
-                "scenario": "synthetic reusable nested model",
+                "scenario": ("synthetic distinct TEF events" if args.event_variants
+                             else "synthetic reusable nested model"),
                 "runs": args.runs,
                 "blocks": args.blocks,
                 "measurement": "warm-process dependency collection only",
