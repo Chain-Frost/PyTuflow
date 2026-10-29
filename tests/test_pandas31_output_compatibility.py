@@ -1,4 +1,4 @@
-"""Pandas 3.1 compatibility checks for unchanged 2DM and line-output semantics.
+"""Pandas compatibility tests for existing 2DM and line-output semantics.
 
 Strict warning handling is intentional: pandas deprecations are errors under
 the repository's existing pytest policy. No warning filters are added.
