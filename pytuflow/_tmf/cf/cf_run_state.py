@@ -132,7 +132,12 @@ class ControlFileRunState(RunState, ControlFile):
     def _resolve_scope_in_context(self) -> None:
         prepare_run_context(self.bs, self.ctx)
 
-        for inp in self._inputs:
+        source_inputs = (
+            self.bs._dependency_inputs()
+            if getattr(self.ctx, "file_resolution", "eager") == "deferred"
+            else self._inputs
+        )
+        for inp in source_inputs:
             if not self.ctx.in_context_by_scope(inp.scope):
                 continue
 

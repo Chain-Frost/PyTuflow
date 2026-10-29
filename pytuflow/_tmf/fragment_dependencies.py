@@ -489,7 +489,8 @@ class _Plan:
             MatDatabaseInput,
         }
         self.command_types = {Command, EventCommand}
-        self.roots = tuple(model.inputs)
+        self._source_sequences: dict[int, tuple[Any, ...]] = {}
+        self.roots = self._source_inputs(model)
         self.event_tokens = (
             tuple(
                 str(token).upper() for token in model.config.event_db.event_variables()
@@ -504,6 +505,13 @@ class _Plan:
         for inp in self.roots:
             self._compile(inp, set())
         self.compilation_seconds = perf_counter() - compiled_started
+
+    def _source_inputs(self, source: Any) -> tuple[Any, ...]:
+        """Prepare the source's ordered inputs once for this batch."""
+        key = id(source)
+        if key not in self._source_sequences:
+            self._source_sequences[key] = source._dependency_inputs()
+        return self._source_sequences[key]
 
     def _compile(self, inp: Any, ancestors: set[int]) -> None:
         """Compile one input and its nested descendants into dependency fragments."""
@@ -553,7 +561,7 @@ class _Plan:
                 raise NotImplementedError("Custom included control file context hook")
             child_expressions: list[str] = []
             child_scopes: list[Any] = []
-            for sub in child.inputs:
+            for sub in self._source_inputs(child):
                 self._compile(sub, ancestors | {id(inp)})
                 child_expressions.extend(self.expressions_by_input[id(sub)])
                 child_scopes.extend(self.scopes_by_input[id(sub)])
@@ -846,7 +854,7 @@ class _Plan:
                     *(
                         self.evaluate(sub, ctx)
                         for child in children
-                        for sub in child.inputs
+                        for sub in self._source_inputs(child)
                     ),
                 )
             )
