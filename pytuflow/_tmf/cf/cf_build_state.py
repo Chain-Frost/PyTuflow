@@ -184,6 +184,68 @@ def _stage_bytes(destination: Path, data: bytes) -> Path:
     return staged
 
 
+
+def _new_regular_file_mode(directory: Path) -> int:
+    """Obtain the OS creation mode without changing the process-global umask.
+
+    The empty, exclusive probe uses the same directory/default ACL and mode
+    (0666) as a normal writable text file. Save contents remain in 0600 staging
+    files until their final permissions are applied.
+    """
+    probe = directory / f'.pytuflow-permissions-{uuid4().hex}.tmp'
+    descriptor = os.open(probe, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666)
+    try:
+        return stat.S_IMODE(os.fstat(descriptor).st_mode)
+    finally:
+        try:
+            os.close(descriptor)
+        finally:
+            probe.unlink()
+
+
+def _preserve_file_metadata(source: Path, target: Path, *, backup: bool) -> None:
+    """Keep effective POSIX owner/group/mode semantics before publication.
+
+    An unprivileged caller cannot normally transfer ownership of a staged file
+    to another user. Fail before replacing any model file rather than silently
+    converting a group-writable original into an inaccessible owner-only file.
+    Preserve the original group (or reject if it cannot be set) as well as mode
+    bits and extended attributes. Backups retain the original timestamps.
+    """
+    if os.name == 'nt':
+        if backup:
+            shutil.copystat(source, target)
+        else:
+            os.chmod(target, stat.S_IMODE(source.stat().st_mode))
+        return
+
+    original = source.stat()
+    staged = target.stat()
+    if original.st_uid != os.geteuid() or staged.st_uid != original.st_uid:
+        raise PermissionError(
+            f'Cannot safely preserve POSIX ownership when saving {source}: '
+            'the original file must be owned by the current user.'
+        )
+    if staged.st_gid != original.st_gid:
+        try:
+            os.chown(target, -1, original.st_gid)
+        except OSError as exc:
+            raise PermissionError(
+                f'Cannot preserve POSIX group ownership when saving {source}: '
+                f'group {original.st_gid} could not be assigned to {target}.'
+            ) from exc
+
+    shutil.copystat(source, target)
+    final = target.stat()
+    if (final.st_uid, final.st_gid, stat.S_IMODE(final.st_mode)) != (
+        original.st_uid, original.st_gid, stat.S_IMODE(original.st_mode)
+    ):
+        raise PermissionError(f'Cannot preserve ownership and permissions when saving {source}')
+    if not backup:
+        # A successful rewrite should have a new modification timestamp.
+        os.utime(target, None)
+
+
 @dataclass
 class _SaveOutput:
     owner: ControlFileBuildState | DatabaseBuildState
@@ -584,12 +646,14 @@ class _SaveTransaction:
                     database.fpath = output.destination
             mode_source = output.destination if _path_exists(output.destination) else output.source
             if _path_exists(mode_source):
-                os.chmod(output.staged, stat.S_IMODE(mode_source.stat().st_mode))
+                _preserve_file_metadata(mode_source, output.staged, backup=False)
+            elif os.name == 'posix':
+                os.chmod(output.staged, _new_regular_file_mode(output.destination.parent))
         # Back up every existing destination before the first replacement.
         for output in self.outputs:
             if _path_exists(output.destination):
                 output.backup = _stage_bytes(output.destination, output.destination.read_bytes())
-                shutil.copystat(output.destination, output.backup)
+                _preserve_file_metadata(output.destination, output.backup, backup=True)
 
     def _replace(self) -> None:
         replaced = []
