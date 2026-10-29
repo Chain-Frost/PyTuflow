@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
-from ._tmf.options import CaseSensitivity, parse_case_sensitivity
 from ._tmf.gpkg_safety import check_gpkg_safety, read_gpkg_layer_names
+from ._tmf.options import CaseSensitivity, parse_case_sensitivity
 
 if TYPE_CHECKING:
     from ._tmf.dependency_records import BatchDependencyRun

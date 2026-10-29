@@ -7,8 +7,6 @@ shared. The ordinary evaluator remains authoritative for command semantics.
 
 from __future__ import annotations
 
-from .options import FileResolution
-
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -29,6 +27,7 @@ from .file_reference import (
     FileReference,
 )
 from .fragment_context import FragmentContextBase, raw_class_attribute
+from .options import FileResolution
 
 _TOKEN = re.compile(r"<<([^<>]+)>>")
 _LIMIT = 10000

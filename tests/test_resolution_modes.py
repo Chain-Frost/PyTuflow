@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pytuflow import CaseSensitivity, FileResolution, TCF
+from pytuflow import TCF, CaseSensitivity, FileResolution
 from pytuflow._tmf.options import parse_case_sensitivity
 from pytuflow._tmf.settings import TCFConfig
 from pytuflow.validation import ValidationOptions

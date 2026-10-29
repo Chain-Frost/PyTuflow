@@ -7,8 +7,6 @@ and only identical structured flags reuse records in this invocation.
 
 from __future__ import annotations
 
-from .options import FileResolution
-
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from time import perf_counter
@@ -20,6 +18,7 @@ from .dependency_records import (
     BatchInputCommand,
     BatchInputReference,
 )
+from .options import FileResolution
 
 if TYPE_CHECKING:
     from .cf.tcf import TCF
