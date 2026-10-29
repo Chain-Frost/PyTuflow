@@ -1,0 +1,94 @@
+name: Temporary standalone Read File review and scoped Ruff
+on:
+  push:
+    branches:
+      - contrib/repair-standalone-read-file-review
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lint:
+    name: Ruff newly created source and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ruff==0.16.6
+      - name: Check the exact new-file allowlist in pyproject
+        shell: bash
+        run: |
+          python - <<'PY'
+          import subprocess
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          included = set(data["tool"]["ruff"]["include"])
+          added = set(subprocess.check_output(
+              ["git", "diff", "--name-only", "--diff-filter=A", "cf908cc922ca8448ed6002834877b0b377329eae", "HEAD"],
+              text=True,
+          ).splitlines())
+          new_python = {p for p in added if p.endswith((".py", ".pyi"))}
+          assert new_python <= included, f"New files missing Ruff: {sorted(new_python - included)}"
+          assert not any(x in included for x in ("pytuflow/_tmf/gis_attr_driver.py", "pytuflow/_tmf/cf/cf_build_state.py")), "Do not blanket-lint inherited source"
+          print("Ruff newly added files:", len(new_python))
+          PY
+      - run: python -m ruff check .
+  focused:
+    name: Read File and complete focused validation ${{ matrix.os }} Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, python: "3.11"}
+          - {os: windows-latest, python: "3.12"}
+          - {os: windows-latest, python: "3.14"}
+          - {os: ubuntu-latest, python: "3.12"}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install dependencies
+        run: python -m pip install -e . pytest==9.2.0
+      - name: Syntax compile
+        run: python -m compileall -q pytuflow
+      - name: New inline Read File and existing deferred regressions
+        run: >-
+          python -m pytest -q
+          tests/test_inline_read_file_dependencies.py
+          tests/test_fragment_dependencies.py
+          tests/test_effective_dependency_manifests.py
+          tests/test_fragment_inactive_scope.py
+          tests/test_deferred_file_references.py
+          tests/test_deferred_database_parity.py
+          tests/test_batch_validation_mvp.py
+          tests/test_input_validation.py
+          tests/test_linux_deferred_parity.py
+          tests/test_compiled_scope.py
+          tests/test_gpkg_safety.py
+          tests/test_deferred_gis_inspection.py
+          tests/test_resolution_modes.py
+          tests/tmf/test_input.py::test_input_files_ref_in_gis
+          tests/tmf/test_input_context.py::test_input_files_ref_in_gis
+  package:
+    name: Wheel and source distribution smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build --wheel --sdist
+      - name: Verify installed wheel can import the public API outside source
+        shell: bash
+        run: |
+          python -m pip install dist/*.whl
+          cd /tmp
+          python -c "from pytuflow import TCF, CaseSensitivity, FileResolution; from pytuflow.batch_validation import validate_batch_inputs; print('packaged public API import passed')"
