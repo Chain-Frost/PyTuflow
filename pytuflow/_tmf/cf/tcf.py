@@ -391,7 +391,7 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
                 run_context: str | dict[str, str] = '',
                 context: Context | None = None,
                 parent: ControlFileRunState | None = None,
-                *, file_resolution: str | None = None) -> 'TCFRunState':
+                *, file_resolution: typing.Literal["eager", "deferred"] | None = None) -> 'TCFRunState':
         """Create a model run context; eager input evaluation remains the default."""
         from .tcf_run_state import TCFRunState
         ctx = context if context else Context(run_context, config=self.config)

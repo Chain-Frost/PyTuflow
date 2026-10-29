@@ -90,7 +90,7 @@ class _ParseContext:
     time_format: str = 'HOURS'
     check_file_prefix_1d: str = ''
     check_file_prefix_2d: str = ''
-    file_resolution: str = 'eager'
+    file_resolution: typing.Literal['eager', 'deferred'] = 'eager'
     case_sensitivity: int = 0
 
     def set_spatial_database(self, value: 'str | Path | None',
@@ -147,7 +147,7 @@ class TCFConfig:
     time_format: str = field(default='HOURS', repr=False)   
     check_file_prefix_1d: str = field(default='', repr=False)
     check_file_prefix_2d: str = field(default='', repr=False)
-    file_resolution: str = field(default='eager', repr=False)
+    file_resolution: typing.Literal['eager', 'deferred'] = field(default='eager', repr=False)
     case_sensitivity: int = field(default=0, repr=False)
     init_from_tcf: bool = field(default=True, repr=False)
 

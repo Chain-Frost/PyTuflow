@@ -41,11 +41,13 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class ExtendedProjection:
+    """Store linked inputs without mutating the original run projection."""
     runs: tuple[BatchDependencyRun, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class GISExpansion:
+    """Return discovered GIS sources, findings and scan counts."""
     projection: ExtendedProjection
     findings: tuple[ValidationFinding, ...]
     linked_sources: int
@@ -53,6 +55,7 @@ class GISExpansion:
 
 
 def _linked_reference(parent: BatchInputReference, path: Path) -> BatchInputReference:
+    """Attribute a GIS-linked source to its original command."""
     expression = str(path)
     source = parent.reference
     file = FileReference(
@@ -158,7 +161,7 @@ def _resolved_bc_inline_constant(
         for inp in model.find_input(lhs="bc database", recursive=True):
             if str(inp.uuid) != activation_uuid:
                 continue
-            candidates.extend(zip(inp.cf, getattr(inp, "_database_loaded_paths", ())))
+            candidates.extend(zip(inp.cf, getattr(inp, "_database_loaded_paths", ()), strict=True))
         matches = [db for db, original in candidates
                    if _cached_database_path_key(original) == identity[1]]
         if not matches:
@@ -369,6 +372,7 @@ def extend_gis_dependencies(
             path: Path = path,
             selector: str = selector,
         ) -> None:
+            """Record an unresolved attribute reference for the selected run."""
             findings.append(
                 ValidationFinding(
                     run_index=run.index,

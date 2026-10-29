@@ -34,10 +34,12 @@ class FallbackDependencyResult:
 
     @property
     def passed(self) -> bool:
+        """Report whether every selected fallback run was resolved."""
         return bool(self.runs) and all(run.error is None for run in self.runs)
 
 
 def _flag_text(flags: str | dict[str, str]) -> str:
+    """Represent the run flags consistently in diagnostic messages."""
     if isinstance(flags, str):
         return flags
     return " ".join(f"-{key.lstrip('-')} {value}" for key, value in flags.items())
