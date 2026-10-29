@@ -82,6 +82,9 @@ class ControlFileBuildState(BuildState, ControlFile):
             self.config.control_file = Path(path)
         #: Inputs: The list of inputs and comments in the control file
         self.inputs = Inputs[InputBuildState]()
+        # Inline Read File commands expand into ordinary inputs, so keep their
+        # original source declarations separately for deferred file inventory.
+        self._read_file_declarations: list[tuple[int, InputBuildState]] = []
         #: ControlFile: The parent control file
         self.parent = parent
         #: AlteredInputs: The list of all changes made to the control file since the last time :meth:`write` was called.
@@ -767,6 +770,24 @@ class ControlFileBuildState(BuildState, ControlFile):
     def _parser(self, path: Path, config: TCFConfig) -> typing.Iterator[Command]:
         return get_commands(path, config)
 
+    def _dependency_inputs(self) -> tuple[InputBuildState, ...]:
+        """Return parsed inputs with original inline Read File declarations.
+
+        Ordinary eager contexts and model writing continue using self.inputs.
+        The deferred dependency inventory must include Read File declarations
+        even when they produce no expanded commands or files go missing later.
+        """
+        if not self._read_file_declarations:
+            return tuple(self.inputs)
+        sources: list[InputBuildState] = []
+        position = 0
+        for before, declaration in self._read_file_declarations:
+            sources.extend(self.inputs[position:before])
+            sources.append(declaration)
+            position = before
+        sources.extend(self.inputs[position:])
+        return tuple(sources)
+
     def _get_trd_inputs(self, cf: 'ControlFileBuildState') -> tuple[Inputs, dict[Path, dict[str, Inputs | T_Input]]]:
         """Get the inputs that are in TRD files from the control file.
         This method returns a list of input from the control file without inputs that are in TRD files and with the
@@ -841,6 +862,9 @@ class ControlFileBuildState(BuildState, ControlFile):
             if trd is not None:
                 logger.error(f'Nested TRD files are currently not supported. Command: {inp}')
                 raise ValueError(f'Nested TRD files are currently not supported. Command: {inp}')
+            # Save the declaration even when the TRD is absent or empty.
+            # Its position precedes the expanded inputs from this file.
+            self._read_file_declarations.append((len(self.inputs), inp))
             self._load_trd(inp)
             return inp
         self.inputs.append(inp)
@@ -1021,3 +1045,7 @@ class ControlFileBuildState(BuildState, ControlFile):
         self.inputs.amend(inp, new_inp)
         new_inp.uuid = inp.uuid
         return new_inp
+
+
+# Stable built-in evaluator identity for optional fragment collection.
+_CONTROL_FILE_BUILD_CONTEXT = ControlFileBuildState.context
