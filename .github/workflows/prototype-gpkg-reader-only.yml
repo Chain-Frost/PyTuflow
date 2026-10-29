@@ -1,0 +1,55 @@
+name: Experimental GeoPackage reader isolation
+
+on:
+  push:
+    branches:
+      - contrib/explore-gpkg-reader-only
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    name: GeoPackage checks ${{ matrix.os }} Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, python: "3.11"}
+          - {os: windows-latest, python: "3.12"}
+          - {os: windows-latest, python: "3.14"}
+          - {os: ubuntu-latest, python: "3.12"}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install test dependencies
+        run: python -m pip install -e . pytest==9.2.0
+      - name: Compile
+        run: python -m compileall -q pytuflow
+      - name: Verify opt-in strict mode and eager compatibility
+        run: >-
+          python -m pytest -q
+          tests/test_gpkg_reader_prototype.py
+          tests/test_gpkg_safety.py
+          tests/test_deferred_gis_inspection.py
+          tests/test_fragment_dependencies.py
+          tests/test_batch_validation_mvp.py
+          tests/test_input_validation.py
+          tests/tmf/test_input.py::test_input_files_ref_in_gis
+          tests/tmf/test_input_context.py::test_input_files_ref_in_gis
+
+  lint:
+    name: Scoped Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ruff==0.16.6
+      - run: python -m ruff check .
