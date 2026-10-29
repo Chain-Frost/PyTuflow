@@ -127,7 +127,7 @@ def test_selected_child_has_its_own_dependency_manifest(tmp_path: Path) -> None:
     plan = _Plan(model)
     manifests = {
         Path(child.fpath).stem: plan.file_manifests[id(child)]
-        for child in plan.children[id(model.inputs[0])]
+        for child in model.inputs[0].cf
     }
     assert manifests["design_EXG"].variables == ()
     assert manifests["design_DEV"].variables == ("E1",)

@@ -421,7 +421,6 @@ class _Plan:
         self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True
     ) -> None:
         """Initialise per-batch fragment and scope caches."""
-        compiled_started = perf_counter()
         self._inputs_by_id: dict[int, Any] = {}
         self._owned_inputs: dict[int, tuple[Any, dict]] = {}
         self.published: list[DependencyFragment] = []
@@ -452,7 +451,6 @@ class _Plan:
             raise NotImplementedError(
                 "Custom Context.translate requires ordinary batch evaluation"
             )
-        self.model = model
         self.expressions = ExpressionPool()
         self.scope_program = ScopeProgram()
         self._builtin_manifest_translation = builtin_translation()
@@ -465,17 +463,12 @@ class _Plan:
         self.pending_selections: dict[
             tuple[object, ...], tuple[DependencyFragment, tuple[Any, ...]]
         ] = {}
-        self.compact_signatures = 0
-        self.full_keys = 0
-        self.manifest_hits = 0
-        self.manifest_misses = 0
         self.manifest_fallbacks: dict[str, int] = {}
         self.pending: dict[tuple[int, tuple[object, ...]], DependencyFragment] = {}
         self.evaluations = 0
         self.reuses = 0
         self.expressions_by_input: dict[int, tuple[str, ...]] = {}
         self.scopes_by_input: dict[int, tuple[Any, ...]] = {}
-        self.children: dict[int, tuple[Any, ...]] = {}
         self.allowed = {
             ControlFileInput,
             DatabaseInput,
@@ -505,7 +498,6 @@ class _Plan:
         )
         for inp in self.roots:
             self._compile(inp, set())
-        self.compilation_seconds = perf_counter() - compiled_started
 
     def _compile(self, inp: Any, ancestors: set[int]) -> None:
         """Compile one input and its nested descendants into dependency fragments."""
@@ -549,7 +541,6 @@ class _Plan:
         children: tuple[Any, ...] = (
             tuple(cast(Any, inp).cf) if type(inp) is ControlFileInput else ()
         )
-        self.children[id(inp)] = children
         self._inputs_by_id[id(inp)] = inp
         for child in children:
             if not _original_control_file_context(child):
@@ -657,12 +648,10 @@ class _Plan:
                 tuple(ref.reference.path_pattern for ref in projection.references),
                 tuple(child_signatures),
             )
-        self.compact_signatures += 1
         return id(inp), ("manifest", signature, selected)
 
     def _full_key(self, inp: Any, ctx: Any) -> tuple[int, tuple[object, ...]]:
         """Construct a full-context key when a reduced key is unsafe."""
-        self.full_keys += 1
         # Equality is based on effective values, not entire flag dictionaries.
         # This covers transitive variables and TEF changes without guessing that
         # E/S flags alone describe a file's dependencies.
@@ -863,12 +852,8 @@ class _Plan:
         prior = self._cached_fragment(inp, key)
         if prior is not None:
             self.reuses += 1
-            if key[1][0] == "manifest":
-                self.manifest_hits += 1
             return prior
         self.evaluations += 1
-        if key[1][0] == "manifest":
-            self.manifest_misses += 1
         if str(inp.lhs).upper() == "PAUSE":
             raise ValueError(f"Pause command encountered: {inp.rhs}")
         # Includes are projected without constructing their mutable child
