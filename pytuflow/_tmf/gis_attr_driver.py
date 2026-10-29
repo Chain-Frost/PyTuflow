@@ -47,7 +47,7 @@ class GISAttributes(typing.Generic[T], Iterable[T]):
         fpath = TuflowPath(fpath)
         # GeoPackage attributes use the shared immutable, read-only SQLite
         # reader even when GDAL is installed, avoiding writable sidecars.
-        if fpath.suffix.lower() == '.gpkg':
+        if cls is GISAttributes and fpath.suffix.lower() == '.gpkg':
             return super().__new__(GPKGAttributes)
         if has_gdal:
             return super().__new__(GDALGISAttributes)
