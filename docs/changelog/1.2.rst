@@ -1,7 +1,7 @@
 Changelog for 1.2
 =================
 
-1.2.9
+1.2.8
 -----
 
 - Added ``validate_batch_inputs()`` for checking required model inputs across explicitly selected scenario and event runs before executing TUFLOW, with findings attributed to each run and source command.
@@ -10,13 +10,6 @@ Changelog for 1.2
 - Preserved eager model evaluation by default and the existing behaviour of direct NetCDF rainfall inputs.
 - Corrected scenario and event scope membership to include the ninth flag (``-s9``/``-e9``) in both eager and deferred evaluation.
 
-1.2.8
------
-
-- Added a ``py.typed`` marker and typing declarations for the existing, deprecated ``ResData`` interface to improve editor support and static type checking.
-- Improved type annotations for optional scope variables, TUFLOW executable lookups, and named point and line locations used in result extraction.
-- These typing improvements do not change result calculations or existing runtime behaviour.
-
 1.2.7
 -----
 
@@ -24,7 +17,7 @@ Changelog for 1.2
 - Corrected filename case handling on Linux and existing model-input parsing.
 - Corrected result times, compatibility with newer pandas versions, raster cache limits, and recovery from NetCDF reader errors.
 - Corrected depth averaging and selected QGIS mesh calculations, including face positions, vertex interpolation, and vector point extraction.
-- Improved package import behaviour, optional mesh backend handling, and logging.
+- Improved package import behaviour, optional mesh backend handling, and logging; clarified existing optional and named-location type annotations.
 - Corrected Flood Relief Arch input registration in Flood Modeller conversion references.
 
 1.2.6
