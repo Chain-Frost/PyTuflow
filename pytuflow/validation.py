@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
+from ._tmf.options import CaseSensitivity, parse_case_sensitivity
 from ._tmf.gpkg_safety import check_gpkg_safety, read_gpkg_layer_names
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ class ValidationOptions:
         maximum_directory_entries: Limit names visited per wildcard directory.
         maximum_header_lines: Limit lines inspected for a BC CSV header.
         maximum_header_bytes: Bound the bytes read while inspecting a CSV header.
-        case_sensitivity: Linux TUFLOW filename policy (0, 1 or 2); None uses
+        case_sensitivity: Linux TUFLOW filename policy (CaseSensitivity enum); None uses
             the parsed model's policy.
 
     """
@@ -64,15 +65,14 @@ class ValidationOptions:
     maximum_header_bytes: int = 1_048_576
     # Linux TUFLOW -cs0/-cs1/-cs2. None means the projection has not
     # provided a policy: a possible spelling mismatch must fail closed.
-    case_sensitivity: int | None = None
+    case_sensitivity: CaseSensitivity | None = None
 
     def __post_init__(self) -> None:
         """Reject invalid resource limits and filename-case modes."""
-        if self.case_sensitivity is not None and (
-            type(self.case_sensitivity) is not int
-            or self.case_sensitivity not in (0, 1, 2)
-        ):
-            raise ValueError("case_sensitivity must be 0, 1, 2 or None")
+        if self.case_sensitivity is not None:
+            object.__setattr__(
+                self, "case_sensitivity", parse_case_sensitivity(self.case_sensitivity)
+            )
         if not 1 <= self.io_workers <= 32:
             raise ValueError("io_workers must be between 1 and 32")
         if min(
@@ -305,7 +305,7 @@ def _has_wildcards(path: str) -> bool:
 
 
 def _filename_matches(
-    candidate: str, pattern: str, case_sensitivity: int | None, *,
+    candidate: str, pattern: str, case_sensitivity: CaseSensitivity | None, *,
     windows: bool,
 ) -> bool:
     """Match the final filename using TUFLOW -cs semantics, not folder case.
@@ -317,9 +317,9 @@ def _filename_matches(
         return fnmatch.fnmatchcase(
             os.path.normcase(candidate), os.path.normcase(pattern)
         )
-    if case_sensitivity in (0, None):
+    if case_sensitivity in (CaseSensitivity.STRICT, None):
         return fnmatch.fnmatchcase(candidate, pattern)
-    if case_sensitivity == 1:
+    if case_sensitivity == CaseSensitivity.EXTENSION_INSENSITIVE:
         # Match the original TuflowPath.glob() implementation: the full
         # filename is case-insensitive, but the filename stem is exact.
         # Comparing suffixes separately wrongly rejects patterns such as
@@ -333,7 +333,7 @@ def _filename_matches(
 
 def _scan_wildcard_patterns(
     patterns: Collection[Path], *, maximum_entries: int,
-    case_sensitivity: int | None,
+    case_sensitivity: CaseSensitivity | None,
 ) -> tuple[
     dict[Path, tuple[Path, ...]], dict[Path, tuple[ValidationStatus, str]], int
 ]:
@@ -371,7 +371,7 @@ def _scan_wildcard_patterns(
                             os.name != "nt"
                             and case_sensitivity is None
                             and _filename_matches(
-                                entry.name, pattern.name, 2, windows=False
+                                entry.name, pattern.name, CaseSensitivity.FILENAME_INSENSITIVE, windows=False
                             )
                         ):
                             uncertain.add(pattern)
@@ -401,7 +401,7 @@ def _scan_wildcard_patterns(
 
 
 def _resolve_literal_case_paths(
-    requested: Collection[Path], *, case_sensitivity: int | None,
+    requested: Collection[Path], *, case_sensitivity: CaseSensitivity | None,
     maximum_entries: int,
 ) -> tuple[
     dict[Path, Path],
@@ -414,7 +414,7 @@ def _resolve_literal_case_paths(
     invocation-local directory inventory. This deliberately does not relax
     parent directory spelling or stat unrelated files.
     """
-    if os.name == "nt" or case_sensitivity not in (1, 2):
+    if os.name == "nt" or case_sensitivity not in (CaseSensitivity.EXTENSION_INSENSITIVE, CaseSensitivity.FILENAME_INSENSITIVE):
         return {}, {}, 0
 
     resolved: dict[Path, Path] = {}
@@ -459,7 +459,7 @@ def _resolve_literal_case_paths(
             continue
 
         for path in siblings:
-            if case_sensitivity == 1:
+            if case_sensitivity == CaseSensitivity.EXTENSION_INSENSITIVE:
                 matching = [
                     name for name in names
                     if Path(name).stem == path.stem
