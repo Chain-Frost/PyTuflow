@@ -54,12 +54,13 @@ from .util import TuflowBinaries as TuflowBinaries, TuflowFVBinaries, pytuflow_l
 from .project import HPCProject as HPCProject, FVProject as FVProject
 
 if _TYPE_CHECKING:
-    # Keep the existing Scope export discoverable to static analysers.
+    # Keep existing public class imports statically discoverable.
     from ._tmf.scope import Scope as Scope
+    from ._tmf.cf.tcf import TCF as TCF
 
 
 name = 'PyTuflow'
-__version__ = '1.2.7'
+__version__ = '1.2.8'
 
 
 # Preserve the historic from-pytuflow import surface without eagerly loading
