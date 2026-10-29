@@ -94,6 +94,8 @@ def test_gpkg_reader_rejects_uncheckpointed_wal(gpkg: Path) -> None:
         with pytest.raises(GeoPackageSafetyError, match="wal"):
             with GPKGAttributes(_source(gpkg)) as reader:
                 list(reader)
+        with pytest.raises(GeoPackageSafetyError, match="wal"):
+            TuflowPath(gpkg)._gpkg_layers()
 
 
 def test_shared_connection_remains_open_and_uses_selected_columns(gpkg: Path) -> None:
