@@ -1,4 +1,4 @@
-"""Generated regressions for lexical directory aliases on the upstream eager API."""
+"""Regressions for save destinations reached through directory aliases."""
 
 import os
 import subprocess

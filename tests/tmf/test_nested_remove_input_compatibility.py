@@ -1,6 +1,6 @@
-"""Guard the upstream root-to-child remove-input API against W1 save regressions.
+"""Regressions for nested input removal and saving the owning control file.
 
-This is an existing upstream editing feature, not an undo redesign.
+Exercise existing nested editing semantics without changing unrelated files.
 """
 from pathlib import Path
 
@@ -32,8 +32,8 @@ def test_root_removes_input_in_loaded_child_and_saves_its_owner(
     target = first.find_input("Set Code")[0]
     original_uuid = target.uuid
 
-    # Original upstream wrongly traversed target.cf (empty for a setting)
-    # instead of the encountered child-reference.cf.
+    # Settings have no child control files: follow the child-reference owner
+    # when removing the nested input.
     assert model.remove_input(target) is target
     assert target.uuid == original_uuid
     assert target.parent is first

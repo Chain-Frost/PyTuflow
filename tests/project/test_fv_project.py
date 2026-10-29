@@ -221,9 +221,8 @@ class TestFVBaseFeatureApplyToControlFiles:
         block.append_input('Output Parameters == h, v, d')
         block.append_input('Output Interval == 300.')
         inp = fvc.append_input('Include == outputs.fvc')
-        # The new Include already has an unloaded placeholder; replace it
-        # with the explicitly constructed child, rather than creating two
-        # competing owners for one physical output (as in phantom PR #18).
+        # The new Include has an unloaded child placeholder. Replace it
+        # with the constructed child so the output has only one owner.
         inp.cf[:] = [include]
         assert len(inp.cf) == 1
 

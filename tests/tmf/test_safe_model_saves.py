@@ -140,8 +140,8 @@ def test_source_text_contract(tmp_path, include_file, edited, newline, final_new
     owner_before = inp.trd
     identity_before = (id(inp), inp.uuid)
     if edited:
-        # The comment setter preserves flattened-TRD ownership. Its formatting
-        # behaviour belongs to W2; this test checks the save text contract.
+        # The comment setter preserves flattened-TRD ownership; this test
+        # checks the saved source-text conventions.
         inp.comment = '! edit caf\u00e9'
 
     assert model.write('inplace') is model
