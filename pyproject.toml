@@ -88,9 +88,25 @@ include = [
     "pytuflow/validation.py",
     "pytuflow/validation_gis.py",
     "pytuflow/validation_links.py",
+    "tests/test_batch_validation_mvp.py",
+    "tests/test_compiled_scope.py",
+    "tests/test_deferred_database_parity.py",
+    "tests/test_deferred_file_references.py",
+    "tests/test_deferred_gis_inspection.py",
+    "tests/test_effective_dependency_manifests.py",
+    "tests/test_fragment_dependencies.py",
+    "tests/test_fragment_inactive_scope.py",
+    "tests/test_gpkg_safety.py",
+    "tests/test_input_validation.py",
+    "tests/test_linux_deferred_parity.py",
+    "tests/typing/deferred_validation_negative.py",
+    "tests/typing/deferred_validation_positive.py",
 ]
 
 [tool.ruff.lint]
-# Core rules adapted from ryan-tools; D adds required API documentation.
+# Check correctness, imports, compatibility and documentation in new modules.
 select = ["E4", "E7", "E9", "F", "B", "BLE", "I", "UP", "RUF", "D"]
 ignore = ["D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D"]  # Test cases document behaviour through their names and assertions.

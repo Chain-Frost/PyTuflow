@@ -19,7 +19,7 @@ jobs:
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
       PYTHONNOUSERSITE: '1'
       UPSTREAM_SHA: cf908cc922ca8448ed6002834877b0b377329eae
-      CANDIDATE_SHA: 9e5071e66c6a27bd87e380d92b29bd6c1f19a6b3
+      CANDIDATE_SHA: 5bbb1ef27cb84b2ab96f8571628496866c9c502b
     steps:
       - uses: actions/checkout@v5
         with:

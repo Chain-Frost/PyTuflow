@@ -40,7 +40,19 @@ class DependencyProjection(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ValidationOptions:
-    """Explicit physical inspection policy; no IO occurs until validation."""
+    """Configure supported physical checks and their resource limits.
+
+    Args:
+        check_files: Verify selected input paths exist and are readable.
+        check_gpkg_layers: Verify selected GeoPackage layers.
+        check_bc_csv_headers: Check referenced BC CSV column names.
+        io_workers: Maximum concurrent workers for independent input checks.
+        maximum_directory_entries: Limit names visited per wildcard directory.
+        maximum_header_lines: Limit lines inspected for a BC CSV header.
+        maximum_header_bytes: Bound the bytes read while inspecting a CSV header.
+        case_sensitivity: Linux TUFLOW filename policy (0, 1 or 2); None uses
+            the parsed model's policy.
+    """
 
     check_files: bool = True
     check_gpkg_layers: bool = True
@@ -72,7 +84,12 @@ class ValidationOptions:
 
 @dataclass(frozen=True, slots=True)
 class ValidationFinding:
-    """One physical-inspection result attributed to one requested simulation."""
+    """Record the status of one input and its source-command provenance.
+
+    The status is present, missing, unresolved or unsupported. Source ownership,
+    input UUID and run index identify the original model declaration, allowing
+    the same physical file to be reported separately for each affected run.
+    """
 
     run_index: int
     flags: str
@@ -92,7 +109,12 @@ class ValidationFinding:
 
 @dataclass(frozen=True, slots=True)
 class ValidationReport:
-    """Ordered findings plus deduplicated physical-inspection counters."""
+    """Report physical preflight findings for selected scenario/event runs.
+
+    A report passes only if at least one run was inspected and all requirements
+    are present. Physical inspection counts represent deduplicated I/O rather
+    than a separate file read for every run.
+    """
 
     findings: tuple[ValidationFinding, ...]
     run_count: int
