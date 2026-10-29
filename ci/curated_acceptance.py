@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 UPSTREAM = 'cf908cc922ca8448ed6002834877b0b377329eae'
-CANDIDATE = '784ca2a7d8c8d1131865e564b7d9554ea4192f14'
+CANDIDATE = '9a3334cb4684312d35bbf995db3748f0a369462f'
 HARNESS = Path(__file__).resolve().parents[1]
 
 def main():
