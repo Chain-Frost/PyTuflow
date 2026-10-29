@@ -91,6 +91,6 @@ include = [
 ]
 
 [tool.ruff.lint]
-# Core rules adapted from ryan-tools; D adds required API documentation.
+# Check correctness, imports, compatibility and documentation in new modules.
 select = ["E4", "E7", "E9", "F", "B", "BLE", "I", "UP", "RUF", "D"]
 ignore = ["D203", "D213"]
