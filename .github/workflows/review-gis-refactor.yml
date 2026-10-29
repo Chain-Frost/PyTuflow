@@ -18,7 +18,9 @@ jobs:
       matrix:
         include:
           - {os: ubuntu-latest, python: "3.12"}
+          - {os: windows-latest, python: "3.11"}
           - {os: windows-latest, python: "3.12"}
+          - {os: windows-latest, python: "3.14"}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -38,8 +40,10 @@ jobs:
           tests/test_deferred_database_parity.py
           tests/test_fragment_dependencies.py
           tests/test_effective_dependency_manifests.py
+          tests/tmf/test_input.py::test_input_files_ref_in_gis
+          tests/tmf/test_input_context.py::test_input_files_ref_in_gis
   lint:
-    name: Ruff audit on new modules (advisory)
+    name: Ruff rules for new modules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
