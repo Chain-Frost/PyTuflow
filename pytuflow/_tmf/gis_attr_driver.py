@@ -253,18 +253,33 @@ class GPKGAttributes(GISAttributes):
                 )
             self._tname = matches[0]
             quoted = _quote_gpkg_identifier(self._tname)
-            geometry_columns = {
-                str(row[0]).casefold()
-                for row in self._db.execute(
-                    "SELECT column_name FROM gpkg_geometry_columns "
+            try:
+                geometry_columns = {
+                    str(row[0]).casefold()
+                    for row in self._db.execute(
+                        "SELECT column_name FROM gpkg_geometry_columns "
+                        "WHERE lower(table_name) = lower(?)",
+                        (self._tname,),
+                    )
+                }
+            except sqlite3.OperationalError as exc:
+                if "no such table" not in str(exc).lower():
+                    raise
+                # A GeoPackage containing only attribute tables need not
+                # provide vector geometry metadata.
+                geometry_columns = set()
+            if not geometry_columns:
+                # A valid nonspatial GeoPackage table has no geometry column.
+                # Do not certify malformed spatial tables as attribute data.
+                kind = self._db.execute(
+                    "SELECT data_type FROM gpkg_contents "
                     "WHERE lower(table_name) = lower(?)",
                     (self._tname,),
-                )
-            }
-            if not geometry_columns:
-                raise ValueError(
-                    f"GeoPackage layer has no geometry column: {self._tname}"
-                )
+                ).fetchone()
+                if kind is None or str(kind[0]).casefold() != "attributes":
+                    raise ValueError(
+                        f"GeoPackage layer has no geometry column: {self._tname}"
+                    )
             columns = self._db.execute(f"PRAGMA table_info({quoted})")
             self.field_names = tuple(
                 str(name)
