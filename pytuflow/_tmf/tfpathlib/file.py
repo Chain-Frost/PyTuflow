@@ -108,19 +108,21 @@ class TuflowPath(Path):
             dbpath = string
         return dbpath, None
 
-    def _gpkg_layers(self) -> list[str]:
+    def _gpkg_layers(self, *, read_only: bool = False) -> list[str]:
+        """List GeoPackage layers using normal or strict read-only access.
+
+        The default retains existing eager behaviour. Strict read_only=True
+        fails explicitly on unsafe journals, changing files or query errors,
+        rather than interpreting an uninspectable source as an empty database.
+        """
         layers = []
         try:
-            with self.connect(read_only=True) as conn:
+            with self.connect(read_only=read_only) as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT table_name FROM gpkg_contents;")
                 layers = [x[0] for x in cur.fetchall()]
         except Exception as e:
-            from ..gpkg_safety import GeoPackageSafetyError
-
-            if isinstance(e, GeoPackageSafetyError):
-                # An active WAL, ambiguous alias or changing source is not an
-                # empty layer inventory. Do not silently certify it as such.
+            if read_only:
                 raise
             logger.debug(f'Error occurred: {e}')
         return layers

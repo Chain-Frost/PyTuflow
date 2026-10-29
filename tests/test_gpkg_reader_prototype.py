@@ -53,7 +53,7 @@ def test_gpkg_reader_uses_safe_path_with_or_without_gdal(gpkg: Path, monkeypatch
 
     for has_gdal in (False, True):
         monkeypatch.setattr(driver, "has_gdal", has_gdal)
-        with GISAttributes(_source(gpkg)) as reader:
+        with GPKGAttributes(_source(gpkg), read_only=True) as reader:
             assert isinstance(reader, GPKGAttributes)
             fields = reader.field_names
             assert fields[:3] == ("Name", "Type", "Ignore")
@@ -64,11 +64,36 @@ def test_gpkg_reader_uses_safe_path_with_or_without_gdal(gpkg: Path, monkeypatch
     assert {p.name for p in gpkg.parent.iterdir()} == {"network.gpkg"}
 
 
+def test_default_gpkg_reader_keeps_original_provider_dispatch(gpkg: Path, monkeypatch) -> None:
+    """Keep GDAL precedence and the original SQLite fallback by default."""
+    import pytuflow._tmf.gis_attr_driver as driver
+
+    for enabled in (False, True):
+        monkeypatch.setattr(driver, "has_gdal", enabled)
+        instance = GISAttributes.__new__(GISAttributes, _source(gpkg))
+        expected = driver.GDALGISAttributes if enabled else GPKGAttributes
+        assert type(instance) is expected
+
+    monkeypatch.setattr(driver, "has_gdal", False)
+    with GISAttributes(_source(gpkg)) as reader:
+        assert isinstance(reader, GPKGAttributes)
+        assert list(reader)[0]["Inlet_Type"] == "inlet.csv"
+    with GPKGAttributes(_source(gpkg)) as reader:
+        assert list(reader)[0]["Inlet_Type"] == "inlet.csv"
+
+
+def test_strict_gpkg_reader_requires_explicit_read_only_for_shared_connection(gpkg: Path) -> None:
+    """Never reuse a pinned connection through the legacy mutable mode."""
+    with readonly_gpkg(gpkg) as db:
+        with pytest.raises(ValueError, match="read_only=True"):
+            GPKGAttributes(_source(gpkg), connection=db)
+
+
 def test_gpkg_direct_reader_rejects_absent_file_without_creating_it(tmp_path: Path) -> None:
     """Never create a missing main GeoPackage while reading attributes."""
     missing = tmp_path / "absent.gpkg"
     with pytest.raises(FileNotFoundError):
-        with GPKGAttributes(TuflowPath(f"{missing} >> 1d_nwk_test")):
+        with GPKGAttributes(TuflowPath(f"{missing} >> 1d_nwk_test"), read_only=True):
             pass
     assert not missing.exists()
     assert list(tmp_path.iterdir()) == []
@@ -77,7 +102,7 @@ def test_gpkg_direct_reader_rejects_absent_file_without_creating_it(tmp_path: Pa
 def test_gpkg_reader_propagates_missing_layer(gpkg: Path) -> None:
     """Report missing layer metadata rather than swallowing SQLite errors."""
     with pytest.raises(ValueError, match="Expected one GeoPackage table"):
-        with GPKGAttributes(TuflowPath(f"{gpkg} >> 1d_nwk_absent")):
+        with GPKGAttributes(TuflowPath(f"{gpkg} >> 1d_nwk_absent"), read_only=True):
             pass
 
 
@@ -92,16 +117,16 @@ def test_gpkg_reader_rejects_uncheckpointed_wal(gpkg: Path) -> None:
         wal = gpkg.with_name(gpkg.name + "-wal")
         assert wal.is_file() and wal.stat().st_size > 0
         with pytest.raises(GeoPackageSafetyError, match="wal"):
-            with GPKGAttributes(_source(gpkg)) as reader:
+            with GPKGAttributes(_source(gpkg), read_only=True) as reader:
                 list(reader)
         with pytest.raises(GeoPackageSafetyError, match="wal"):
-            TuflowPath(gpkg)._gpkg_layers()
+            TuflowPath(gpkg)._gpkg_layers(read_only=True)
 
 
 def test_shared_connection_remains_open_and_uses_selected_columns(gpkg: Path) -> None:
     """Reuse the physical validator's pinned connection without closing it."""
     with readonly_gpkg(gpkg) as db:
-        with GPKGAttributes(_source(gpkg), connection=db) as reader:
+        with GPKGAttributes(_source(gpkg), read_only=True, connection=db) as reader:
             assert list(reader.iter_selected((1, 10))) == [("M", "inlet.csv")]
         assert db.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0] == 1
 
@@ -119,6 +144,7 @@ def test_gpkg_path_readonly_connection_and_layer_lookup(gpkg: Path) -> None:
     """Reuse the strict opener for TuflowPath's read-only metadata operations."""
     source = TuflowPath(gpkg)
     assert source._gpkg_layers() == ["1d_nwk_test"]
+    assert source._gpkg_layers(read_only=True) == ["1d_nwk_test"]
     with source.connect(read_only=True) as connection:
         assert connection.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0] == 1
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
@@ -154,7 +180,7 @@ def test_nonspatial_attribute_table_remains_readable(tmp_path: Path) -> None:
             "INSERT INTO lookup (value, code) VALUES ('alpha', 'one')"
         )
 
-    with GISAttributes(TuflowPath(f"{gpkg} >> lookup")) as reader:
+    with GPKGAttributes(TuflowPath(f"{gpkg} >> lookup"), read_only=True) as reader:
         assert isinstance(reader, GPKGAttributes)
         assert reader.field_names == ("value", "code")
         assert list(reader) == [{"value": "alpha", "code": "one"}]
@@ -184,7 +210,7 @@ def test_geometry_only_layer_yields_one_empty_record_per_feature(tmp_path: Path)
             [(b"a",), (b"b",)],
         )
 
-    with GISAttributes(TuflowPath(f"{gpkg} >> 2d_empty")) as reader:
+    with GPKGAttributes(TuflowPath(f"{gpkg} >> 2d_empty"), read_only=True) as reader:
         assert reader.field_names == ()
         assert list(reader) == [{}, {}]
     assert {item.name for item in tmp_path.iterdir()} == {"geometry_only.gpkg"}
