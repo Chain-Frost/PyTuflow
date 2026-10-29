@@ -82,24 +82,28 @@ def test_fourteen_var_cell_size_declarations_skip_thirteen_keys(tmp_path: Path) 
             translations.append((str(self.var_map.get("VARCELLSIZE")), value))
         return original_translate(self, value)
 
-    with (
-        patch.object(_Plan, "_key", record_key),
-        patch.object(_FragmentContext, "translate", record_translate),
-    ):
-        for flag, expected in zip(flags, ("32", "3", "32"), strict=True):
-            ctx = _FragmentContext(flag, model.config, plan.expressions)
-            ctx._batch_variable_assignments = plan.assignments
-            prepare_run_context(model, ctx)
-            assert str(ctx.translate("<<VarCellSize>>")) == expected
-            assert sum(
-                ctx.in_context_by_scope(inp.scope) for inp, _ in plan.assignments
-            ) == 1
-            # Preparation has already cached each declaration's scope decision.
-            assert all(id(inp.scope) in ctx._batch_scope_decisions for inp, _ in plan.assignments)
-            for root in plan.roots:
-                plan.evaluate(root, ctx)
-            plan.cache.update(plan.pending)
-            plan.pending.clear()
+    try:
+        with (
+            patch.object(_Plan, "_key", record_key),
+            patch.object(_FragmentContext, "translate", record_translate),
+        ):
+            for flag, expected in zip(flags, ("32", "3", "32"), strict=True):
+                ctx = _FragmentContext(flag, model.config, plan.expressions)
+                ctx._batch_variable_assignments = plan.assignments
+                prepare_run_context(model, ctx)
+                assert str(ctx.translate("<<VarCellSize>>")) == expected
+                assert sum(
+                    ctx.in_context_by_scope(inp.scope) for inp, _ in plan.assignments
+                ) == 1
+                # Preparation has already cached each declaration's scope decision.
+                assert all(id(inp.scope) in ctx._batch_scope_decisions for inp, _ in plan.assignments)
+                for root in plan.roots:
+                    plan.evaluate(root, ctx)
+                plan.publish()
+                plan.pending.clear()
+    
+    finally:
+        plan.cleanup()
 
     # All three selected declarations are keyed once. The other 39
     # declaration-context pairs are excluded before any full key construction.
