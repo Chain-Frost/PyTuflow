@@ -113,7 +113,10 @@ def validate_batch_inputs(
         )
 
     started = perf_counter()
-    dependencies = tcf.collect_file_dependencies(run_flags)
+    # Retain structured values for linked validation; display flags are lossy
+    # when dictionary values contain whitespace. Consume generators only once.
+    flags = tuple(dict(item) if isinstance(item, dict) else item for item in run_flags)
+    dependencies = tcf.collect_file_dependencies(flags)
     collection_seconds = perf_counter() - started
 
     started = perf_counter()
@@ -121,7 +124,7 @@ def validate_batch_inputs(
     # attribute tables must not be opened for nonexistent or unresolved files.
     initial = pending_physical_projection(dependencies)
     primary_report = validate_dependencies(initial, options=options)
-    discovered = extend_gis_dependencies(dependencies, primary_report, tcf)
+    discovered = extend_gis_dependencies(dependencies, primary_report, tcf, flags)
     # The private checked projection contains only GIS-selected BC/curve rows.
     # An unchanged syntactic run inventory is still exposed separately.
     report = (
