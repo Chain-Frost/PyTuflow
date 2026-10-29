@@ -29,6 +29,7 @@ from .scope import (
 @dataclass(frozen=True, slots=True)
 class ScopePredicate:
     """Represent an immutable, evaluated set of builtin scope requirements."""
+
     # Each condition is an OR of names; conditions are joined with AND.
     conditions: tuple[tuple[str, frozenset[str], bool], ...]
 

@@ -181,6 +181,7 @@ class ExpressionPool:
 
 class _FragmentContext(FragmentContextBase):
     """Hold one run's variable and scope dependency state."""
+
     event_variables: dict[str, str]
     _batch_variable_assignments: tuple[tuple[Any, tuple[str, str]], ...]
 
@@ -337,6 +338,7 @@ def _join(fragments: Iterable[DependencyFragment]) -> DependencyFragment:
 @dataclass(frozen=True, slots=True)
 class FragmentBatchResult:
     """Expose collected dependencies and fragment-reuse statistics."""
+
     runs: tuple[BatchDependencyRun, ...]
     fragments: tuple[DependencyFragment, ...]
     fragment_evaluations: int
@@ -413,6 +415,7 @@ def _original_control_file_context(cf: Any) -> bool:
 
 class _Plan:
     """Maintain an invocation-local plan for reusable input evaluation."""
+
     def __init__(
         self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True
     ) -> None:

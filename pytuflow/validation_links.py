@@ -42,12 +42,14 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class ExtendedProjection:
     """Store linked inputs without mutating the original run projection."""
+
     runs: tuple[BatchDependencyRun, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class GISExpansion:
     """Return discovered GIS sources, findings and scan counts."""
+
     projection: ExtendedProjection
     findings: tuple[ValidationFinding, ...]
     linked_sources: int
