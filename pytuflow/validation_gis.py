@@ -468,15 +468,11 @@ def _inspect_single_file(
 def inspect_gis_attribute_sources(
     requests: Collection[tuple[Path, str, bool]],
 ) -> tuple[dict[tuple[Path, str, bool], AttributeInspection], int]:
-    """Read selected GIS attribute records once per distinct physical source.
+    """Inspect attribute-linked sources once per distinct GIS dataset.
 
-    Each request holds (concrete file, layer selector, implicit layer).
-    Implicit filename-derived layers always use exact literal matching,
-    including names 'all' and names containing glob characters. Explicit
-    '>> all' and explicit wildcard selectors retain their TUFLOW semantics.
-
-    GeoPackages use the strict read-only main-file/journal acceptance policy
-    of the physical validator. Unsupported formats fail closed.
+    Implicit layers are literal; explicit selectors permit wildcards and
+    the TUFLOW all-layer keyword. GeoPackages use one pinned, read-only
+    SQLite connection per file. Uncertain results cannot be certified.
     """
     grouped: dict[Path, set[tuple[str, bool]]] = defaultdict(set)
     for path, layer, implicit in requests:
@@ -484,120 +480,45 @@ def inspect_gis_attribute_sources(
 
     results: dict[tuple[Path, str, bool], AttributeInspection] = {}
     databases = 0
-
-    def matches(candidate: str, selector: str, implicit: bool) -> bool:
-        if implicit:
-            return candidate.casefold() == selector.casefold()
-        return (
-            selector.casefold() == "all"
-            or fnmatch.fnmatchcase(candidate.casefold(), selector.casefold())
-        )
-
     for path, selectors in grouped.items():
-        if path.suffix.casefold() == ".shp":
-            selected = {
-                (selector, implicit)
-                for selector, implicit in selectors
-                if matches(path.stem, selector, implicit)
-            }
-            for selector, implicit in selectors - selected:
-                results[(path, selector, implicit)] = AttributeInspection(
-                    "unresolved",
-                    detail=f"Shapefile layer does not match selector {selector!r}",
-                )
-            if selected:
-                try:
-                    sources, identifiers, bc_names = _scan_shapefile(path)
-                    databases += 1
-                    for selector, implicit in selected:
-                        results[(path, selector, implicit)] = AttributeInspection(
-                            "present",
-                            sources,
-                            identifiers,
-                            network_identifiers=(
-                                identifiers
-                                if re.match(r"^1d_nwk[eb]?_", path.stem, re.IGNORECASE)
-                                else ()
-                            ),
-                            pit_identifiers=(
-                                identifiers
-                                if re.match(r"^1d_pit_", path.stem, re.IGNORECASE)
-                                else ()
-                            ),
-                            bc_identifiers=bc_names,
-                            bc_layer_selected=_bc_name_field_index(path.stem) is not None,
-                        )
-                except Exception as exc:  # noqa: BLE001 - reject unknown provider failures
-                    for selector, implicit in selected:
-                        results[(path, selector, implicit)] = AttributeInspection(
-                            "unresolved", detail=f"Cannot inspect Shapefile attributes: {exc}"
-                        )
+        suffix = path.suffix.casefold()
+        if suffix == ".shp":
+            databases += _inspect_single_file(
+                path, selectors, results, scan=_scan_shapefile
+            )
             continue
-        if path.suffix.casefold() in (".mif", ".mid"):
-            selected = {
-                (selector, implicit)
-                for selector, implicit in selectors
-                if matches(path.stem, selector, implicit)
-            }
-            for selector, implicit in selectors - selected:
-                results[(path, selector, implicit)] = AttributeInspection(
-                    "unresolved",
-                    detail=f"MIF/MID layer does not match selector {selector!r}",
-                )
-            if selected:
-                try:
-                    sources, identifiers, bc_names = _scan_mif_mid(path)
-                    databases += 1
-                    for selector, implicit in selected:
-                        results[(path, selector, implicit)] = AttributeInspection(
-                            "present",
-                            sources,
-                            identifiers,
-                            network_identifiers=(
-                                identifiers
-                                if re.match(r"^1d_nwk[eb]?_", path.stem, re.IGNORECASE)
-                                else ()
-                            ),
-                            pit_identifiers=(
-                                identifiers
-                                if re.match(r"^1d_pit_", path.stem, re.IGNORECASE)
-                                else ()
-                            ),
-                            bc_identifiers=bc_names,
-                            bc_layer_selected=_bc_name_field_index(path.stem) is not None,
-                        )
-                except Exception as exc:  # noqa: BLE001 - don't certify incomplete provider scans
-                    for selector, implicit in selected:
-                        results[(path, selector, implicit)] = AttributeInspection(
-                            "unresolved", detail=f"Cannot inspect MIF/MID attributes: {exc}"
-                        )
+        if suffix in (".mif", ".mid"):
+            databases += _inspect_single_file(
+                path, selectors, results, scan=_scan_mif_mid
+            )
             continue
-        if path.suffix.casefold() != ".gpkg":
+        if suffix != ".gpkg":
             for selector, implicit in selectors:
                 results[(path, selector, implicit)] = AttributeInspection(
                     "unresolved",
                     detail=f"GIS attribute reading does not support {path.suffix or 'unknown'} sources",
                 )
             continue
+
         try:
-            # Core PyTUFLOW owns the immutable, pinned, journal-safe view.
-            # It checks aliases and rollback/WAL safety both before/after.
             with readonly_gpkg(path) as database:
                 databases += 1
                 available = {
-                    str(name): str(geom)
-                    for name, geom in database.execute(
+                    str(name): str(geometry)
+                    for name, geometry in database.execute(
                         "SELECT table_name, geometry_type_name FROM gpkg_geometry_columns"
                     )
                 }
                 if not available:
                     raise ValueError("No vector layer metadata in GeoPackage")
-                cache: dict[str, tuple[tuple[Path, ...], tuple[str, ...], tuple[str, ...]]] = {}
+                cache: dict[
+                    str, tuple[tuple[Path, ...], tuple[str, ...], tuple[str, ...]]
+                ] = {}
                 for selector, implicit in selectors:
                     key = (path, selector, implicit)
                     chosen = [
                         name for name in available
-                        if matches(name, selector, implicit)
+                        if _matches_layer(name, selector, implicit)
                     ]
                     if not chosen:
                         results[key] = AttributeInspection(
@@ -606,54 +527,28 @@ def inspect_gis_attribute_sources(
                         )
                         continue
                     try:
-                        for layer in chosen:
-                            if (
-                                _file_field_index(layer) is None
-                                and _bc_name_field_index(layer) is None
-                            ):
-                                # Other TUFLOW GIS layer types carry no known
-                                # file-valued attributes or BC Source names.
-                                # The physical layer itself was checked by
-                                # validate_dependencies().
-                                continue
+                        supported = [
+                            name for name in chosen
+                            if _file_field_index(name) is not None
+                            or _bc_name_field_index(name) is not None
+                        ]
+                        for layer in supported:
                             if layer not in cache:
                                 cache[layer] = _scan_layer(
                                     database, layer, available[layer], path
                                 )
-                        chosen = [layer for layer in chosen if layer in cache]
-                        sources = tuple(sorted({
-                            source for layer in chosen for source in cache[layer][0]
-                        }))
-                        network = tuple(sorted({
-                            name for layer in chosen
-                            if re.match(r"^1d_nwk[eb]?_", layer, re.IGNORECASE)
-                            for name in cache[layer][1]
-                        }))
-                        pits = tuple(sorted({
-                            name for layer in chosen
-                            if re.match(r"^1d_pit_", layer, re.IGNORECASE)
-                            for name in cache[layer][1]
-                        }))
-                        bc = tuple(sorted({
-                            name for layer in chosen
-                            for name in cache[layer][2]
-                        }, key=str.casefold))
-                        results[key] = AttributeInspection(
-                            "present", sources,
-                            tuple(sorted(set(network) | set(pits))),
-                            network_identifiers=network,
-                            pit_identifiers=pits,
-                            bc_identifiers=bc,
-                            bc_layer_selected=any(
-                                _bc_name_field_index(layer) is not None
-                                for layer in chosen
-                            ),
+                        results[key] = _inspection_from_layers(
+                            (layer, cache[layer]) for layer in supported
                         )
-                    except (OSError, ValueError, TypeError, RuntimeError, sqlite3.DatabaseError) as exc:
+                    except (
+                        OSError, ValueError, TypeError, RuntimeError, sqlite3.DatabaseError
+                    ) as exc:
                         results[key] = AttributeInspection(
                             "unresolved", detail=f"Cannot inspect GIS attributes: {exc}"
                         )
-        except (OSError, ValueError, TypeError, RuntimeError, sqlite3.DatabaseError) as exc:
+        except (
+            OSError, ValueError, TypeError, RuntimeError, sqlite3.DatabaseError
+        ) as exc:
             for selector, implicit in selectors:
                 results[(path, selector, implicit)] = AttributeInspection(
                     "unresolved", detail=f"Cannot inspect GIS attributes: {exc}"
