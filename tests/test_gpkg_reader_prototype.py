@@ -157,3 +157,32 @@ def test_nonspatial_attribute_table_remains_readable(tmp_path: Path) -> None:
         assert reader.field_names == ("value", "code")
         assert list(reader) == [{"value": "alpha", "code": "one"}]
     assert {p.name for p in tmp_path.iterdir()} == {"attributes.gpkg"}
+
+
+
+def test_geometry_only_layer_yields_one_empty_record_per_feature(tmp_path: Path) -> None:
+    """Keep feature counts even when a GeoPackage has no user attribute fields."""
+    gpkg = tmp_path / "geometry_only.gpkg"
+    with sqlite3.connect(gpkg) as db:
+        db.execute("CREATE TABLE gpkg_contents (table_name TEXT)")
+        db.execute(
+            "CREATE TABLE gpkg_geometry_columns "
+            "(table_name TEXT, column_name TEXT, geometry_type_name TEXT)"
+        )
+        db.execute("INSERT INTO gpkg_contents VALUES ('2d_empty')")
+        db.execute(
+            "INSERT INTO gpkg_geometry_columns VALUES "
+            "('2d_empty', 'geom', 'POLYGON')"
+        )
+        db.execute(
+            "CREATE TABLE \"2d_empty\" (fid INTEGER PRIMARY KEY, geom BLOB)"
+        )
+        db.executemany(
+            "INSERT INTO \"2d_empty\" (geom) VALUES (?)",
+            [(b"a",), (b"b",)],
+        )
+
+    with GISAttributes(TuflowPath(f"{gpkg} >> 2d_empty")) as reader:
+        assert reader.field_names == ()
+        assert list(reader) == [{}, {}]
+    assert {item.name for item in tmp_path.iterdir()} == {"geometry_only.gpkg"}
