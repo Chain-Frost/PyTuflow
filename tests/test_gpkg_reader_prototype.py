@@ -111,3 +111,24 @@ def test_validation_reuses_reader_and_keeps_source_attribution(gpkg: Path) -> No
     assert count == 1
     assert findings[key].status == "present"
     assert findings[key].sources == (gpkg.parent / "inlet.csv",)
+
+
+def test_gpkg_path_readonly_connection_and_layer_lookup(gpkg: Path) -> None:
+    """Reuse the strict opener for TuflowPath's read-only metadata operations."""
+    source = TuflowPath(gpkg)
+    assert source._gpkg_layers() == ["1d_nwk_test"]
+    with source.connect(read_only=True) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0] == 1
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            connection.execute("INSERT INTO gpkg_contents VALUES ('write_attempt')")
+    assert {p.name for p in gpkg.parent.iterdir()} == {"network.gpkg"}
+
+
+def test_gpkg_path_readonly_connection_never_creates_missing_file(tmp_path: Path) -> None:
+    """Reject missing databases without creating an empty SQLite file."""
+    missing = TuflowPath(tmp_path / "absent.gpkg")
+    with pytest.raises(FileNotFoundError):
+        with missing.connect(read_only=True):
+            pass
+    assert not missing.exists()
+    assert list(tmp_path.iterdir()) == []
