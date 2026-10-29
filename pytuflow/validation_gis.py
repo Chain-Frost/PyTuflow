@@ -363,7 +363,9 @@ def _scan_layer(
                 return (), (), ()
             raise ValueError("Mixed or unknown network geometry requires feature-level inspection")
 
-    with GPKGAttributes(TuflowPath(f"{path} >> {layer}"), connection=connection) as reader:
+    with GPKGAttributes(
+        TuflowPath(f"{path} >> {layer}"), read_only=True, connection=connection
+    ) as reader:
         indexes = _attribute_column_indexes(layer, len(reader.field_names))
         return _interpret_attribute_rows(
             reader.iter_selected(indexes),

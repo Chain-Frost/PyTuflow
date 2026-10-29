@@ -44,13 +44,10 @@ class GISAttributes(typing.Generic[T], Iterable[T]):
         pass
 
     def __new__(cls, fpath: PathLike) -> object:
-        fpath = TuflowPath(fpath)
-        # GeoPackage attributes use the shared immutable, read-only SQLite
-        # reader even when GDAL is installed, avoiding writable sidecars.
-        if cls is GISAttributes and fpath.suffix.lower() == '.gpkg':
-            return super().__new__(GPKGAttributes)
         if has_gdal:
-            return super().__new__(GDALGISAttributes)
+            cls = GDALGISAttributes
+            return super().__new__(cls)
+        fpath = TuflowPath(fpath)
         if '>>' in fpath:
             fpath = fpath.split(' >> ')[0]
         fpath = Path(fpath)
@@ -204,30 +201,49 @@ class MIDAttributes(GISAttributes):
 class GPKGAttributes(GISAttributes):
     """Read GeoPackage attributes using the existing stable, read-only opener.
 
-    An absent database is never created, SQLite failures propagate, and live
-    WAL/rollback journals are rejected. A caller-owned pinned connection can
-    be shared with other layers without redundant opening or closing.
+    Ordinary reads preserve the previous SQLite behaviour. Setting
+    ``read_only=True`` opts into pinned immutable inspection: an absent
+    database is never created, SQL errors propagate, and unsaved WAL/rollback
+    journals are rejected. Validation can reuse an existing pinned connection.
     """
 
     def __new__(
-        cls, fpath: PathLike, *, connection: sqlite3.Connection | None = None,
+        cls, fpath: PathLike, *, read_only: bool = False,
+        connection: sqlite3.Connection | None = None,
     ) -> "GPKGAttributes":
-        """Construct the safe SQLite reader regardless of the GDAL preference."""
+        """Construct a direct SQLite reader without switching to the GDAL factory."""
         return object.__new__(cls)
 
     def __init__(
-        self, fpath: PathLike, *, connection: sqlite3.Connection | None = None,
+        self, fpath: PathLike, *, read_only: bool = False,
+        connection: sqlite3.Connection | None = None,
     ) -> None:
-        """Select the layer and retain only an explicitly supplied connection."""
+        """Use legacy SQLite reads by default, or opt into strict read-only."""
+        if connection is not None and not read_only:
+            raise ValueError("connection requires read_only=True")
+        self._read_only = read_only
         self._connection = connection
         self._owned_context = None
         self._db = None
         self._tname = ""
         self.field_names: tuple[str, ...] = ()
+        if not read_only:
+            # Preserve the previous direct-GPKGAttributes construction path,
+            # including its metadata lookups and existing error policy.
+            fpath = TuflowPath(fpath)
+            self._tname = fpath.lyrname
+            dbpath = fpath.dbpath
+            self._tname = self._get_case_insensitive_table_name(dbpath, self._tname)
+            self._geom_col = self._get_geom_col(dbpath, self._tname)
+            self._fid_col = self._get_fid_col(dbpath, self._tname)
+            super().__init__(dbpath)
+            return
         super().__init__(fpath)
 
     def open(self) -> None:
-        """Open a pinned read-only GeoPackage and locate its attribute fields."""
+        """Open SQLite using the selected legacy or strict inspection policy."""
+        if not self._read_only:
+            return
         from .gpkg_safety import readonly_gpkg
 
         try:
@@ -317,19 +333,96 @@ class GPKGAttributes(GISAttributes):
         finally:
             cursor.close()
 
+    def _iter_legacy(self) -> typing.Generator[OrderedDict, None, None]:
+        import sqlite3
+        try:
+            self._db = sqlite3.connect(self.fpath)
+            self._cursor = self._db.cursor()
+            tname_quoted = _safe_identifier(self._tname)
+            self._cursor.execute(f'SELECT * FROM {tname_quoted};')  # nosec B608
+            for row in self._cursor:
+                inds = [i for i, x in enumerate(self._cursor.description) if x[0] not in (self._fid_col, self._geom_col)]
+                yield OrderedDict([(self._cursor.description[i][0], row[i]) for i in inds])
+        except sqlite3.Error:
+            pass
+        finally:
+            if self._db is not None:
+                self._db.close()
+            self._cursor = None
+            self._db = None
+
     def __iter__(self) -> typing.Iterator[OrderedDict]:
-        """Yield ordered attribute mappings, excluding geometry and ID fields."""
+        """Yield attributes using legacy or strict read-only mode."""
+        if not self._read_only:
+            yield from self._iter_legacy()
+            return
         names = self.field_names
         for row in self.iter_selected(tuple(range(len(names)))):
             yield OrderedDict(zip(names, row, strict=True))
 
     def close(self) -> None:
-        """Close this reader's own connection, never a caller's connection."""
+        """Close an owned strict connection; legacy iteration owns its cursor."""
+        if not self._read_only:
+            return
         owned = self._owned_context
         self._owned_context = None
         self._db = None
         if owned is not None:
             owned.__exit__(None, None, None)
+
+    @staticmethod
+    def _get_case_insensitive_table_name(fpath: PathLike, tname: str) -> str:
+        import sqlite3
+        db = None
+        try:
+            db = sqlite3.connect(fpath)
+            cursor = db.cursor()
+            cursor.execute(
+                'SELECT name FROM sqlite_master WHERE type="table" AND name=? COLLATE NOCASE;',
+                (tname,)
+            )
+            tname = cursor.fetchone()[0]
+        except sqlite3.Error:
+            tname = tname
+        finally:
+            if db is not None:
+                db.close()
+        return tname
+
+    @staticmethod
+    def _get_geom_col(fpath: PathLike, tname: str) -> str:
+        import sqlite3
+        db = None
+        try:
+            db = sqlite3.connect(fpath)
+            cursor = db.cursor()
+            cursor.execute(
+                'SELECT column_name FROM gpkg_geometry_columns WHERE table_name=?;',
+                (tname,)
+            )
+            geom_col = cursor.fetchone()[0]
+        except sqlite3.Error:
+            geom_col = 'geometry'
+        finally:
+            if db is not None:
+                db.close()
+        return geom_col
+
+    @staticmethod
+    def _get_fid_col(fpath: PathLike, tname: str) -> str:
+        import sqlite3
+        db = None
+        try:
+            db = sqlite3.connect(fpath)
+            cursor = db.cursor()
+            cursor.execute('SELECT name FROM PRAGMA_TABLE_INFO(?) WHERE pk = 1;', (tname,))
+            fid_col = cursor.fetchone()[0]
+        except sqlite3.Error:
+            fid_col = 'fid'
+        finally:
+            if db is not None:
+                db.close()
+        return fid_col
 
 
 def _quote_gpkg_identifier(value: str) -> str:
