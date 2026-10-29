@@ -7,6 +7,8 @@ shared. The ordinary evaluator remains authoritative for command semantics.
 
 from __future__ import annotations
 
+from .options import FileResolution
+
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -205,7 +207,7 @@ class _FragmentContext(FragmentContextBase):
         # expression's complete key component once per run, never cross-run.
         self._fragment_signature_values: dict[str, tuple[str, tuple[object, ...]]] = {}
         cast(Any, super()).__init__(flags, config=config)
-        self.file_resolution = "deferred"
+        self.file_resolution = FileResolution.DEFERRED
 
     def _invalidate(self) -> None:
         """Invalidate compilation results when the run context changes."""

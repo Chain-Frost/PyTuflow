@@ -2,6 +2,7 @@ import os
 import typing
 from pathlib import Path
 
+from ..options import FileResolution
 from ..settings import from_config
 from .expand_tuflow_value import TuflowValueExpander
 from ..tfpathlib import TuflowPath
@@ -24,7 +25,7 @@ class TuflowLine:
         self.value_expanded_path = self.value  # This will be expanded later
         self._expander = TuflowValueExpander(
             self.config.variables, self.config.spatial_database,
-            deferred=self.config.file_resolution == 'deferred',
+            deferred=self.config.file_resolution == FileResolution.DEFERRED,
             case_sensitivity=self.config.case_sensitivity,
         )
 
@@ -89,7 +90,7 @@ class TuflowLine:
         else:
             rel_path = TuflowPath(self.value)
         rel_path = globify(rel_path, self.config.wildcards)
-        if self.config.file_resolution == 'deferred':
+        if self.config.file_resolution == FileResolution.DEFERRED:
             # A deferred reference deliberately preserves '>> all'. Only when
             # .files is explicitly requested should it expand to every layer.
             db, layer = TuflowPath(rel_path)._split_db_and_lyr()

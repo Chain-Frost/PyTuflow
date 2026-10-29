@@ -1,5 +1,6 @@
 import typing
 
+from ..options import CaseSensitivity, FileResolution
 from .cf_load_factory import ControlFileLoadMixin
 from .. import const
 from .tcf_build_state import TCFBuildState
@@ -63,7 +64,7 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
     TUFLOW_TYPE = const.CONTROLFILE.TCF
 
     def __init__(self, fpath: PathLike | None = None, *,
-                 case_sensitivity: int | None = None, **kwargs):
+                 case_sensitivity: CaseSensitivity | None = None, **kwargs):
         """Load using TUFLOW-compatible -cs0/-cs1/-cs2 filename case modes.
 
         An omitted mode still uses the existing configuration constructor path.
@@ -391,14 +392,15 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
                 run_context: str | dict[str, str] = '',
                 context: Context | None = None,
                 parent: ControlFileRunState | None = None,
-                *, file_resolution: typing.Literal["eager", "deferred"] | None = None) -> 'TCFRunState':
+                *, file_resolution: FileResolution | None = None) -> 'TCFRunState':
         """Create a model run context; eager input evaluation remains the default."""
         from .tcf_run_state import TCFRunState
         ctx = context if context else Context(run_context, config=self.config)
         if file_resolution is not None:
-            if file_resolution not in ('eager', 'deferred'):
-                raise ValueError("file_resolution must be 'eager' or 'deferred'")
-            ctx.file_resolution = file_resolution
+            try:
+                ctx.file_resolution = FileResolution(file_resolution)
+            except ValueError as exc:
+                raise ValueError("file_resolution must be eager or deferred") from exc
         return TCFRunState(self, ctx, parent)
 
     def collect_file_dependencies(

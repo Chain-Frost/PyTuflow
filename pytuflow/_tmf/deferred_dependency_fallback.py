@@ -7,6 +7,8 @@ and only identical structured flags reuse records in this invocation.
 
 from __future__ import annotations
 
+from .options import FileResolution
+
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from time import perf_counter
@@ -108,7 +110,7 @@ def collect_fallback_dependencies(
                     ctx._batch_variable_assignments = assignments
                 # RunState resolves active inputs for each run independently.
                 ctx._batch_run_index = index
-                run = model.context(context=ctx, file_resolution="deferred")
+                run = model.context(context=ctx, file_resolution=FileResolution.DEFERRED)
                 active = tuple(run.find_input())
                 commands: list[BatchInputCommand] = []
                 refs: list[BatchInputReference] = []
