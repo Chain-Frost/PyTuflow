@@ -1,9 +1,9 @@
-name: Prototype safe GPKG reader and cache placement
+name: Consolidated GPKG reader and input-owned fragment cache
 
 on:
   push:
     branches:
-      - contrib/prototype-gpkg-model-cache
+      - contrib/explore-input-cache-gpkg-consolidated
   workflow_dispatch:
 
 permissions:
@@ -43,11 +43,6 @@ jobs:
           tests/test_input_validation.py
           tests/tmf/test_input.py::test_input_files_ref_in_gis
           tests/tmf/test_input_context.py::test_input_files_ref_in_gis
-      - name: Matched synthetic 480-run cache A/B
-        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
-        run: |
-          python tests/benchmark_gpkg_model_cache.py --runs 480 --blocks 3
-          python tests/benchmark_gpkg_model_cache.py --runs 480 --blocks 3 --event-variants
 
   lint:
     runs-on: ubuntu-latest
