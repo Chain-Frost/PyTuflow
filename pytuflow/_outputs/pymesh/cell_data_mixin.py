@@ -177,7 +177,7 @@ class CellDataMixin:
             a = averaging_data[dtype] if averaging_data is not None else self.data(dtype, index)
             split_components = (
                 averaging_data is not None and combined_vector
-                or (a.ndim == 3 and len(data_types) > 1)
+                or (a.ndim == 3 and a.shape[-1] == 2)
             )
             extracted = [a[..., 0], a[..., 1]] if split_components else [a]
             for data in extracted:
