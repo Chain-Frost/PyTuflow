@@ -20,7 +20,7 @@ from typing import Literal
 from dbfread import DBF
 
 from ._tmf.gis import network_attribute_file_sources, tuflow_type_requires_feature_iter
-from ._tmf.gis_attr_driver import GISAttributes
+from ._tmf.gis_attr_driver import GISAttributes, GPKGAttributes
 from ._tmf.gpkg_safety import readonly_gpkg
 from ._tmf.tfpathlib import TuflowPath
 from .validation import _shapefile_companions
@@ -38,11 +38,6 @@ class AttributeInspection:
     pit_identifiers: tuple[str, ...] = ()
     bc_identifiers: tuple[str, ...] = ()
     bc_layer_selected: bool = False
-
-
-def _quote_identifier(value: str) -> str:
-    """Quote only identifiers returned by the opened GeoPackage itself."""
-    return '"' + value.replace('"', '""') + '"'
 
 
 def _file_field_index(layer: str) -> int | None:
@@ -356,10 +351,11 @@ def _scan_mif_mid(
 def _scan_layer(
     connection: sqlite3.Connection, layer: str, geometry_type: str, path: Path
 ) -> tuple[tuple[Path, ...], tuple[str, ...], tuple[str, ...]]:
-    """Project only known GeoPackage fields through the common row interpreter.
+    """Reuse core GeoPackage attribute reading with a shared read-only source.
 
-    The caller supplies an existing pinned, read-only SQLite connection.
-    Geometry blobs and unrelated attributes are never selected.
+    The caller pins the immutable SQLite database once per physical source.
+    The existing reader selects only required positional fields, never
+    fetching geometry blobs or creating an additional SQLite connection.
     """
     if re.match(r"^1d_nwk[eb]?_", layer, re.IGNORECASE):
         if geometry_type.casefold() not in {"linestring", "multilinestring"}:
@@ -367,32 +363,16 @@ def _scan_layer(
                 return (), (), ()
             raise ValueError("Mixed or unknown network geometry requires feature-level inspection")
 
-    quoted = _quote_identifier(layer)
-    columns = [
-        (name, pk)
-        for _, name, _, _, _, pk in connection.execute(f"PRAGMA table_info({quoted})")
-    ]
-    geom_names = {
-        str(name).casefold()
-        for (name,) in connection.execute(
-            "SELECT column_name FROM gpkg_geometry_columns WHERE lower(table_name) = lower(?)",
-            (layer,),
+    with GPKGAttributes(
+        TuflowPath(f"{path} >> {layer}"), read_only=True, connection=connection
+    ) as reader:
+        indexes = _attribute_column_indexes(layer, len(reader.field_names))
+        return _interpret_attribute_rows(
+            reader.iter_selected(indexes),
+            layer=layer,
+            geometry_type=geometry_type,
+            parent=path.parent,
         )
-    }
-    if not geom_names:
-        raise ValueError(f"GeoPackage layer geometry column is unavailable: {layer}")
-    attrs = [
-        name for name, pk in columns
-        if not pk and str(name).casefold() not in geom_names
-    ]
-    indexes = _attribute_column_indexes(layer, len(attrs))
-    fields = ", ".join(_quote_identifier(str(attrs[i])) for i in indexes)
-    return _interpret_attribute_rows(
-        connection.execute(f"SELECT {fields} FROM {quoted}"),
-        layer=layer,
-        geometry_type=geometry_type,
-        parent=path.parent,
-    )
 
 
 def _matches_layer(candidate: str, selector: str, implicit: bool) -> bool:

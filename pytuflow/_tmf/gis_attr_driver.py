@@ -1,3 +1,4 @@
+import sqlite3
 import typing
 from collections import OrderedDict
 from collections.abc import Iterable
@@ -198,18 +199,141 @@ class MIDAttributes(GISAttributes):
 
 
 class GPKGAttributes(GISAttributes):
-    """Utility class for iterating over a GPKG file to obtain the attributes."""
+    """Read GeoPackage attributes using the existing stable, read-only opener.
 
-    def __init__(self, fpath: TuflowPath) -> None:
-        fpath = TuflowPath(fpath)
-        self._tname = fpath.lyrname
-        fpath = fpath.dbpath
-        self._tname = self._get_case_insensitive_table_name(fpath, self._tname)
-        self._geom_col = self._get_geom_col(fpath, self._tname)
-        self._fid_col = self._get_fid_col(fpath, self._tname)
+    Ordinary reads preserve the previous SQLite behaviour. Setting
+    ``read_only=True`` opts into pinned immutable inspection: an absent
+    database is never created, SQL errors propagate, and unsaved WAL/rollback
+    journals are rejected. Validation can reuse an existing pinned connection.
+    """
+
+    def __new__(
+        cls, fpath: PathLike, *, read_only: bool = False,
+        connection: sqlite3.Connection | None = None,
+    ) -> "GPKGAttributes":
+        """Construct a direct SQLite reader without switching to the GDAL factory."""
+        return object.__new__(cls)
+
+    def __init__(
+        self, fpath: PathLike, *, read_only: bool = False,
+        connection: sqlite3.Connection | None = None,
+    ) -> None:
+        """Use legacy SQLite reads by default, or opt into strict read-only."""
+        if connection is not None and not read_only:
+            raise ValueError("connection requires read_only=True")
+        self._read_only = read_only
+        self._connection = connection
+        self._owned_context = None
+        self._db = None
+        self._tname = ""
+        self.field_names: tuple[str, ...] = ()
+        if not read_only:
+            # Preserve the previous direct-GPKGAttributes construction path,
+            # including its metadata lookups and existing error policy.
+            fpath = TuflowPath(fpath)
+            self._tname = fpath.lyrname
+            dbpath = fpath.dbpath
+            self._tname = self._get_case_insensitive_table_name(dbpath, self._tname)
+            self._geom_col = self._get_geom_col(dbpath, self._tname)
+            self._fid_col = self._get_fid_col(dbpath, self._tname)
+            super().__init__(dbpath)
+            return
         super().__init__(fpath)
 
-    def __iter__(self) -> typing.Generator[OrderedDict, None, None]:
+    def open(self) -> None:
+        """Open SQLite using the selected legacy or strict inspection policy."""
+        if not self._read_only:
+            return
+        from .gpkg_safety import readonly_gpkg
+
+        try:
+            if self._connection is None:
+                self._owned_context = readonly_gpkg(self.fpath.dbpath)
+                self._db = self._owned_context.__enter__()
+            else:
+                self._db = self._connection
+
+            requested = self.fpath.lyrname or self.fpath.stem
+            # Avoid SQLite's ASCII-only NOCASE rules when matching Unicode
+            # layer names; ambiguous case-folded matches must not be guessed.
+            matches = [
+                str(row[0])
+                for row in self._db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+                if str(row[0]).casefold() == requested.casefold()
+            ]
+            if len(matches) != 1:
+                raise ValueError(
+                    f"Expected one GeoPackage table {requested!r}, found {len(matches)}"
+                )
+            self._tname = matches[0]
+            quoted = _quote_gpkg_identifier(self._tname)
+            try:
+                geometry_columns = {
+                    str(row[0]).casefold()
+                    for row in self._db.execute(
+                        "SELECT column_name FROM gpkg_geometry_columns "
+                        "WHERE lower(table_name) = lower(?)",
+                        (self._tname,),
+                    )
+                }
+            except sqlite3.OperationalError as exc:
+                if "no such table" not in str(exc).lower():
+                    raise
+                # A GeoPackage containing only attribute tables need not
+                # provide vector geometry metadata.
+                geometry_columns = set()
+            if not geometry_columns:
+                # A valid nonspatial GeoPackage table has no geometry column.
+                # Do not certify malformed spatial tables as attribute data.
+                kind = self._db.execute(
+                    "SELECT data_type FROM gpkg_contents "
+                    "WHERE lower(table_name) = lower(?)",
+                    (self._tname,),
+                ).fetchone()
+                if kind is None or str(kind[0]).casefold() != "attributes":
+                    raise ValueError(
+                        f"GeoPackage layer has no geometry column: {self._tname}"
+                    )
+            columns = self._db.execute(f"PRAGMA table_info({quoted})")
+            self.field_names = tuple(
+                str(name)
+                for _, name, _, _, _, primary_key in columns
+                if not primary_key and str(name).casefold() not in geometry_columns
+            )
+        except BaseException:
+            self.close()
+            raise
+
+    def iter_selected(self, positions: tuple[int, ...]) -> typing.Iterator[tuple[object, ...]]:
+        """Stream only selected fields without decoding GIS geometry blobs."""
+        if self._db is None:
+            raise RuntimeError("GeoPackage attributes reader is closed")
+        if not positions:
+            # Preserve one empty attribute mapping per feature even when a
+            # geometry-only layer has no non-FID attribute fields.
+            quoted = _quote_gpkg_identifier(self._tname)
+            cursor = self._db.execute(f"SELECT 1 FROM {quoted}")
+            try:
+                for _ in cursor:
+                    yield ()
+            finally:
+                cursor.close()
+            return
+        if any(index < 0 or index >= len(self.field_names) for index in positions):
+            raise ValueError(f"Attribute index out of range for {self._tname}")
+        fields = ", ".join(
+            _quote_gpkg_identifier(self.field_names[index]) for index in positions
+        )
+        quoted = _quote_gpkg_identifier(self._tname)
+        cursor = self._db.execute(f"SELECT {fields} FROM {quoted}")
+        try:
+            yield from cursor
+        finally:
+            cursor.close()
+
+    def _iter_legacy(self) -> typing.Generator[OrderedDict, None, None]:
         import sqlite3
         try:
             self._db = sqlite3.connect(self.fpath)
@@ -227,13 +351,24 @@ class GPKGAttributes(GISAttributes):
             self._cursor = None
             self._db = None
 
-    def open(self) -> None:
-        # docstring inherited
-        pass
+    def __iter__(self) -> typing.Iterator[OrderedDict]:
+        """Yield attributes using legacy or strict read-only mode."""
+        if not self._read_only:
+            yield from self._iter_legacy()
+            return
+        names = self.field_names
+        for row in self.iter_selected(tuple(range(len(names)))):
+            yield OrderedDict(zip(names, row, strict=True))
 
     def close(self) -> None:
-        # docstring inherited
-        pass
+        """Close an owned strict connection; legacy iteration owns its cursor."""
+        if not self._read_only:
+            return
+        owned = self._owned_context
+        self._owned_context = None
+        self._db = None
+        if owned is not None:
+            owned.__exit__(None, None, None)
 
     @staticmethod
     def _get_case_insensitive_table_name(fpath: PathLike, tname: str) -> str:
@@ -288,3 +423,8 @@ class GPKGAttributes(GISAttributes):
             if db is not None:
                 db.close()
         return fid_col
+
+
+def _quote_gpkg_identifier(value: str) -> str:
+    """Quote a trusted SQLite metadata identifier, preserving Unicode names."""
+    return '"' + value.replace('"', '""') + '"'
