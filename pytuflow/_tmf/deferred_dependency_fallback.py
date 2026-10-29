@@ -18,6 +18,7 @@ from .dependency_records import (
     BatchInputCommand,
     BatchInputReference,
 )
+from .options import FileResolution
 
 if TYPE_CHECKING:
     from .cf.tcf import TCF
@@ -108,7 +109,7 @@ def collect_fallback_dependencies(
                     ctx._batch_variable_assignments = assignments
                 # RunState resolves active inputs for each run independently.
                 ctx._batch_run_index = index
-                run = model.context(context=ctx, file_resolution="deferred")
+                run = model.context(context=ctx, file_resolution=FileResolution.DEFERRED)
                 active = tuple(run.find_input())
                 commands: list[BatchInputCommand] = []
                 refs: list[BatchInputReference] = []

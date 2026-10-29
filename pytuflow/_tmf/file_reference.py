@@ -10,30 +10,31 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .options import CaseSensitivity
 from .parsers.command import Command
 from .tfpathlib import TuflowPath
 from .tfstrings.patterns import globify
 
 
 def _cached_filename_matches(
-    filename: str, pattern: str, case_sensitivity: int
+    filename: str, pattern: str, case_sensitivity: CaseSensitivity
 ) -> bool:
     """Match cached names under TUFLOW's filename-only -cs policy."""
     if os.name == "nt":
         return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
-    if case_sensitivity == 0:
+    if case_sensitivity == CaseSensitivity.STRICT:
         return fnmatch.fnmatchcase(filename, pattern)
-    if case_sensitivity == 1:
+    if case_sensitivity == CaseSensitivity.EXTENSION_INSENSITIVE:
         return (
             fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
             and fnmatch.fnmatchcase(Path(filename).stem, Path(pattern).stem)
         )
-    if case_sensitivity == 2:
+    if case_sensitivity == CaseSensitivity.FILENAME_INSENSITIVE:
         return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
     raise ValueError(f"Unsupported TUFLOW filename case policy: {case_sensitivity}")
 
 
-def _cached_path_matches(path: Path, pattern: Path, case_sensitivity: int) -> bool:
+def _cached_path_matches(path: Path, pattern: Path, case_sensitivity: CaseSensitivity) -> bool:
     """Match parsed paths lexically, without filesystem I/O.
 
     Linux directories remain case-sensitive in every -cs mode. Only the

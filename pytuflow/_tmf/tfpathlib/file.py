@@ -6,6 +6,7 @@ import logging
 from contextlib import contextmanager
 from pathlib import Path, PosixPath, WindowsPath
 
+from ..options import CaseSensitivity, parse_case_sensitivity
 from .vector_file_open import OGROpen, PyOGRIOOpen
 from .raster_open_file import RasterIOOpen, GDALRasterOpen
 
@@ -232,17 +233,18 @@ class TuflowPath(Path):
 
     @staticmethod
     def init_case_policy_path(path: str | Path, base_dir: str | Path = '',
-                              case_sensitivity: int = 0) -> 'TuflowPath':
-        """TUFLOW Linux -cs: 0 strict, 1 extension, 2 filename and extension.
+                              case_sensitivity: CaseSensitivity = CaseSensitivity.STRICT) -> 'TuflowPath':
+        """Apply ``CaseSensitivity`` to a single Linux TUFLOW filename.
 
-        Parent directories stay strict. Exact existing spellings win.
-        Missing references stay lexical; non-exact collisions raise.
-        The separate legacy init_case_insensitive_path helper is not changed.
+        ``STRICT`` (-cs0) requires exact case; ``EXTENSION_INSENSITIVE``
+        (-cs1) relaxes only the extension; ``FILENAME_INSENSITIVE`` (-cs2)
+        relaxes the filename and extension, never parent directories.
+        Exact existing spellings win; missing names remain lexical and
+        ambiguous case-relaxed matches raise. Windows is unchanged.
         """
-        if type(case_sensitivity) is not int or case_sensitivity not in (0, 1, 2):
-            raise ValueError('case_sensitivity must be 0, 1 or 2')
+        case_sensitivity = parse_case_sensitivity(case_sensitivity)
         value = TuflowPath(path)
-        if os.name == 'nt' or case_sensitivity == 0:
+        if os.name == 'nt' or case_sensitivity == CaseSensitivity.STRICT:
             return value
 
         db, layer = value._split_db_and_lyr()
@@ -251,7 +253,7 @@ class TuflowPath(Path):
         if (search_parent / requested.name).exists():
             return value
         try:
-            if case_sensitivity == 1:
+            if case_sensitivity == CaseSensitivity.EXTENSION_INSENSITIVE:
                 names = [item.name for item in search_parent.iterdir()
                          if item.stem == requested.stem
                          and item.suffix.casefold() == requested.suffix.casefold()]
@@ -445,13 +447,18 @@ class TuflowPath(Path):
             return TuflowPath(p)
 
     def glob(self, pattern, **kwargs):
-        """Override method so can do some stuff with TUFLOW style wildcards/variables and also GPKG databases."""
-        case_sensitivity = kwargs.pop('case_sensitivity', 0)
-        if type(case_sensitivity) is not int or case_sensitivity not in (0, 1, 2):
-            raise ValueError('case_sensitivity must be 0, 1 or 2')
+        """Expand TUFLOW wildcard references and GIS database layers.
+
+        ``case_sensitivity`` accepts the documented ``CaseSensitivity``
+        policy for Linux filename matching. Matching can inspect the
+        filesystem and GeoPackage metadata; use deferred reference
+        collection when physical inspection must be postponed.
+        """
+        case_sensitivity = parse_case_sensitivity(kwargs.pop('case_sensitivity', CaseSensitivity.STRICT))
+        case_sensitivity = parse_case_sensitivity(case_sensitivity)
 
         def iter_matching(pattern_value):
-            if os.name == 'nt' or case_sensitivity == 0:
+            if os.name == 'nt' or case_sensitivity == CaseSensitivity.STRICT:
                 yield from Path(self).glob(str(pattern_value))
                 return
             file_pattern = Path(pattern_value)
@@ -470,7 +477,7 @@ class TuflowPath(Path):
                 matches = [
                     candidate for candidate in directory.iterdir()
                     if fnmatch.fnmatchcase(candidate.name.casefold(), file_pattern.name.casefold())
-                    and (case_sensitivity != 1
+                    and (case_sensitivity != CaseSensitivity.EXTENSION_INSENSITIVE
                          or fnmatch.fnmatchcase(candidate.stem, file_pattern.stem))
                 ]
                 if not wildcard and len(matches) > 1:

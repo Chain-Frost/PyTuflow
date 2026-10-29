@@ -27,6 +27,7 @@ from .file_reference import (
     FileReference,
 )
 from .fragment_context import FragmentContextBase, raw_class_attribute
+from .options import FileResolution
 
 _TOKEN = re.compile(r"<<([^<>]+)>>")
 _LIMIT = 10000
@@ -205,7 +206,7 @@ class _FragmentContext(FragmentContextBase):
         # expression's complete key component once per run, never cross-run.
         self._fragment_signature_values: dict[str, tuple[str, tuple[object, ...]]] = {}
         cast(Any, super()).__init__(flags, config=config)
-        self.file_resolution = "deferred"
+        self.file_resolution = FileResolution.DEFERRED
 
     def _invalidate(self) -> None:
         """Invalidate compilation results when the run context changes."""

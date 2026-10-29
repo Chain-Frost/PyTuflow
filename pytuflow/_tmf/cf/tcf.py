@@ -1,5 +1,6 @@
 import typing
 
+from ..options import CaseSensitivity, FileResolution
 from .cf_load_factory import ControlFileLoadMixin
 from .. import const
 from .tcf_build_state import TCFBuildState
@@ -63,11 +64,13 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
     TUFLOW_TYPE = const.CONTROLFILE.TCF
 
     def __init__(self, fpath: PathLike | None = None, *,
-                 case_sensitivity: int | None = None, **kwargs):
-        """Load using TUFLOW-compatible -cs0/-cs1/-cs2 filename case modes.
+                 case_sensitivity: CaseSensitivity | None = None, **kwargs):
+        """Load a model using a TUFLOW Linux filename-case policy.
 
-        An omitted mode still uses the existing configuration constructor path.
-        Its Linux default is now strictly -cs0, following TUFLOW 2026.3.
+        The optional ``CaseSensitivity`` enum identifies TUFLOW's -cs0
+        (strict), -cs1 (extension only) and -cs2 (whole filename) modes.
+        An omitted mode uses the configured value, defaulting to -cs0 on
+        Linux. Windows retains ordinary filesystem filename matching.
         """
         if case_sensitivity is not None and kwargs.get('config') is not None:
             raise ValueError('Pass case_sensitivity or config, not both')
@@ -391,14 +394,22 @@ class TCF(ControlFileLoadMixin, TuflowControlFileMixin, TCFBuildState):
                 run_context: str | dict[str, str] = '',
                 context: Context | None = None,
                 parent: ControlFileRunState | None = None,
-                *, file_resolution: typing.Literal["eager", "deferred"] | None = None) -> 'TCFRunState':
-        """Create a model run context; eager input evaluation remains the default."""
+                *, file_resolution: FileResolution | None = None) -> 'TCFRunState':
+        """Create a run context with explicit file-resolution behaviour.
+
+        ``FileResolution.EAGER`` is the default and keeps PyTuflow's
+        original file and GIS inspection behaviour. ``DEFERRED`` records
+        file references for an explicit later inspection. It avoids
+        repeated physical enumeration across many selected runs; parsing
+        the original TCF may still read control files and databases.
+        """
         from .tcf_run_state import TCFRunState
         ctx = context if context else Context(run_context, config=self.config)
         if file_resolution is not None:
-            if file_resolution not in ('eager', 'deferred'):
-                raise ValueError("file_resolution must be 'eager' or 'deferred'")
-            ctx.file_resolution = file_resolution
+            try:
+                ctx.file_resolution = FileResolution(file_resolution)
+            except ValueError as exc:
+                raise ValueError("file_resolution must be eager or deferred") from exc
         return TCFRunState(self, ctx, parent)
 
     def collect_file_dependencies(
