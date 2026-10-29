@@ -477,6 +477,28 @@ def test_context_expanded_inline_bc_constant_uses_cached_parser(tmp_path: Path) 
     assert all(not run.database_sources for run in result.dependencies.runs)
 
 
+@pytest.mark.parametrize('as_generator', [False, True])
+def test_inline_bc_constant_preserves_structured_flags(tmp_path: Path, as_generator: bool) -> None:
+    _bc_gpkg(tmp_path / 'bc.gpkg', name='GT01')
+    (tmp_path / 'bc.csv').write_text(
+        'Name,Source,Column 1,Column 2\nGT01,,,<<BCConstant>>\n', encoding='utf-8',
+    )
+    top = tmp_path / 'model.tcf'
+    top.write_text(
+        'If Scenario == Existing State\n'
+        'Set Variable BCConstant == 2.75\n'
+        'Else\nSet Variable BCConstant == 3.5\nEnd If\n'
+        'BC Database == bc.csv\nRead GIS BC == bc.gpkg >> 2d_bc_lines\n',
+        encoding='utf-8',
+    )
+    flags = [{'s1': 'Existing State'}, '-s1 Proposed']
+    result = validate_batch_inputs(top, (item for item in flags) if as_generator else flags)
+    assert result.passed, result.issues
+    assert len(result.dependencies.runs) == 2
+    assert result.validation.csv_headers_examined == 0
+    assert flags == [{'s1': 'Existing State'}, '-s1 Proposed']
+
+
 @pytest.mark.parametrize(('case_policy', 'filename', 'requested'), [
     (1, 'bc.CSV', 'bc.csv'),
     (2, 'BC.csv', 'bc.csv'),

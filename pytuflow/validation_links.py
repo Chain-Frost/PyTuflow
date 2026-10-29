@@ -141,6 +141,7 @@ def _resolved_bc_inline_constant(
     database_path: Path,
     database_key: str,
     *,
+    original_flags: str | dict[str, str],
     run_contexts: dict[int, Context],
     cached_databases: dict[tuple[str, str], object],
 ) -> bool:
@@ -181,7 +182,7 @@ def _resolved_bc_inline_constant(
     row_key, record = selected[0]
     context = run_contexts.get(run.index)
     if context is None:
-        context = Context(run.flags, config=model.config)
+        context = Context(original_flags, config=model.config)
         prepare_run_context(model, context)
         run_contexts[run.index] = context
 
@@ -218,6 +219,7 @@ def extend_gis_dependencies(
     projection: FragmentBatchResult,
     checked: ValidationReport,
     model: TCF,
+    run_flags: tuple[str | dict[str, str], ...],
 ) -> GISExpansion:
     """Add validated primary GIS attribute link candidates to the projection.
 
@@ -460,6 +462,7 @@ def extend_gis_dependencies(
                         active.input_uuid,
                         active.database_path,
                         database_key,
+                        original_flags=run_flags[run.index],
                         run_contexts=run_contexts,
                         cached_databases=cached_databases,
                     ):
