@@ -334,10 +334,10 @@ def _scan_mif_mid(
         records = iter(reader)
         try:
             first = tuple(next(records).values())
-        except StopIteration:
+        except StopIteration as exc:
             field_count = len(getattr(reader, "_col_names", ()))
             if not field_count:
-                raise ValueError("Empty MIF/MID attribute schema cannot be certified")
+                raise ValueError("Empty MIF/MID attribute schema cannot be certified") from exc
             values: Iterable[tuple[object, ...]] = ()
         else:
             from itertools import chain
