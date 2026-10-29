@@ -1,6 +1,6 @@
 """Focused regressions for TMF rainfall, BC and free-form material parsing.
 
-Exercises the original library APIs without deferred or batch extensions.
+Exercises existing parsing APIs using small on-disk fixtures.
 """
 from importlib import import_module
 from pathlib import Path
