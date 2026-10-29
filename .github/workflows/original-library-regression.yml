@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
-          ref: 5f5609efe339735d1c60263544c7cb491f709b88
+          ref: e35707a8342e466b96434d6c21b9b2e5297569fd
           path: candidate
           fetch-depth: 0
           persist-credentials: false
@@ -57,7 +57,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
-          ref: 5f5609efe339735d1c60263544c7cb491f709b88
+          ref: e35707a8342e466b96434d6c21b9b2e5297569fd
           path: candidate
           fetch-depth: 0
           persist-credentials: false
