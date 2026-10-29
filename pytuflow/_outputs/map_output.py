@@ -43,8 +43,16 @@ LineStringLike = list[PointLike] | tuple[PointLike] | LineString | MultiLineStri
 Points = list[PointLike]
 LineStrings = list[LineStringLike]
 
-PointLocation = PointLike | Points | PathLike | GeoDataFrame
-LineStringLocation = LineStringLike | LineStrings | PathLike | GeoDataFrame
+# The extraction helpers preserve names from dictionaries of point/line locations.
+# Include the concrete coordinate forms for already typed dictionaries (dict is invariant).
+PointLocation = (
+    PointLike | Points | dict[str, tuple[float, float]] | dict[str, PointLike]
+    | PathLike | GeoDataFrame
+)
+LineStringLocation = (
+    LineStringLike | LineStrings | dict[str, list[tuple[float, float]]]
+    | dict[str, LineStringLike] | PathLike | GeoDataFrame
+)
 
 
 class MapOutput(Output, ABC, PointMixin, LineStringMixin):

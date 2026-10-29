@@ -8,7 +8,7 @@ Changelog for 1.2
 - Corrected filename case handling on Linux and existing model-input parsing.
 - Corrected result times, compatibility with newer pandas versions, raster cache limits, and recovery from NetCDF reader errors.
 - Corrected depth averaging and selected QGIS mesh calculations, including face positions, vertex interpolation, and vector point extraction.
-- Improved package import behaviour, optional mesh backend handling, and logging.
+- Improved package import behaviour, optional mesh backend handling, and logging; clarified existing optional and named-location type annotations.
 - Corrected Flood Relief Arch input registration in Flood Modeller conversion references.
 
 1.2.6
