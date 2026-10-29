@@ -344,12 +344,13 @@ class TCFRunState(ControlFileRunState, TuflowControlFileMixin, ModelRunMixin, TC
                     or source.requires_attribute_scan
                     or (source.layer_pattern is not None and kind != 'ad_global')):
                 raise ValueError(f'Unsupported secondary database reference: {source.path_pattern}')
-            row = source.origin.rsplit(' row ', 1)
-            if len(row) != 2 or not row[1]:
+            prefix = f'{kind} database row '
+            row = source.origin.removeprefix(prefix)
+            if not source.origin.startswith(prefix) or not row:
                 raise ValueError(f'Cannot identify database entry: {source.origin}')
             result.append(DeferredDatabaseSource(
                 primary.path_pattern, kind,
-                (row[1].split(' / ', 1)[0] if kind == 'ad_global' else row[1]),
+                (row.rsplit(' / ', 1)[0] if kind == 'ad_global' else row),
                 source.path_pattern,
                 owning_command=primary.origin,
                 owner_control_file=inp._command.parent,
