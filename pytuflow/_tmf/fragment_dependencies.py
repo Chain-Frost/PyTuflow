@@ -418,10 +418,17 @@ class _Plan:
     """Maintain an invocation-local plan for reusable input evaluation."""
 
     def __init__(
-        self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True
+        self, model: Any, *, use_scopes: bool = True, use_manifests: bool = True,
+        cache_location: str = "plan",
     ) -> None:
         """Initialise per-batch fragment and scope caches."""
+        if cache_location not in ("plan", "input"):
+            raise ValueError("cache_location must be plan or input")
         compiled_started = perf_counter()
+        self.cache_location = cache_location
+        self._inputs_by_id: dict[int, Any] = {}
+        self._prototype_touched: list[tuple[Any, dict]] = []
+        self._prototype_published: list[DependencyFragment] = []
         self.use_scopes = use_scopes
         self.use_manifests = use_manifests
         from .inp.cf import ControlFileInput
@@ -548,6 +555,7 @@ class _Plan:
             tuple(cast(Any, inp).cf) if type(inp) is ControlFileInput else ()
         )
         self.children[id(inp)] = children
+        self._inputs_by_id[id(inp)] = inp
         for child in children:
             if not _original_control_file_context(child):
                 raise NotImplementedError("Custom included control file context hook")
@@ -805,6 +813,49 @@ class _Plan:
         )
         return result
 
+
+    def _cached_fragment(
+        self, inp: Any, key: tuple[int, tuple[object, ...]]
+    ) -> DependencyFragment | None:
+        """Look up an immutable fragment in either experimental cache layout."""
+        if self.cache_location == "plan":
+            return self.cache.get(key, self.pending.get(key))
+        cache = vars(inp).get("_prototype_batch_fragments")
+        if cache is not None:
+            return cache.get(key[1], self.pending.get(key))
+        return self.pending.get(key)
+
+    def publish(self) -> None:
+        """Commit complete, successful fragments without publishing failed runs."""
+        if self.cache_location == "plan":
+            self.cache.update(self.pending)
+            return
+        for (identifier, signature), fragment in self.pending.items():
+            inp = self._inputs_by_id[identifier]
+            attrs = vars(inp)
+            cache = attrs.get("_prototype_batch_fragments")
+            if cache is None:
+                cache = {}
+                attrs["_prototype_batch_fragments"] = cache
+                self._prototype_touched.append((inp, cache))
+            elif not any(owner is inp and owned is cache for owner, owned in self._prototype_touched):
+                raise RuntimeError("Concurrent or foreign per-input fragment cache")
+            cache[signature] = fragment
+            self._prototype_published.append(fragment)
+
+    def fragments(self) -> tuple[DependencyFragment, ...]:
+        """Return fragments in original successful-publication order."""
+        if self.cache_location == "plan":
+            return tuple(self.cache.values())
+        return tuple(self._prototype_published)
+
+    def cleanup(self) -> None:
+        """Remove experiment-only caches from source inputs after every batch."""
+        for inp, cache in self._prototype_touched:
+            if vars(inp).get("_prototype_batch_fragments") is cache:
+                del vars(inp)["_prototype_batch_fragments"]
+        self._prototype_touched.clear()
+
     def evaluate(self, inp: Any, ctx: Any) -> DependencyFragment:
         """Resolve the expression using safe compiled substitutions."""
         from .inp.cf import ControlFileInput
@@ -816,7 +867,7 @@ class _Plan:
             return _EMPTY_FRAGMENT
 
         key = self._key(inp, ctx)
-        prior = self.cache.get(key, self.pending.get(key))
+        prior = self._cached_fragment(inp, key)
         if prior is not None:
             self.reuses += 1
             if key[1][0] == "manifest":
@@ -852,13 +903,16 @@ class _Plan:
             )
         else:
             result = self._project_state(inp.context(context=ctx, parent=None))
-        if len(self.cache) + len(self.pending) < _LIMIT:
+        count = (len(self._prototype_published) if self.cache_location == "input"
+                 else len(self.cache))
+        if count + len(self.pending) < _LIMIT:
             self.pending[key] = result
         return result
 
 
 def collect_file_dependencies(
-    model: Any, run_flags: Iterable[str | dict[str, str]]
+    model: Any, run_flags: Iterable[str | dict[str, str]], *,
+    _cache_location: str = "plan",
 ) -> FragmentBatchResult:
     """Project file dependencies with shared immutable subtree evaluations.
 
@@ -871,7 +925,7 @@ def collect_file_dependencies(
 
     started = perf_counter()
     try:
-        plan = _Plan(model)
+        plan = _Plan(model, cache_location=_cache_location)
     except Exception as exc:  # noqa: BLE001 - incomplete compilation uses the authoritative evaluator
         fallback = collect_fallback_dependencies(model, run_flags)
         return FragmentBatchResult(
@@ -885,61 +939,64 @@ def collect_file_dependencies(
             str(exc),
             perf_counter() - started,
         )
-    results: list[BatchDependencyRun] = []
-    for index, flags in enumerate(run_flags):
-        text = (
-            flags
-            if isinstance(flags, str)
-            else " ".join(f"-{key.lstrip('-')} {value}" for key, value in flags.items())
+    try:
+        results: list[BatchDependencyRun] = []
+        for index, flags in enumerate(run_flags):
+            text = (
+                flags
+                if isinstance(flags, str)
+                else " ".join(f"-{key.lstrip('-')} {value}" for key, value in flags.items())
+            )
+            try:
+                ctx = _FragmentContext(
+                    flags,
+                    model.config,
+                    plan.expressions,
+                    plan.scope_program if plan.use_scopes else None,
+                )
+                cast(Any, ctx)._batch_variable_assignments = plan.assignments
+                prepare_run_context(model, ctx)
+                fragment = _join(plan.evaluate(inp, ctx) for inp in plan.roots)
+                # Match the ordinary activation contract, including duplicate UUID
+                # rejection; references alone are not proof of correct ownership.
+                uuids = [command.input_uuid for command in fragment.commands]
+                if any(uuids.count(item.input_uuid) != 1 for item in fragment.activations):
+                    raise ValueError("Ambiguous database activation ownership")
+                results.append(
+                    BatchDependencyRun(
+                        index,
+                        text,
+                        tuple(item.reference for item in fragment.references),
+                        fragment.sources,
+                        fragment.activations,
+                        None,
+                        fragment.references,
+                        fragment.commands,
+                    )
+                )
+                plan.publish()
+                plan.include_selections.update(plan.pending_selections)
+            except Exception as exc:  # noqa: BLE001 - invalidate the complete run on parser failures
+                results.append(
+                    BatchDependencyRun(
+                        index, text, (), (), (), f"{type(exc).__name__}: {exc}"
+                    )
+                )
+            finally:
+                plan.pending.clear()
+                plan.pending_selections.clear()
+        if not results:
+            raise ValueError("At least one simulation context is required")
+        return FragmentBatchResult(
+            tuple(results),
+            plan.fragments(),
+            plan.evaluations,
+            plan.reuses,
+            plan.expressions.evaluations,
+            plan.expressions.reuses,
+            0,
+            None,
+            perf_counter() - started,
         )
-        try:
-            ctx = _FragmentContext(
-                flags,
-                model.config,
-                plan.expressions,
-                plan.scope_program if plan.use_scopes else None,
-            )
-            cast(Any, ctx)._batch_variable_assignments = plan.assignments
-            prepare_run_context(model, ctx)
-            fragment = _join(plan.evaluate(inp, ctx) for inp in plan.roots)
-            # Match the ordinary activation contract, including duplicate UUID
-            # rejection; references alone are not proof of correct ownership.
-            uuids = [command.input_uuid for command in fragment.commands]
-            if any(uuids.count(item.input_uuid) != 1 for item in fragment.activations):
-                raise ValueError("Ambiguous database activation ownership")
-            results.append(
-                BatchDependencyRun(
-                    index,
-                    text,
-                    tuple(item.reference for item in fragment.references),
-                    fragment.sources,
-                    fragment.activations,
-                    None,
-                    fragment.references,
-                    fragment.commands,
-                )
-            )
-            plan.cache.update(plan.pending)
-            plan.include_selections.update(plan.pending_selections)
-        except Exception as exc:  # noqa: BLE001 - invalidate the complete run on parser failures
-            results.append(
-                BatchDependencyRun(
-                    index, text, (), (), (), f"{type(exc).__name__}: {exc}"
-                )
-            )
-        finally:
-            plan.pending.clear()
-            plan.pending_selections.clear()
-    if not results:
-        raise ValueError("At least one simulation context is required")
-    return FragmentBatchResult(
-        tuple(results),
-        tuple(plan.cache.values()),
-        plan.evaluations,
-        plan.reuses,
-        plan.expressions.evaluations,
-        plan.expressions.reuses,
-        0,
-        None,
-        perf_counter() - started,
-    )
+    finally:
+        plan.cleanup()
