@@ -43,8 +43,16 @@ LineStringLike = list[PointLike] | tuple[PointLike] | LineString | MultiLineStri
 Points = list[PointLike]
 LineStrings = list[LineStringLike]
 
-PointLocation = PointLike | Points | PathLike | GeoDataFrame
-LineStringLocation = LineStringLike | LineStrings | PathLike | GeoDataFrame
+# The extraction helpers preserve names from dictionaries of point/line locations.
+# Include the concrete coordinate forms for already typed dictionaries (dict is invariant).
+PointLocation = (
+    PointLike | Points | dict[str, tuple[float, float]] | dict[str, PointLike]
+    | PathLike | GeoDataFrame
+)
+LineStringLocation = (
+    LineStringLike | LineStrings | dict[str, list[tuple[float, float]]]
+    | dict[str, LineStringLike] | PathLike | GeoDataFrame
+)
 
 
 class MapOutput(Output, ABC, PointMixin, LineStringMixin):
@@ -646,18 +654,26 @@ class MapOutput(Output, ABC, PointMixin, LineStringMixin):
 
     @staticmethod
     def _calculate_time_step(times: np.ndarray) -> float | tuple[float, ...]:
+        """Compress saved times in seconds when the interval represents the axis.
+
+        Irregular, empty and singleton axes keep their explicit coordinates.
+        Preserve the existing centisecond interval convention for regular
+        axes only when it reproduces every sample to source float precision.
+        """
+        if len(times) < 2:
+            return tuple(float(time) for time in times)
         dif = np.diff(times)
-        if np.isclose(dif[:-1], dif[0], atol=0.01, rtol=0).all():
-            dt = float(np.round(dif[0], decimals=2))
-        else:
-            dt = tuple(times)
-        return dt
+        dt = float(np.round(dif[0], decimals=2))
+        if (dt > 0 and np.isclose(dif, dif[0], atol=0.01, rtol=0).all()
+                and np.allclose(times - times[0], np.arange(len(times)) * dt, atol=1e-8, rtol=1e-6)):
+            return dt
+        return tuple(float(time) for time in times)
 
     @staticmethod
     def _merge_line_dataframe(df1: pd.DataFrame, df2: pd.DataFrame, name: str, reset_index: bool) -> pd.DataFrame:
         if df2.empty:
             return df1
         if reset_index:
-            df2.reset_index(inplace=True, drop=False)
+            df2 = df2.reset_index(drop=False)
         df2.columns = pd.MultiIndex.from_tuples([(name, x) for x in df2.columns])
         return pd.concat([df1, df2], axis=1) if not df1.empty else df2
