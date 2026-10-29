@@ -22,7 +22,7 @@ from ._tmf.context import Context
 from ._tmf.db.bc_dbase import bc_database_entry_name
 from ._tmf.deferred_database import _cached_database_path_key, _expanded
 from ._tmf.dependency_records import BatchDependencyRun, BatchInputReference
-from ._tmf.file_reference import FileReference
+from ._tmf.file_reference import FileReference, _cached_path_matches
 from ._tmf.gis import tuflow_type_requires_feature_iter
 from .validation import (
     ValidationFinding,
@@ -153,15 +153,17 @@ def _resolved_bc_inline_constant(
     identity = (activation_uuid, _cached_database_path_key(database_path))
     database = cached_databases.get(identity)
     if database is None:
-        matches = []
+        candidates = []
         for inp in model.find_input(lhs="bc database", recursive=True):
             if str(inp.uuid) != activation_uuid:
                 continue
-            for db, original in zip(
-                inp.cf, getattr(inp, "_database_loaded_paths", ())
-            ):
-                if _cached_database_path_key(original) == identity[1]:
-                    matches.append(db)
+            candidates.extend(zip(inp.cf, getattr(inp, "_database_loaded_paths", ())))
+        matches = [db for db, original in candidates
+                   if _cached_database_path_key(original) == identity[1]]
+        if not matches:
+            matches = [db for db, original in candidates
+                       if _cached_path_matches(Path(original), database_path,
+                                               model.config.case_sensitivity)]
         if len(matches) != 1:
             raise ValueError(
                 f"Expected one cached active BC database, found {len(matches)}"

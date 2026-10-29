@@ -477,6 +477,24 @@ def test_context_expanded_inline_bc_constant_uses_cached_parser(tmp_path: Path) 
     assert all(not run.database_sources for run in result.dependencies.runs)
 
 
+@pytest.mark.parametrize(('case_policy', 'filename', 'requested'), [
+    (1, 'bc.CSV', 'bc.csv'),
+    (2, 'BC.csv', 'bc.csv'),
+])
+def test_inline_bc_constant_preserves_cached_filename_policy(
+    tmp_path: Path, case_policy: int, filename: str, requested: str,
+) -> None:
+    from pytuflow import TCF
+
+    _bc_gpkg(tmp_path / 'bc.gpkg', name='GT01')
+    (tmp_path / filename).write_text('Name,Source,Column 1,Column 2\nGT01,,,2.75\n', encoding='utf-8')
+    top = tmp_path / 'model.tcf'
+    top.write_text(f'BC Database == {requested}\nRead GIS BC == bc.gpkg >> 2d_bc_lines\n', encoding='utf-8')
+    result = validate_batch_inputs(TCF(top, case_sensitivity=case_policy), ['-s1 Existing'])
+    assert result.passed, result.issues
+    assert result.validation.csv_headers_examined == 0
+
+
 def test_bc_group_name_uses_existing_database_group_semantics(tmp_path: Path) -> None:
     _bc_gpkg(tmp_path / "bc.gpkg", name="N1|Group")
     (tmp_path / "bc.csv").write_text(

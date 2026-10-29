@@ -24,11 +24,9 @@ def _cached_filename_matches(
     if case_sensitivity == 0:
         return fnmatch.fnmatchcase(filename, pattern)
     if case_sensitivity == 1:
-        stem, suffix = os.path.splitext(filename)
-        wanted_stem, wanted_suffix = os.path.splitext(pattern)
         return (
-            fnmatch.fnmatchcase(stem, wanted_stem)
-            and fnmatch.fnmatchcase(suffix.casefold(), wanted_suffix.casefold())
+            fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())
+            and fnmatch.fnmatchcase(Path(filename).stem, Path(pattern).stem)
         )
     if case_sensitivity == 2:
         return fnmatch.fnmatchcase(filename.casefold(), pattern.casefold())

@@ -909,3 +909,20 @@ def test_cached_windows_root_alias_requires_matching_directory_hierarchy() -> No
         ref = SimpleNamespace(path_pattern=requested, unresolved_variables=())
         with pytest.raises(ResolveError, match='No cached nested control file'):
             select_deferred_children(build, [ref])
+
+
+@pytest.mark.parametrize(('filename', 'pattern', 'expected'), [
+    ('geom_A.tgc', 'geom_*', True),
+    ('geom_A.TGC', 'geom_*.tgc', True),
+    ('Geom_A.tgc', 'geom_*', False),
+    ('geom_A.tgc', 'geom_?.*', True),
+    ('geom_A.tgc', 'geom_*.csv', False),
+])
+def test_cached_cs1_wildcards_follow_full_filename_and_stem(
+    monkeypatch, filename, pattern, expected,
+):
+    from types import SimpleNamespace
+    from pytuflow._tmf import file_reference
+
+    monkeypatch.setattr(file_reference, 'os', SimpleNamespace(name='posix'))
+    assert file_reference._cached_filename_matches(filename, pattern, 1) is expected

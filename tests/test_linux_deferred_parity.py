@@ -494,3 +494,15 @@ def test_cached_child_suffix_never_selects_different_scenario_ancestor(
     )
     with pytest.raises(ResolveError, match="No cached nested control file"):
         select_deferred_children(build, (missing,))
+
+
+def test_cs1_cached_include_wildcard_can_span_extension(tmp_path: Path) -> None:
+    child = tmp_path / 'geom_A.tgc'
+    child.write_text('Read GIS Code == gis/code.shp\n', encoding='utf-8')
+    top = tmp_path / 'model.tcf'
+    top.write_text('Geometry Control File == geom_*\n', encoding='utf-8')
+    model = TCF(top, case_sensitivity=1)
+    assert model.find_input(lhs='Geometry Control File')[0].cf
+    result = model.collect_file_dependencies(['-s1 A'])
+    assert result.passed, [run.error for run in result.runs]
+    assert 'code.shp' in {ref.path_pattern.name for ref in result.runs[0].file_references}
