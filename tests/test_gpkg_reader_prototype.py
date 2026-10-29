@@ -81,16 +81,19 @@ def test_gpkg_reader_propagates_missing_layer(gpkg: Path) -> None:
             pass
 
 
-def test_gpkg_reader_rejects_uncommitted_wal(gpkg: Path) -> None:
-    """Refuse incomplete WAL snapshots without side effects."""
-    with sqlite3.connect(gpkg) as editor:
+def test_gpkg_reader_rejects_uncheckpointed_wal(gpkg: Path) -> None:
+    """Reject nonempty committed WAL snapshots without changing sidecars."""
+    from contextlib import closing
+
+    with closing(sqlite3.connect(gpkg)) as editor:
         editor.execute("PRAGMA journal_mode=WAL")
-        editor.execute("BEGIN IMMEDIATE")
-        editor.execute("INSERT INTO gpkg_contents VALUES ('pending')")
+        editor.execute("INSERT INTO gpkg_contents VALUES ('committed_in_wal')")
+        editor.commit()
+        wal = gpkg.with_name(gpkg.name + "-wal")
+        assert wal.is_file() and wal.stat().st_size > 0
         with pytest.raises(GeoPackageSafetyError, match="wal"):
             with GPKGAttributes(_source(gpkg)) as reader:
                 list(reader)
-        editor.rollback()
 
 
 def test_shared_connection_remains_open_and_uses_selected_columns(gpkg: Path) -> None:
