@@ -3,6 +3,7 @@
 References are not existence assertions. A caller can aggregate them across
 contexts and inspect paths, database layers and GIS attributes in bulk.
 """
+
 import fnmatch
 import os
 import re

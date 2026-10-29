@@ -31,6 +31,7 @@ def _references(text: str) -> tuple[str, ...] | None:
 @dataclass(frozen=True, slots=True)
 class EffectiveDependencyManifest:
     """Record effective variable dependencies for one input."""
+
     source_identity: int
     variables: tuple[str, ...]
     predicates: tuple[ScopePredicate, ...]

@@ -33,7 +33,9 @@ class DependencyProjection(Protocol):
     """Immutable per-run dependency records accepted by the physical inspector."""
 
     @property
-    def runs(self) -> tuple[BatchDependencyRun, ...]: ...
+    def runs(self) -> tuple[BatchDependencyRun, ...]:
+        """Return the immutable run dependencies to inspect."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +112,7 @@ class ValidationReport:
 @dataclass(frozen=True, slots=True)
 class _Requirement:
     """Identify one requirement and its original run and command."""
+
     run_index: int
     flags: str
     path: Path
@@ -128,6 +131,7 @@ class _Requirement:
 @dataclass(frozen=True, slots=True)
 class _Inspection:
     """Record an inspected file and its associated validation status."""
+
     status: ValidationStatus
     detail: str = ""
     layers: tuple[str, ...] = ()
