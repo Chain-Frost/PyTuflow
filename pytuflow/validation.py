@@ -1262,6 +1262,14 @@ def validate_dependencies(
                     "A TCF projection was declared but its CRS could not be resolved; "
                     "checking selected spatial inputs against one another instead"
                 )
+            elif model is not None or run.ordered_inputs:
+                # The selected run has no active projection declaration. This
+                # remains a warning even when all selected input CRSs agree:
+                # agreement is not a substitute for a TCF-defined CRS.
+                warn_reference(
+                    "No GIS Projection or TIF Projection is defined in the TCF "
+                    "for this run; comparing selected spatial input CRSs where possible"
+                )
             if gis_raw and tif_raw:
                 gis_crs, _gis_error = parsed_crs(gis_raw)
                 tif_crs, tif_error = parsed_crs(tif_raw)
