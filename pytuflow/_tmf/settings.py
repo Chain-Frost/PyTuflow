@@ -76,6 +76,9 @@ class _ParseContext:
     spatial_database_tcf: Path = dataclasses.field(default_factory=TuflowPath)
     projection_wkt: str = ''
     tif_projection: str = ''
+    # Track declarations separately from resolved WKT. A malformed projection
+    # already produces its own extraction warning and is not an omitted command.
+    _projection_declared: bool = False
     root_folder: Path = dataclasses.field(default_factory=TuflowPath)
     output_folder: Path = dataclasses.field(default_factory=TuflowPath)
     output_zones: list = dataclasses.field(default_factory=list)
@@ -206,6 +209,18 @@ class TCFConfig:
         )
         ctx = self._run_tcf_passes(ctx)
         self._apply_context(ctx)
+        # A missing model projection is a flaw in the input control file,
+        # regardless of whether the caller subsequently requests CRS checks.
+        # Issue this once after includes and overrides have been parsed.
+        if (
+            not isinstance(ctx, _FVParseContext)
+            and not ctx._projection_declared
+            and ctx.tcf.is_file()
+        ):
+            logger.warning(
+                "TCF %s does not define a GIS Projection or TIF Projection.",
+                ctx.tcf,
+            )
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -379,6 +394,7 @@ class TCFConfig:
                 ctx.set_spatial_database(command.value, control_file=control_file)
             # projection
             elif command.is_read_projection():
+                ctx._projection_declared = True
                 try:
                     ctx.projection_wkt = ogr_projection(command.value_expanded_path or command.value)
                 except (ImportError, FileNotFoundError, RuntimeError) as e:
@@ -386,6 +402,7 @@ class TCFConfig:
                     continue
             # tif projection
             elif command.is_tif_projection():
+                ctx._projection_declared = True
                 try:
                     ctx.tif_projection = gdal_projection(command.value_expanded_path or command.value)
                 except (ImportError, FileNotFoundError, RuntimeError) as e:
@@ -481,6 +498,8 @@ def from_config(config: 'TCFConfig | _ParseContext') -> 'TCFConfig':
 def _copy_parse_context(ctx: _ParseContext) -> _ParseContext:
     cls = _FVParseContext if isinstance(ctx, _FVParseContext) else _ParseContext
     config_fields = _FVC_CONFIG_FIELDS if cls is _FVParseContext else _TCF_CONFIG_FIELDS
-    return cls(
+    copied = cls(
         **{field: (getattr(ctx, field) if field == 'variables' else (getattr(ctx, field).copy() if isinstance(getattr(ctx, field), (list, dict)) else getattr(ctx, field))) for field in config_fields}
     )
+    copied._projection_declared = ctx._projection_declared
+    return copied
