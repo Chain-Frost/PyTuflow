@@ -139,13 +139,20 @@ Use the same options type for direct and batch physical validation:
     print(report.validation.raster_sources_examined)
     print(report.validation.raster_subdatasets_opened)
 
-The batch validator first checks primary files and discovers GIS attribute-linked
-sources, then checks raster headers **only in its final physical pass**. Each
-existing raster path is opened once per call, even when shared by many runs or
-commands. One header finding is retained for each affected source declaration
-and run. Missing files keep their ordinary ``missing`` file finding; no raster
-open or second header failure is added. Failed run contexts and unresolved
-wildcards are not inspected. ``raster_sources_examined`` counts unique source
+The batch validator first checks primary files and GIS layers to discover
+attribute-linked sources, then checks raster headers, CSV selectors and CRS
+metadata **only in its final physical pass**. A short-lived invocation cache
+reuses primary file-status, wildcard/case-resolution and selected GeoPackage
+layer findings in the final pass. Newly discovered files and new metadata
+requests are still inspected. The cache is discarded on return; a subsequent
+validation rechecks edited sources. File and directory counters describe
+deduplicated inspection work across both physical passes.
+
+Each existing raster path is opened once per call, even when shared by many
+runs or commands. One header finding is retained for each affected source
+declaration and run. Missing files keep their ordinary ``missing`` file
+finding; no raster open or duplicate header failure is added. Failed run
+contexts and unresolved wildcards are not inspected. ``raster_sources_examined`` counts unique source
 root-open attempts after the ordinary file check; the separate
 ``raster_subdatasets_opened`` counts additional NetCDF subdataset open attempts.
 The separate ``crs_sources_examined`` counter counts unique existing spatial
@@ -174,7 +181,12 @@ an exact, case-sensitive NetCDF subdataset match and verifies **that specific**
 subdataset's header. This supports parser-resolved ``>> variable`` selectors
 and ``NETCDF:\"file.nc\":variable`` paths. An unrelated valid variable cannot satisfy the request.
 Missing, ambiguous, unreadable or zero-band selected variables are
-``unresolved``. Unsupported variable-selector syntax or an advertised
+``unresolved``. A bandless NetCDF container may legitimately have no root
+geotransform; its specific Rasterio ``NotGeoreferencedWarning`` is filtered
+during NetCDF header inspection only, so strict Python warning policies do not
+abort valid subdataset inspection. Missing CRS metadata is reported through
+the separate CRS warning policy. Other raster warnings are not broadly
+suppressed. Unsupported variable-selector syntax or an advertised
 subdataset count exceeding ``maximum_raster_subdatasets`` (default 64) is
 ``unsupported``. No arbitrary dataset-level fallback is applied to a named
 variable. Only simple GDAL NetCDF variable names are supported, not arbitrary
