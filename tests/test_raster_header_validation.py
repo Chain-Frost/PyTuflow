@@ -652,3 +652,44 @@ def test_no_file_inspection_cache_survives_separate_batch_invocations(
         f.kind == "raster_metadata" and f.status == "unresolved"
         for f in second.issues
     )
+
+
+def test_csv_headers_are_inspected_only_in_the_final_batch_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """New metadata checks must not duplicate an existing BC source header."""
+    from pytuflow import validation
+
+    database = tmp_path / "bc.csv"
+    source = tmp_path / "inflow.csv"
+    database.write_text(
+        "Name,Source,Column 1,Column 2\nflow,inflow.csv,Time,Flow\n",
+        encoding="utf-8",
+    )
+    source.write_text("Time,Flow\n0,10\n", encoding="utf-8")
+    top = tmp_path / "model.tcf"
+    top.write_text("BC Database == bc.csv\n", encoding="utf-8")
+    model = TCF(top, case_sensitivity=0)
+
+    csv_reads: list[Path] = []
+    file_stats: list[Path] = []
+    read_csv = validation._csv_records
+    stat_source = validation._stat_source
+
+    def counted_csv(path: Path, *args: object, **kwargs: object) -> object:
+        csv_reads.append(path)
+        return read_csv(path, *args, **kwargs)
+
+    def counted_stat(path: Path) -> tuple[str, str]:
+        file_stats.append(path)
+        return stat_source(path)
+
+    monkeypatch.setattr(validation, "_csv_records", counted_csv)
+    monkeypatch.setattr(validation, "_stat_source", counted_stat)
+    result = validate_batch_inputs(model, ["-s1 A", "-s1 B"])
+
+    assert result.passed, result.issues
+    assert csv_reads == [source]
+    assert sorted(file_stats) == sorted([database, source])
+    assert result.validation.csv_headers_examined == 1
+    assert result.validation.files_examined == 2
