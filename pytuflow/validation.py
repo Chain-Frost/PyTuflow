@@ -15,7 +15,7 @@ import stat
 from collections import defaultdict
 from collections.abc import Collection, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
@@ -201,6 +201,25 @@ class _Inspection:
         tuple[tuple[str | None, bool], tuple[tuple[str | None, str | None, str], ...]], ...
     ] = ()
     crs_examined: bool = False
+    csv_requests_examined: frozenset[tuple[str, ...]] = frozenset()
+
+
+@dataclass(slots=True)
+class _InvocationCache:
+    """Private, short-lived physical inspection state shared by both batch passes.
+
+    A batch owns this cache only until it returns. Reuse physical results
+    already inspected in the first pass, while inspecting newly discovered
+    dependencies and newly requested metadata in the final pass. No model
+    or path state survives into a later validation invocation.
+    """
+
+    inspected: dict[Path, _Inspection] = field(default_factory=dict)
+    wildcard_matches: dict[Path, tuple[Path, ...]] = field(default_factory=dict)
+    wildcard_failures: dict[Path, tuple[ValidationStatus, str]] = field(default_factory=dict)
+    literal_paths: dict[Path, Path] = field(default_factory=dict)
+    literal_failures: dict[Path, tuple[ValidationStatus, str]] = field(default_factory=dict)
+    directories_scanned: int = 0
 
 
 def _implicit_gpkg_layer(reference: FileReference) -> bool:
@@ -754,6 +773,7 @@ def validate_dependencies(
     *,
     options: ValidationOptions | None = None,
     model: TCF | None = None,
+    _invocation: _InvocationCache | None = None,
 ) -> ValidationReport:
     """Inspect explicitly requested TUFLOW inputs without changing the model.
 
@@ -765,6 +785,9 @@ def validate_dependencies(
     selected spatial references are compared with one another.
     """
     policy = options if options is not None else ValidationOptions()
+    # Callers of the public direct API get a fresh cache. Only the batch
+    # orchestrator shares a cache between its initial and final passes.
+    cache = _invocation if _invocation is not None else _InvocationCache()
     if not projection.runs:
         raise ValueError("At least one run is required for input validation")
     requirements, failures = _requirements(projection)
@@ -841,21 +864,31 @@ def validate_dependencies(
         if _has_wildcards(str(item.path))
         and not item.unresolved and "<<" not in str(item.path)
     }
-    expansions, glob_errors, scan_count = _scan_wildcard_patterns(
-        globs, maximum_entries=policy.maximum_directory_entries,
+    unseen_globs = globs - cache.wildcard_matches.keys() - cache.wildcard_failures.keys()
+    expansions, glob_errors, glob_scans = _scan_wildcard_patterns(
+        unseen_globs, maximum_entries=policy.maximum_directory_entries,
         case_sensitivity=policy.case_sensitivity,
     )
+    cache.wildcard_matches.update(expansions)
+    cache.wildcard_failures.update(glob_errors)
+    literals = {
+        item.path for item in requirements
+        if not item.unresolved
+        and "<<" not in str(item.path)
+        and not _has_wildcards(str(item.path))
+    }
+    unseen_literals = literals - cache.literal_paths.keys() - cache.literal_failures.keys()
     case_resolved, case_errors, case_scans = _resolve_literal_case_paths(
-        {
-            item.path for item in requirements
-            if not item.unresolved
-            and "<<" not in str(item.path)
-            and not _has_wildcards(str(item.path))
-        },
+        unseen_literals,
         case_sensitivity=policy.case_sensitivity,
         maximum_entries=policy.maximum_directory_entries,
     )
-    scan_count += case_scans
+    cache.literal_paths.update(case_resolved)
+    cache.literal_failures.update(case_errors)
+    cache.directories_scanned += glob_scans + case_scans
+    expansions, glob_errors = cache.wildcard_matches, cache.wildcard_failures
+    case_resolved, case_errors = cache.literal_paths, cache.literal_failures
+    scan_count = cache.directories_scanned
     concrete: list[tuple[_Requirement, Path]] = []
     for item in requirements:
         if item.unresolved or "<<" in str(item.path):
@@ -917,53 +950,78 @@ def validate_dependencies(
     files = {path for _, path in concrete}
 
     def inspect(path: Path) -> tuple[Path, _Inspection]:
-        """Inspect a source and any requested GIS or CSV metadata."""
-        status, detail = _stat_source(path)
-        if status != "present":
-            return path, _Inspection(status, detail)
-        layers: tuple[str, ...] = ()
-        layer_error = ""
-        csv_records: tuple[tuple[str, ...], ...] = ()
-        csv_error = ""
-        if path in gpkg_paths:
+        """Extend the same-invocation file snapshot with newly requested metadata."""
+        previous = cache.inspected.get(path)
+        if previous is None:
+            status, detail = _stat_source(path)
+            if status != "present":
+                return path, _Inspection(status, detail)
+        elif previous.status != "present":
+            return path, previous
+        else:
+            status, detail = previous.status, previous.detail
+
+        layers = previous.layers if previous is not None else ()
+        layer_error = previous.layer_error if previous is not None else ""
+        if path in gpkg_paths and not (previous and previous.gpkg_examined):
             layers, layer_error = _gpkg_contents(path)
-        if path in csv_requests:
+
+        csv_records = previous.csv_records if previous is not None else ()
+        csv_error = previous.csv_error if previous is not None else ""
+        csv_requested = frozenset(csv_requests.get(path, ()))
+        previous_csv = previous.csv_requests_examined if previous else frozenset()
+        if csv_requested and not csv_requested.issubset(previous_csv):
             csv_records, csv_error = _csv_records(
-                path, csv_requests[path],
+                path, csv_requested,
                 lines_limit=policy.maximum_header_lines,
                 bytes_limit=policy.maximum_header_bytes,
             )
-        raster_results: tuple[tuple[str | None, ValidationStatus, str], ...] = ()
-        raster_crs: tuple[tuple[str | None, str | None], ...] = ()
-        vector_crs: tuple[
-            tuple[tuple[str | None, bool], tuple[tuple[str | None, str | None, str], ...]], ...
-        ] = ()
-        subdataset_opens = 0
-        if path in raster_requests:
+
+        raster_results = previous.raster_results if previous else ()
+        raster_crs = previous.raster_crs if previous else ()
+        subdataset_opens = previous.raster_subdatasets_opened if previous else 0
+        requested_rasters = raster_requests.get(path, set())
+        cached_selectors = {selector for selector, _, _ in raster_results}
+        need_raster = bool(requested_rasters and (
+            not requested_rasters.issubset(cached_selectors)
+            or (policy.check_crs and previous is not None and
+                not previous.crs_examined)
+        ))
+        if need_raster:
             from ._raster_metadata import inspect_raster_headers
 
+            # All active selectors are known in this pass. Open the root once
+            # for every newly requested selection, never once per run.
             if policy.check_crs:
-                checks, subdataset_opens, raster_crs_by_selector = inspect_raster_headers(
-                    path, raster_requests[path],
+                checks, extra_opens, crs_by_selector = inspect_raster_headers(
+                    path, requested_rasters,
                     maximum_subdatasets=policy.maximum_raster_subdatasets,
                     include_crs=True,
                 )
-                raster_crs = tuple(raster_crs_by_selector.items())
+                raster_crs = tuple(crs_by_selector.items())
             else:
-                checks, subdataset_opens = inspect_raster_headers(
-                    path, raster_requests[path],
+                checks, extra_opens = inspect_raster_headers(
+                    path, requested_rasters,
                     maximum_subdatasets=policy.maximum_raster_subdatasets,
                 )
+            subdataset_opens += extra_opens
             raster_results = tuple(
                 (selector, *checks[selector])
-                for selector in sorted(checks, key=lambda name: (name is not None, name or ""))
+                for selector in sorted(
+                    checks, key=lambda name: (name is not None, name or "")
+                )
             )
-        if path in vector_requests:
+
+        vector_crs = previous.vector_crs if previous else ()
+        requested_vectors = vector_requests.get(path, set())
+        cached_vectors = dict(vector_crs)
+        missing_vectors = requested_vectors - cached_vectors.keys()
+        if missing_vectors:
             from ._crs_validation import inspect_vector_crs
 
-            vector_crs = tuple(
-                inspect_vector_crs(path, vector_requests[path]).items()
-            )
+            cached_vectors.update(inspect_vector_crs(path, missing_vectors))
+            vector_crs = tuple(cached_vectors.items())
+
         return path, _Inspection(
             status,
             detail,
@@ -971,26 +1029,27 @@ def validate_dependencies(
             layer_error,
             csv_records,
             csv_error,
-            path in gpkg_paths,
-            path in csv_requests,
+            bool(path in gpkg_paths or (previous and previous.gpkg_examined)),
+            bool(csv_requested or (previous and previous.csv_examined)),
             raster_results=raster_results,
-            raster_examined=path in raster_requests,
+            raster_examined=bool(requested_rasters or (previous and previous.raster_examined)),
             raster_subdatasets_opened=subdataset_opens,
             raster_crs=raster_crs,
             vector_crs=vector_crs,
-            crs_examined=bool(policy.check_crs and (
-                path in raster_requests or path in vector_requests
-            )),
+            crs_examined=bool(
+                (policy.check_crs and (requested_rasters or requested_vectors))
+                or (previous and previous.crs_examined)
+            ),
+            csv_requests_examined=previous_csv | csv_requested,
         )
 
-    examined: dict[Path, _Inspection] = {}
-    if policy.check_files:
-        ordered = sorted(files)
-        if policy.io_workers == 1:
-            examined = dict(inspect(path) for path in ordered)
-        else:
-            with ThreadPoolExecutor(max_workers=policy.io_workers) as executor:
-                examined = dict(executor.map(inspect, ordered))
+    ordered = sorted(files)
+    if policy.io_workers == 1:
+        examined = dict(inspect(path) for path in ordered)
+    else:
+        with ThreadPoolExecutor(max_workers=policy.io_workers) as executor:
+            examined = dict(executor.map(inspect, ordered))
+    cache.inspected.update(examined)
 
     for item, path in concrete:
         if not policy.check_files:
