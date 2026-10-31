@@ -1153,6 +1153,19 @@ def validate_dependencies(
                 # A corrupt header already produces a normal failure when
                 # enabled; it must not also produce a misleading CRS mismatch.
                 if raster_state.get(item.layer) != "present":
+                    # With headers explicitly disabled, an unreadable raster
+                    # still cannot provide a trustworthy CRS. Warn rather than
+                    # silently declaring its CRS consistent or making the
+                    # header problem a blocking issue.
+                    if not policy.check_raster_metadata:
+                        detail = next((
+                            message for selector, _status, message in info.raster_results
+                            if selector == item.layer
+                        ), "Raster metadata is unavailable")
+                        candidates.append((
+                            item, path, item.layer, None,
+                            f"Cannot inspect raster CRS: {detail}",
+                        ))
                     continue
                 raster_crs = dict(info.raster_crs)
                 candidates.append((

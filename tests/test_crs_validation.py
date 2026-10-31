@@ -348,3 +348,20 @@ def test_invalid_tcf_gis_tif_crs_disagreement_is_advisory(tmp_path: Path) -> Non
     assert report.passed
     assert any("TIF projection" in w.detail for w in report.warnings)
     assert not any(w.path == path for w in report.warnings)
+
+
+def test_crs_only_warns_when_existing_raster_header_is_unreadable(
+    tmp_path: Path,
+) -> None:
+    """Disabling blocking headers must not silently certify unreadable CRS."""
+    path = tmp_path / "invalid.tif"
+    path.write_bytes(b"not a raster")
+    report = validate_dependencies(
+        _project(_reference(path, raster=True)),
+        options=_options(check_raster_metadata=False, check_crs=True),
+    )
+    assert report.passed
+    assert not any(f.kind == "raster_metadata" for f in report.findings)
+    assert len(report.warnings) == 1
+    assert report.warnings[0].kind == "crs"
+    assert "Cannot inspect raster CRS" in report.warnings[0].detail
