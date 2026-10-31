@@ -982,10 +982,10 @@ def validate_dependencies(
         subdataset_opens = previous.raster_subdatasets_opened if previous else 0
         requested_rasters = raster_requests.get(path, set())
         cached_selectors = {selector for selector, _, _ in raster_results}
+        cached_crs_selectors = {selector for selector, _ in raster_crs}
         need_raster = bool(requested_rasters and (
             not requested_rasters.issubset(cached_selectors)
-            or (policy.check_crs and previous is not None and
-                not previous.crs_examined)
+            or (policy.check_crs and not requested_rasters.issubset(cached_crs_selectors))
         ))
         if need_raster:
             from ._raster_metadata import inspect_raster_headers
