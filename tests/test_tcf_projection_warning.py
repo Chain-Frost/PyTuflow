@@ -140,3 +140,14 @@ def test_missing_tcf_does_not_generate_a_misleading_projection_warning(
         TCFConfig(tcf=tmp_path / "not_found.tcf", case_sensitivity=0)
 
     assert not _missing_warnings(caplog)
+
+
+def test_override_context_preserves_projection_declaration() -> None:
+    """The final TCF parse must not forget a declaration when copying context."""
+    from pytuflow._tmf.settings import _ParseContext, _copy_parse_context
+
+    initial = _ParseContext(_projection_declared=True)
+    copied = _copy_parse_context(initial)
+
+    assert copied is not initial
+    assert copied._projection_declared
