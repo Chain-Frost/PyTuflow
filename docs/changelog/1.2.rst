@@ -1,6 +1,17 @@
 Changelog for 1.2
 =================
 
+1.2.9
+-----
+
+Release date: TBD
+
+- Added default-on, individually switchable raster-header and spatial CRS metadata checks via ``ValidationOptions(check_raster_metadata=True, check_crs=True)``. Inconsistent CRSs generate advisory warnings; selected NetCDF variables and vector layers are checked without reading pixels or features.
+- Added advisory CRS checks against each selected run's active TCF projection, including MapInfo inline CoordSys normalization, GIS/TIF projection conflict warnings and a fallback comparison when no projection is defined.
+- Emit a general parser-level warning when a TCF does not declare any GIS or TIF Projection, even without CRS preflight; run-specific CRS warnings remain available during validation.
+- Reused read-only input and GIS-layer inspections across both batch validation passes, retaining per-run provenance, with strict NetCDF selected-variable validation and bounded, isolated warning handling.
+- Added a PEP 561 ``py.typed`` marker to wheel and source distributions, plus a strict installed-consumer typing fixture covering the public TCF and batch-validation APIs.
+
 1.2.8
 -----
 

@@ -362,6 +362,7 @@ class TCFRunState(ControlFileRunState, TuflowControlFileMixin, ModelRunMixin, TC
                 requires_layer_scan=source.requires_layer_scan,
                 requires_directory_scan=source.requires_directory_scan,
                 requires_raster_metadata_scan=source.requires_raster_metadata_scan,
+                requires_vector_crs_scan=source.requires_vector_crs_scan,
                 input_uuid=str(inp.uuid),
                 csv_columns=source.csv_columns,
             ))
