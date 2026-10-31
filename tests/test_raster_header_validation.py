@@ -499,25 +499,22 @@ def test_windows_unc_raster_path_is_passed_unchanged(
 
 def test_real_multivariable_netcdf_under_strict_raster_warnings(tmp_path: Path) -> None:
     """A bandless NetCDF root must not hide selected, usable subdatasets."""
-    import xarray as xr
+    from netCDF4 import Dataset
     from rasterio.errors import NotGeoreferencedWarning
 
     source = tmp_path / "rain.nc"
-    dataset = xr.Dataset(
-        {
-            "rainfall": (("lat", "lon"), np.ones((2, 2), dtype=np.float32)),
-            "other": (("lat", "lon"), np.ones((2, 2), dtype=np.float32)),
-        },
-        coords={
-            "lat": ("lat", [0.0, 1.0], {
-                "standard_name": "latitude", "units": "degrees_north",
-            }),
-            "lon": ("lon", [100.0, 101.0], {
-                "standard_name": "longitude", "units": "degrees_east",
-            }),
-        },
-    )
-    dataset.to_netcdf(source, engine="scipy")
+    with Dataset(source, "w", format="NETCDF4") as dataset:
+        dataset.createDimension("lat", 2)
+        dataset.createDimension("lon", 2)
+        lat = dataset.createVariable("lat", "f8", ("lat",))
+        lon = dataset.createVariable("lon", "f8", ("lon",))
+        lat.standard_name, lat.units = "latitude", "degrees_north"
+        lon.standard_name, lon.units = "longitude", "degrees_east"
+        lat[:] = (0.0, 1.0)
+        lon[:] = (100.0, 101.0)
+        for name in ("rainfall", "other"):
+            variable = dataset.createVariable(name, "f4", ("lat", "lon"))
+            variable[:] = np.ones((2, 2), dtype=np.float32)
     before = _inventory(tmp_path)
 
     from pytuflow._raster_metadata import inspect_raster_headers
