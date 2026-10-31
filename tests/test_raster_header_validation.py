@@ -260,7 +260,9 @@ def test_rainfall_csv_source_is_checked_not_csv_index(tmp_path: Path) -> None:
                    for f in result.validation.findings)
 
 
-def test_gis_linked_raster_is_inspected_once_across_two_passes(tmp_path: Path) -> None:
+def test_gis_linked_raster_is_inspected_once_across_two_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _tiff(tmp_path / "shared.tif")
     gpkg = tmp_path / "links.gpkg"
     with sqlite3.connect(gpkg) as connection:
@@ -283,6 +285,16 @@ def test_gis_linked_raster_is_inspected_once_across_two_passes(tmp_path: Path) -
         "Read GIS Code == links.gpkg >> 1d_xs_link\n", encoding="utf-8",
     )
     model = TCF(top, case_sensitivity=0)
+    from pytuflow import validation
+
+    stat_calls: list[Path] = []
+    original_stat = validation._stat_source
+
+    def counted_stat(path: Path) -> tuple[str, str]:
+        stat_calls.append(path)
+        return original_stat(path)
+
+    monkeypatch.setattr(validation, "_stat_source", counted_stat)
     # Initial model parsing retains existing provider I/O. Snapshot only the
     # new physical validation stage, which must never modify sidecars.
     before = _inventory(tmp_path)
@@ -292,6 +304,7 @@ def test_gis_linked_raster_is_inspected_once_across_two_passes(tmp_path: Path) -
     assert result.passed, result.issues
     assert result.gis_sources_added == 2
     assert result.validation.raster_sources_examined == 1
+    assert sorted(stat_calls) == sorted([tmp_path / "shared.tif", gpkg])
     assert len([f for f in result.validation.findings
                 if f.kind == "raster_metadata" and f.path.name == "shared.tif"]) == 4
     assert _inventory(tmp_path) == before
@@ -532,3 +545,110 @@ def test_real_multivariable_netcdf_under_strict_raster_warnings(tmp_path: Path) 
     assert child_opens == 2
     assert set(crs_values) == {"rainfall", "other"}
     assert _inventory(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    ("headers", "crs"),
+    [(False, False), (True, False), (False, True), (True, True)],
+)
+def test_shared_files_and_wildcards_are_inspected_once_across_batch_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, headers: bool, crs: bool,
+) -> None:
+    """Final-pass metadata must not cause repeated primary file or glob I/O."""
+    from pytuflow import validation
+
+    grid = tmp_path / "grid A.tif"
+    _tiff(grid)
+    top = tmp_path / "model.tcf"
+    top.write_text(
+        "Read Grid Zpts == grid*.tif\nRead Grid Zpts == grid*.tif\n",
+        encoding="utf-8",
+    )
+    model = TCF(top, case_sensitivity=0)
+
+    checked: list[Path] = []
+    globs: list[set[Path]] = []
+    opened: list[str] = []
+    original_stat = validation._stat_source
+    original_globs = validation._scan_wildcard_patterns
+    original_open = rasterio.open
+
+    def counted_stat(path: Path) -> tuple[str, str]:
+        checked.append(path)
+        return original_stat(path)
+
+    def counted_globs(patterns: set[Path], **kwargs: object) -> object:
+        if patterns:
+            globs.append(set(patterns))
+        return original_globs(patterns, **kwargs)
+
+    def counted_open(path: object, mode: str = "r") -> object:
+        opened.append(str(path))
+        return original_open(path, mode=mode)
+
+    monkeypatch.setattr(validation, "_stat_source", counted_stat)
+    monkeypatch.setattr(validation, "_scan_wildcard_patterns", counted_globs)
+    monkeypatch.setattr(rasterio, "open", counted_open)
+    report = validate_batch_inputs(
+        model, ["-s1 A", "-s1 B"],
+        options=ValidationOptions(
+            case_sensitivity=0,
+            check_raster_metadata=headers,
+            check_crs=crs,
+        ),
+    )
+    assert report.passed, report.issues
+    assert checked == [grid]
+    assert globs == [{tmp_path / "grid*.tif"}]
+    assert report.validation.files_examined == 1
+    assert report.validation.directories_scanned == 1
+    assert opened == ([str(grid)] if headers or crs else [])
+    assert report.validation.raster_sources_examined == int(headers or crs)
+    assert report.validation.crs_sources_examined == int(crs)
+
+
+def test_cached_missing_files_have_one_failure_and_no_header_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not double-stat missing sources or turn them into header failures."""
+    from pytuflow import validation
+
+    missing = tmp_path / "missing.tif"
+    top = tmp_path / "model.tcf"
+    top.write_text("Read Grid Zpts == missing.tif\n", encoding="utf-8")
+    model = TCF(top, case_sensitivity=0)
+    checked: list[Path] = []
+    original_stat = validation._stat_source
+
+    def counted_stat(path: Path) -> tuple[str, str]:
+        checked.append(path)
+        return original_stat(path)
+
+    monkeypatch.setattr(validation, "_stat_source", counted_stat)
+    report = validate_batch_inputs(model, ["-s1 A", "-s1 B"])
+    assert not report.passed
+    assert checked == [missing]
+    assert report.validation.raster_sources_examined == 0
+    assert len([f for f in report.issues if f.kind == "file"]) == 2
+    assert all(f.kind != "raster_metadata" for f in report.issues)
+
+
+def test_no_file_inspection_cache_survives_separate_batch_invocations(
+    tmp_path: Path,
+) -> None:
+    """Rerunning preflight after a model edit must inspect the changed bytes."""
+    good = tmp_path / "grid.tif"
+    _tiff(good)
+    top = tmp_path / "model.tcf"
+    top.write_text("Read Grid Zpts == grid.tif\n", encoding="utf-8")
+    model = TCF(top, case_sensitivity=0)
+
+    first = validate_batch_inputs(model, ["-s1 A"])
+    assert first.passed, first.issues
+    good.write_bytes(b"corrupt grid header")
+    second = validate_batch_inputs(model, ["-s1 A"])
+    assert not second.passed
+    assert any(
+        f.kind == "raster_metadata" and f.status == "unresolved"
+        for f in second.issues
+    )
