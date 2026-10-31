@@ -271,6 +271,24 @@ performance acceptance; set both to False for existence-focused checks.
 Scope and Limitations
 ---------------------
 
+Named ``1d_bc`` HT, HQ, QT and QH features select the corresponding active BC
+database rows using their third (Name) attribute. Only selected source files and
+CSV selectors are inspected; unrelated database rows are not required inputs.
+The 1D HQ ``Name=slope=<positive finite number>`` form generates its curve
+internally and does not name a database row. A legacy 1D ``T`` Flags value ignores
+the feature. Unsupported 1D boundary types, absent Names and malformed slopes
+remain unresolved; the 2D BC schema and automatic HQ rules are unchanged.
+
+``Read GIS RF Triangle`` (and its MI/MID/ROWCOL read aliases) supplies rainfall
+triangulation geometry. TUFLOW does not use its attributes, so blank Name values
+are valid and do not trigger a BC lookup. The required triangle file, companion
+files and any selected GeoPackage layer are still checked. Rainfall point
+commands retain their ordinary named BC source and CSV/header validation.
+These semantics follow `TUFLOW 1D boundaries, Tables 8.3 and 8.4
+<https://docs.tuflow.com/classic-hpc/manual/2026.3/07-Boundaries-and-Initial-Conditions.html>`_
+and the `official rainfall control examples
+<https://wiki.tuflow.com/TUFLOW_Rainfall_Control_File_Examples>`_.
+
 Validation checks the existence of selected input files, GIS layers,
 recognised attribute-linked sources and supported CSV column selectors.
 It deduplicates physical checks while retaining results for each requested

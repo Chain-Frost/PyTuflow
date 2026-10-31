@@ -6,6 +6,7 @@ Changelog for 1.2
 
 Release date: TBD
 
+- Fixed public batch validation of selected ``1d_bc`` HT/HQ/QT/QH sources, including automatic HQ ``slope=`` boundaries, and stopped interpreting geometry-only ``Read GIS RF Triangle`` attributes as BC database Names. Required source CSV/header and triangle file/companion checks remain active.
 - Added default-on, individually switchable raster-header and spatial CRS metadata checks via ``ValidationOptions(check_raster_metadata=True, check_crs=True)``. Inconsistent CRSs generate advisory warnings; selected NetCDF variables and vector layers are checked without reading pixels or features.
 - Added advisory CRS checks against each selected run's active TCF projection, including MapInfo inline CoordSys normalization, GIS/TIF projection conflict warnings and a fallback comparison when no projection is defined.
 - Emit a general parser-level warning when a TCF does not declare any GIS or TIF Projection, even without CRS preflight; run-specific CRS warnings remain available during validation.
