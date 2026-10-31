@@ -23,9 +23,11 @@ from ._tmf.gpkg_safety import check_gpkg_safety, read_gpkg_layer_names
 from ._tmf.options import CaseSensitivity, parse_case_sensitivity
 
 if TYPE_CHECKING:
+    from pyproj import CRS
+
+    from ._tmf.cf.tcf import TCF
     from ._tmf.dependency_records import BatchDependencyRun
     from ._tmf.file_reference import FileReference
-    from ._tmf.cf.tcf import TCF
 
 ValidationStatus = Literal["present", "missing", "unresolved", "unsupported"]
 ValidationKind = Literal[
@@ -201,7 +203,6 @@ class _Inspection:
         tuple[tuple[str | None, bool], tuple[tuple[str | None, str | None, str], ...]], ...
     ] = ()
     crs_examined: bool = False
-    csv_requests_examined: frozenset[tuple[str, ...]] = frozenset()
 
 
 @dataclass(slots=True)
@@ -966,61 +967,49 @@ def validate_dependencies(
         if path in gpkg_paths and not (previous and previous.gpkg_examined):
             layers, layer_error = _gpkg_contents(path)
 
-        csv_records = previous.csv_records if previous is not None else ()
-        csv_error = previous.csv_error if previous is not None else ""
-        csv_requested = frozenset(csv_requests.get(path, ()))
-        previous_csv = previous.csv_requests_examined if previous else frozenset()
-        if csv_requested and not csv_requested.issubset(previous_csv):
+        # The primary pass requests only file status and GPKG layers. All
+        # CSV/raster/CRS selections are known together in the final pass, so
+        # metadata needs neither a partial-result merge nor selector upgrades.
+        csv_records: tuple[tuple[str, ...], ...] = ()
+        csv_error = ""
+        if path in csv_requests:
             csv_records, csv_error = _csv_records(
-                path, csv_requested,
+                path,
+                csv_requests[path],
                 lines_limit=policy.maximum_header_lines,
                 bytes_limit=policy.maximum_header_bytes,
             )
-
-        raster_results = previous.raster_results if previous else ()
-        raster_crs = previous.raster_crs if previous else ()
-        subdataset_opens = previous.raster_subdatasets_opened if previous else 0
-        requested_rasters = raster_requests.get(path, set())
-        cached_selectors = {selector for selector, _, _ in raster_results}
-        cached_crs_selectors = {selector for selector, _ in raster_crs}
-        need_raster = bool(requested_rasters and (
-            not requested_rasters.issubset(cached_selectors)
-            or (policy.check_crs and not requested_rasters.issubset(cached_crs_selectors))
-        ))
-        if need_raster:
+        raster_results: tuple[tuple[str | None, ValidationStatus, str], ...] = ()
+        raster_crs: tuple[tuple[str | None, str | None], ...] = ()
+        subdataset_opens = 0
+        if path in raster_requests:
             from ._raster_metadata import inspect_raster_headers
 
-            # All active selectors are known in this pass. Open the root once
-            # for every newly requested selection, never once per run.
             if policy.check_crs:
-                checks, extra_opens, crs_by_selector = inspect_raster_headers(
-                    path, requested_rasters,
+                checks, subdataset_opens, crs_by_selector = inspect_raster_headers(
+                    path,
+                    raster_requests[path],
                     maximum_subdatasets=policy.maximum_raster_subdatasets,
                     include_crs=True,
                 )
                 raster_crs = tuple(crs_by_selector.items())
             else:
-                checks, extra_opens = inspect_raster_headers(
-                    path, requested_rasters,
+                checks, subdataset_opens = inspect_raster_headers(
+                    path,
+                    raster_requests[path],
                     maximum_subdatasets=policy.maximum_raster_subdatasets,
                 )
-            subdataset_opens += extra_opens
             raster_results = tuple(
                 (selector, *checks[selector])
                 for selector in sorted(
                     checks, key=lambda name: (name is not None, name or "")
                 )
             )
-
-        vector_crs = previous.vector_crs if previous else ()
-        requested_vectors = vector_requests.get(path, set())
-        cached_vectors = dict(vector_crs)
-        missing_vectors = requested_vectors - cached_vectors.keys()
-        if missing_vectors:
+        vector_crs: tuple[tuple[tuple[str | None, bool], tuple[tuple[str | None, str | None, str], ...]], ...] = ()
+        if path in vector_requests:
             from ._crs_validation import inspect_vector_crs
 
-            cached_vectors.update(inspect_vector_crs(path, missing_vectors))
-            vector_crs = tuple(cached_vectors.items())
+            vector_crs = tuple(inspect_vector_crs(path, vector_requests[path]).items())
 
         return path, _Inspection(
             status,
@@ -1030,17 +1019,13 @@ def validate_dependencies(
             csv_records,
             csv_error,
             bool(path in gpkg_paths or (previous and previous.gpkg_examined)),
-            bool(csv_requested or (previous and previous.csv_examined)),
+            path in csv_requests,
             raster_results=raster_results,
-            raster_examined=bool(requested_rasters or (previous and previous.raster_examined)),
+            raster_examined=path in raster_requests,
             raster_subdatasets_opened=subdataset_opens,
             raster_crs=raster_crs,
             vector_crs=vector_crs,
-            crs_examined=bool(
-                (policy.check_crs and (requested_rasters or requested_vectors))
-                or (previous and previous.crs_examined)
-            ),
-            csv_requests_examined=previous_csv | csv_requested,
+            crs_examined=bool(policy.check_crs and (path in raster_requests or path in vector_requests)),
         )
 
     ordered = sorted(files)
@@ -1131,7 +1116,6 @@ def validate_dependencies(
                     finding(item, status, "csv_header", path, detail)
                 )
 
-
     # Compare selected spatial inputs only after all physical headers/layers
     # have been checked. The reference is the TCF CRS (when known) or the
     # first selected source with a valid CRS in dependency/run order.
@@ -1184,112 +1168,146 @@ def validate_dependencies(
                         detail or "Vector layer has no declared CRS",
                     ))
 
-        reference = None
-        reference_description = ""
-        has_projection_command = False
-        if model is not None:
-            # Existing TCF parsing owns projection resolution. Do not reopen
-            # or reparse projection files, or infer a different model CRS.
-            gis_wkt = getattr(model.config, "projection_wkt", "") or ""
-            tif_wkt = getattr(model.config, "tif_projection", "") or ""
-            has_projection_command = any(
-                "PROJECTION" in command.command_name.upper()
-                and "CHECK" not in command.command_name.upper()
-                for run in projection.runs if run.error is None
-                for command in run.ordered_inputs
-            )
-            preferred = gis_wkt or tif_wkt
-            if preferred:
+        def projection_role(name: str) -> str | None:
+            """Classify selected projection declarations, excluding check commands."""
+            name = name.upper()
+            if "PROJECTION" not in name or "CHECK" in name:
+                return None
+            return "tif" if "TIF" in name else "gis"
+
+        # Resolved dependency records already contain the active source paths,
+        # selectors and source order for each run. Reuse their inspected CRS;
+        # model.config alone is not scenario-specific (it scans all scopes).
+        source_projections = {
+            (item.run_index, item.command_index): value
+            for item, _path, _layer, value, _error in candidates
+            if projection_role(item.origin) is not None
+        }
+        references: dict[int, tuple[CRS | None, str]] = {}
+        parsed_cache: dict[str, tuple[CRS | None, str | None]] = {}
+        label_cache: dict[int, str] = {}
+        compared_cache: dict[tuple[int, int], bool] = {}
+
+        def label(value: CRS) -> str:
+            """Avoid repeated PROJ authority lookups for shared run references."""
+            if id(value) not in label_cache:
+                label_cache[id(value)] = crs_label(value)
+            return label_cache[id(value)]
+
+        def equivalent(left: CRS, right: CRS) -> bool:
+            """Reuse each semantic comparison across all selected simulations."""
+            key = id(left), id(right)
+            if key not in compared_cache:
+                compared_cache[key] = same_crs(left, right)
+            return compared_cache[key]
+
+        def parsed_crs(value: str) -> tuple[CRS | None, str | None]:
+            """Parse each source/reference definition once for this invocation."""
+            if value not in parsed_cache:
                 try:
-                    reference = parse_crs(preferred)
-                    reference_description = f"TCF projection {crs_label(reference)}"
+                    parsed_cache[value] = (parse_crs(value), None)
                 except (TypeError, ValueError) as exc:
-                    has_projection_command = True
-                    for run in projection.runs:
-                        if run.error is None:
-                            failures.append(ValidationFinding(
-                                run.index, run.flags, "unresolved", "crs",
-                                getattr(model, "fpath", None),
-                                f"Cannot interpret TCF projection: {exc}",
-                                origin="TCF Projection", severity="warning",
-                            ))
-            elif has_projection_command:
-                for run in projection.runs:
-                    if run.error is None:
-                        failures.append(ValidationFinding(
-                            run.index, run.flags, "unresolved", "crs",
-                            getattr(model, "fpath", None),
-                            "A TCF projection was declared but its CRS could not "
-                            "be resolved; checking selected spatial inputs against "
-                            "one another instead",
-                            origin="TCF Projection", severity="warning",
-                        ))
+                    parsed_cache[value] = (None, str(exc))
+            return parsed_cache[value]
 
-            if gis_wkt and tif_wkt:
-                try:
-                    gis_crs = parse_crs(gis_wkt)
-                    tif_crs = parse_crs(tif_wkt)
-                    if not same_crs(gis_crs, tif_crs):
-                        for run in projection.runs:
-                            if run.error is None:
-                                failures.append(ValidationFinding(
-                                    run.index, run.flags, "unresolved", "crs",
-                                    getattr(model, "fpath", None),
-                                    f"TCF GIS projection {crs_label(gis_crs)} and "
-                                    f"TIF projection {crs_label(tif_crs)} differ",
-                                    origin="TCF Projection", severity="warning",
-                                ))
-                except (TypeError, ValueError):
-                    pass  # The individual invalid reference is warned above.
+        for run in projection.runs:
+            if run.error is not None:
+                continue
+            declared: dict[str, str | None] = {}
+            for command in run.ordered_inputs:
+                role = projection_role(command.command_name)
+                if role is None:
+                    continue
+                if command.reference_count:
+                    value = source_projections.get((run.index, command.command_index))
+                else:
+                    # Inline authority/WKT declarations have no physical source.
+                    # Unexpanded or invalid values remain advisory parse failures.
+                    value = command.command_text.partition("==")[2].split("!", 1)[0].strip()
+                declared[role] = value
+            if not run.ordered_inputs and model is not None:
+                # Direct projections without command records can only supply a
+                # model-level reference. Full batch inventories use active commands.
+                declared = {
+                    "gis": getattr(model.config, "projection_wkt", "") or None,
+                    "tif": getattr(model.config, "tif_projection", "") or None,
+                }
+                declared = {role: value for role, value in declared.items() if value}
 
-        parsed: list[
-            tuple[_Requirement, Path, str | None, object | None, str]
-        ] = []
+            def warn_reference(detail: str) -> None:
+                failures.append(
+                    ValidationFinding(
+                        run.index,
+                        run.flags,
+                        "unresolved",
+                        "crs",
+                        getattr(model, "fpath", None),
+                        detail,
+                        origin="TCF Projection",
+                        severity="warning",
+                    )
+                )
+
+            gis_raw, tif_raw = declared.get("gis"), declared.get("tif")
+            raw = gis_raw or tif_raw
+            reference, description = None, ""
+            if raw:
+                reference, error = parsed_crs(raw)
+                if error:
+                    warn_reference(f"Cannot interpret TCF projection: {error}")
+                elif reference is not None:
+                    description = f"TCF projection {label(reference)}"
+            elif declared:
+                warn_reference(
+                    "A TCF projection was declared but its CRS could not be resolved; "
+                    "checking selected spatial inputs against one another instead"
+                )
+            if gis_raw and tif_raw:
+                gis_crs, _gis_error = parsed_crs(gis_raw)
+                tif_crs, tif_error = parsed_crs(tif_raw)
+                if tif_error and raw != tif_raw:
+                    warn_reference(f"Cannot interpret TCF TIF projection: {tif_error}")
+                if gis_crs is not None and tif_crs is not None and not equivalent(gis_crs, tif_crs):
+                    warn_reference(
+                        f"TCF GIS projection {label(gis_crs)} and TIF projection {label(tif_crs)} differ"
+                    )
+            references[run.index] = reference, description
+
+        parsed: list[tuple[_Requirement, Path, str | None, CRS | None, str]] = []
         # A shared source can occur in thousands of selected runs. Parse any
         # identical CRS definition once per validation invocation, without a
         # persistent cache that could become stale after a model edit.
-        parsed_cache: dict[str, tuple[object | None, str | None]] = {}
         for item, path, layer, value, error in candidates:
+            if projection_role(item.origin) is not None:
+                continue
             crs = None
             if value:
-                if value not in parsed_cache:
-                    try:
-                        parsed_cache[value] = (parse_crs(value), None)
-                    except (TypeError, ValueError) as exc:
-                        parsed_cache[value] = (None, str(exc))
-                crs, parse_error = parsed_cache[value]
+                crs, parse_error = parsed_crs(value)
                 if parse_error:
                     error = f"Cannot interpret input CRS: {parse_error}"
             parsed.append((item, path, layer, crs, error))
 
-        if reference is None:
-            # There is no usable TCF CRS. Use the first selected input as a
-            # deterministic comparison baseline, not a guessed projection.
-            for _item, path, layer, crs, _error in parsed:
-                if crs is not None:
-                    reference = crs
-                    reference_description = (
-                        f"selected input {path}"
-                        + (f" >> {layer}" if layer else "")
-                        + f" ({crs_label(crs)})"
-                    )
-                    break
+        # With no usable projection, choose a baseline within each simulation;
+        # unrelated scenarios must not establish one another's expected CRS.
+        for item, path, layer, crs, _error in parsed:
+            if references[item.run_index][0] is None and crs is not None:
+                references[item.run_index] = (
+                    crs,
+                    f"selected input {path}" + (f" >> {layer}" if layer else "") + f" ({label(crs)})",
+                )
 
-        compared_cache: dict[int, bool] = {}
         for item, path, layer, crs, detail in parsed:
+            reference, reference_description = references[item.run_index]
             if crs is None:
                 detail = (
                     f"{detail}; cannot confirm consistency with "
                     f"{reference_description or 'other spatial inputs'}"
                 )
             elif reference is not None:
-                key = id(crs)
-                if key not in compared_cache:
-                    compared_cache[key] = same_crs(crs, reference)
-                if compared_cache[key]:
+                if equivalent(crs, reference):
                     continue
                 detail = (
-                    f"Input CRS {crs_label(crs)} differs from "
+                    f"Input CRS {label(crs)} differs from "
                     f"{reference_description}"
                 )
             else:

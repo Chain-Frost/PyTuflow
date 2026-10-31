@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +16,6 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import rasterio
-import warnings
 from rasterio.transform import from_origin
 
 from pytuflow import TCF
@@ -526,8 +526,8 @@ def test_real_multivariable_netcdf_under_strict_raster_warnings(tmp_path: Path) 
         lat[:] = (0.0, 1.0)
         lon[:] = (100.0, 101.0)
         for name in ("rainfall", "other"):
-            variable = dataset.createVariable(name, "f4", ("lat", "lon"))
-            variable[:] = np.ones((2, 2), dtype=np.float32)
+            # Header inspection needs the variable schema, not pixel writes.
+            dataset.createVariable(name, "f4", ("lat", "lon"))
     before = _inventory(tmp_path)
 
     from pytuflow._raster_metadata import inspect_raster_headers
@@ -715,18 +715,107 @@ def test_netcdf_strict_warning_filter_is_safe_with_parallel_workers(
             lat[:] = (0.0, 1.0)
             lon[:] = (100.0, 101.0)
             for name in ("rainfall", "other"):
-                variable = dataset.createVariable(name, "f4", ("lat", "lon"))
-                variable[:] = np.ones((2, 2), dtype=np.float32)
+                dataset.createVariable(name, "f4", ("lat", "lon"))
         sources.append(source)
 
     before = _inventory(tmp_path)
     with warnings.catch_warnings():
         warnings.simplefilter("error", NotGeoreferencedWarning)
         result = validate_dependencies(
-            _project(_run(0, *(_ref(path, selector="rainfall") for path in sources))),
+            _projection(_run(0, *(_ref(path, selector="rainfall") for path in sources))),
             options=_options(io_workers=4),
         )
     assert result.passed
     assert result.raster_sources_examined == 2
     assert result.raster_subdatasets_opened == 2
     assert _inventory(tmp_path) == before
+
+
+@pytest.mark.parametrize("selector,expected", [("rainfall", "present"), ("absent", "unresolved")])
+def test_single_variable_netcdf_explicit_selector_is_exact(
+    tmp_path: Path,
+    selector: str,
+    expected: str,
+) -> None:
+    """GDAL root bands must satisfy their own variable, never an unrelated name."""
+    from netCDF4 import Dataset
+
+    from pytuflow._raster_metadata import inspect_raster_headers
+
+    path = tmp_path / "single.nc"
+    with Dataset(path, "w") as database:
+        database.createDimension("lat", 2)
+        database.createDimension("lon", 2)
+        for name, values in (("lat", (0.0, 1.0)), ("lon", (100.0, 101.0))):
+            coordinate = database.createVariable(name, "f8", (name,))
+            coordinate.standard_name = "latitude" if name == "lat" else "longitude"
+            coordinate.units = "degrees_north" if name == "lat" else "degrees_east"
+            coordinate[:] = values
+        database.createVariable("rainfall", "f4", ("lat", "lon"))
+    with rasterio.open(path) as root:
+        assert root.count == 1 and not root.subdatasets
+    before = _inventory(tmp_path)
+    results, opens = inspect_raster_headers(path, {selector}, maximum_subdatasets=64)
+    assert results[selector][0] == expected
+    assert opens == 1
+    assert _inventory(tmp_path) == before
+
+
+def test_netcdf_warning_filter_cannot_hide_another_raster_workers_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On global-filter Python builds, a TIFF must not inherit a NetCDF filter."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from rasterio.errors import NotGeoreferencedWarning
+
+    from pytuflow._raster_metadata import inspect_raster_headers
+
+    netcdf_started, release_netcdf, tiff_started = Event(), Event(), Event()
+    expected_message = "Dataset has no geotransform, gcps, or rpcs. The identity matrix will be returned."
+
+    def fake_open(path: Path, mode: str = "r") -> _FakeDataset:
+        assert mode == "r"
+        if path.suffix == ".nc":
+            netcdf_started.set()
+            assert release_netcdf.wait(5)
+        warnings.warn(expected_message, NotGeoreferencedWarning, stacklevel=1)
+        return _FakeDataset(2, 2, 1)
+
+    def inspect_tiff() -> object:
+        tiff_started.set()
+        return inspect_raster_headers(tmp_path / "unprojected.tif", {None}, maximum_subdatasets=64)
+
+    monkeypatch.setattr(rasterio, "open", fake_open)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", NotGeoreferencedWarning)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            netcdf = executor.submit(inspect_raster_headers, tmp_path / "container.nc", {None}, maximum_subdatasets=64)
+            try:
+                assert netcdf_started.wait(5)
+                tiff = executor.submit(inspect_tiff)
+                assert tiff_started.wait(5)
+            finally:
+                release_netcdf.set()
+            assert netcdf.result()[0][None][0] == "present"
+            with pytest.raises(NotGeoreferencedWarning):
+                tiff.result()
+
+
+def test_netcdf_warning_filter_does_not_suppress_unrelated_warnings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unrelated warning in the NetCDF driver still reaches the caller."""
+    from rasterio.errors import NotGeoreferencedWarning
+
+    from pytuflow._raster_metadata import inspect_raster_headers
+
+    def fake_open(*args: object, **kwargs: object) -> None:
+        warnings.warn("Unrelated georeferencing diagnostic", NotGeoreferencedWarning, stacklevel=1)
+
+    monkeypatch.setattr(rasterio, "open", fake_open)
+    with pytest.raises(NotGeoreferencedWarning, match="Unrelated"):
+        inspect_raster_headers(tmp_path / "container.nc", {None}, maximum_subdatasets=64)

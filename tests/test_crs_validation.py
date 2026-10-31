@@ -365,3 +365,64 @@ def test_crs_only_warns_when_existing_raster_header_is_unreadable(
     assert len(report.warnings) == 1
     assert report.warnings[0].kind == "crs"
     assert "Cannot inspect raster CRS" in report.warnings[0].detail
+
+
+@pytest.mark.parametrize("flags", [["-s1 A"], ["-s1 B"], ["-s1 A", "-s1 B"]])
+def test_projection_reference_uses_each_selected_scenario(tmp_path: Path, flags: list[str]) -> None:
+    """Inactive/later projection declarations must not change another run's CRS."""
+    for name, epsg in (("A", 28350), ("B", 7850)):
+        _raster(tmp_path / f"{name}.tif", epsg)
+        (tmp_path / f"{name}.prj").write_text(CRS.from_epsg(epsg).to_wkt(), encoding="utf-8")
+    control = tmp_path / "model.tcf"
+    control.write_text(
+        "If Scenario == A\nGIS Projection == A.prj\nRead Grid Zpts == A.tif\n"
+        "Else If Scenario == B\nGIS Projection == B.prj\nRead Grid Zpts == B.tif\nEnd If\n",
+        encoding="utf-8",
+    )
+    model = TCF(control, case_sensitivity=0)
+    before = _snapshot(tmp_path)
+    result = validate_batch_inputs(model, flags)
+    assert result.passed, result.issues
+    assert not result.warnings
+    assert _snapshot(tmp_path) == before
+    # A real mismatch must still be attributed to that run, not the model's
+    # last projection (B), whose CRS happens to match this altered input.
+    _raster(tmp_path / "A.tif", 7850)
+    result = validate_batch_inputs(model, flags)
+    expected = [index for index, flag in enumerate(flags) if flag == "-s1 A"]
+    assert [w.run_index for w in result.warnings] == expected
+    assert all("EPSG:28350" in w.detail and w.path == tmp_path / "A.tif" for w in result.warnings)
+
+
+def test_unselected_projection_does_not_become_no_projection_reference(tmp_path: Path) -> None:
+    """Each simulation without a projection chooses its own selected baseline."""
+    _raster(tmp_path / "A.tif", 28350)
+    _raster(tmp_path / "B.tif", 7850)
+    (tmp_path / "reference.prj").write_text(CRS.from_epsg(7850).to_wkt(), encoding="utf-8")
+    control = tmp_path / "model.tcf"
+    control.write_text(
+        "If Scenario == A\nRead Grid Zpts == A.tif\n"
+        "Else If Scenario == B\nRead Grid Zpts == B.tif\n"
+        "Else If Scenario == C\nGIS Projection == reference.prj\nEnd If\n",
+        encoding="utf-8",
+    )
+    result = validate_batch_inputs(TCF(control, case_sensitivity=0), ["-s1 A", "-s1 B"])
+    assert result.passed and not result.warnings
+
+
+def test_selected_gis_projection_overrides_conflicting_tif_projection(tmp_path: Path) -> None:
+    """Name both references once, and prefer the active GIS projection."""
+    _raster(tmp_path / "projection.tif", 7850)
+    _raster(tmp_path / "grid.tif", 28350)
+    (tmp_path / "reference.prj").write_text(
+        CRS.from_epsg(28350).to_wkt(), encoding="utf-8",
+    )
+    control = tmp_path / "model.tcf"
+    control.write_text(
+        "GIS Projection == reference.prj\nTIF Projection == projection.tif\nRead Grid Zpts == grid.tif\n",
+        encoding="utf-8",
+    )
+    result = validate_batch_inputs(TCF(control, case_sensitivity=0), ["-s1 A"])
+    assert result.passed
+    assert len(result.warnings) == 1
+    assert "TCF GIS projection EPSG:28350 and TIF projection EPSG:7850 differ" in result.warnings[0].detail

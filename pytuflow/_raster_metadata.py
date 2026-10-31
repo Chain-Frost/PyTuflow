@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import re
 import warnings
-from threading import Lock
-from contextlib import nullcontext
 from collections.abc import Collection
 from pathlib import Path
-from typing import Literal, Protocol
+from threading import Lock
+from typing import Any, Literal, Protocol
 
 
 class _RasterShape(Protocol):
@@ -34,8 +33,9 @@ _NETCDF_SUFFIXES = frozenset({".nc", ".nc4", ".cdf"})
 _VARIABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\Z")
 
 # On Python 3.11-3.13, warnings.catch_warnings changes process-global filters.
-# Serialize only NetCDF inspections that temporarily filter one expected warning.
-_NETCDF_WARNING_LOCK = Lock()
+# Coordinate every Rasterio open so a non-NetCDF worker cannot inherit another
+# worker's temporary NetCDF filter. Metadata access and handle closure stay parallel.
+_RASTER_OPEN_LOCK = Lock()
 
 
 def inspect_raster_headers(
@@ -44,9 +44,10 @@ def inspect_raster_headers(
     *,
     maximum_subdatasets: int,
     include_crs: bool = False,
-) -> tuple[dict[str | None, RasterHeaderOutcome], int] | tuple[
-    dict[str | None, RasterHeaderOutcome], int, dict[str | None, str | None]
-]:
+) -> (
+    tuple[dict[str | None, RasterHeaderOutcome], int]
+    | tuple[dict[str | None, RasterHeaderOutcome], int, dict[str | None, str | None]]
+):
     """Read one raster header and any selected NetCDF variable headers once.
 
     An explicit NetCDF selector must match the actual advertised variable,
@@ -94,18 +95,26 @@ def inspect_raster_headers(
     # Rasterio raises NotGeoreferencedWarning before those subdatasets can be
     # checked. Only suppress this *specific* expected warning for NetCDF; CRS
     # absence is reported separately by the public CRS validation stage.
-    warning_guard = _NETCDF_WARNING_LOCK if is_netcdf else nullcontext()
-    warning_scope = warnings.catch_warnings() if is_netcdf else nullcontext()
+    def open_dataset(name: str | Path) -> Any:
+        """Limit the temporary filter to the open, including mixed-format workers."""
+        with _RASTER_OPEN_LOCK:
+            if not is_netcdf:
+                return rasterio.open(name, mode="r")
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=(
+                        r"^Dataset has no geotransform, gcps, or rpcs\. "
+                        r"The identity matrix will be returned\.$"
+                    ),
+                    category=NotGeoreferencedWarning,
+                )
+                return rasterio.open(name, mode="r")
+
     # Prevent GDAL PAM metadata from generating an auxiliary sidecar.
-    with warning_guard, rasterio.Env(GDAL_PAM_ENABLED="NO"), warning_scope:
-        if is_netcdf:
-            warnings.filterwarnings(
-                "ignore",
-                message=r"Dataset has no geotransform, gcps, or rpcs\..*",
-                category=NotGeoreferencedWarning,
-            )
+    with rasterio.Env(GDAL_PAM_ENABLED="NO"):
         try:
-            with rasterio.open(path, mode="r") as root:
+            with open_dataset(path) as root:
                 root_usable = usable(root)
                 root_crs = dataset_crs(root) if root_usable else None
                 subdatasets = (
@@ -157,7 +166,7 @@ def inspect_raster_headers(
             if name not in opened:
                 subdataset_opens += 1
                 try:
-                    with rasterio.open(name, mode="r") as dataset:
+                    with open_dataset(name) as dataset:
                         valid = usable(dataset)
                         opened[name] = (
                             ("present", "") if valid
@@ -181,6 +190,11 @@ def inspect_raster_headers(
                 name for name in subdatasets
                 if name.rsplit(":", maxsplit=1)[-1] == selector
             )
+            if not matches and not subdatasets and root_usable:
+                # GDAL exposes a single-variable NetCDF directly as root bands.
+                # Open the explicitly named variable, rather than certifying
+                # unrelated root bands or assuming a missing selector exists.
+                matches = (f'NETCDF:"{path}":{selector}',)
             if len(matches) != 1:
                 results[selector] = (
                     "unresolved",

@@ -143,7 +143,8 @@ def _gpkg_crs(
 
 
 def inspect_vector_crs(
-    path: Path, selectors: Collection[tuple[str | None, bool]],
+    path: Path,
+    selectors: Collection[tuple[str | None, bool]],
 ) -> VectorCRSResult:
     """Inspect selected layers of one existing vector source, without features."""
     selected = frozenset(selectors)
@@ -151,6 +152,19 @@ def inspect_vector_crs(
         return {}
     if path.suffix.casefold() == ".gpkg":
         return _gpkg_crs(path, selected)
+    if path.suffix.casefold() == ".prj":
+        # A projection declaration is CRS text, not a vector feature source.
+        # Inspect it once alongside the selected metadata, never through OGR.
+        try:
+            with path.open(encoding="utf-8-sig") as source:
+                value = source.read(1_048_577)
+            if len(value) > 1_048_576:
+                raise ValueError("Projection text exceeds the 1 MiB metadata limit")
+            value = value.strip()
+            return {request: ((None, value or None, "" if value else "Projection file has no declared CRS"),)
+                    for request in selected}
+        except (OSError, UnicodeError, ValueError) as exc:
+            return {request: ((None, None, f"Cannot inspect projection CRS: {exc}"),) for request in selected}
     if not is_vector_source(path):
         return {
             selector: ((selector[0], None, "Unsupported vector CRS source format"),)

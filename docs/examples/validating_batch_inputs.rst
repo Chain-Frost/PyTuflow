@@ -177,14 +177,19 @@ subdatasets until it finds one usable raster (up to the configured limit). A
 ``present`` finding in this case confirms **container-level** usability only;
 it does not certify a particular unnamed rainfall variable. When the parser
 provides an explicit ``>> variable`` selection, the checker instead requires
-an exact, case-sensitive NetCDF subdataset match and verifies **that specific**
-subdataset's header. This supports parser-resolved ``>> variable`` selectors
+an exact, case-sensitive NetCDF variable match and verifies **that specific**
+variable's header. A single-variable container may expose its raster as root
+bands without advertising subdatasets; an explicit selector is still opened
+by its exact variable name, rather than borrowing unrelated root bands.
+This supports parser-resolved ``>> variable`` selectors
 and ``NETCDF:\"file.nc\":variable`` paths. An unrelated valid variable cannot satisfy the request.
 Missing, ambiguous, unreadable or zero-band selected variables are
 ``unresolved``. A bandless NetCDF container may legitimately have no root
 geotransform; its specific Rasterio ``NotGeoreferencedWarning`` is filtered
 during NetCDF header inspection only, so strict Python warning policies do not
-abort valid subdataset inspection. Missing CRS metadata is reported through
+abort valid subdataset inspection. Raster opens coordinate access to this
+short-lived filter so other raster workers do not inherit it; the filter is
+removed before metadata processing or handle closure. Missing CRS metadata is reported through
 the separate CRS warning policy. Other raster warnings are not broadly
 suppressed. Unsupported variable-selector syntax or an advertised
 subdataset count exceeding ``maximum_raster_subdatasets`` (default 64) is
@@ -203,10 +208,14 @@ CRS consistency and warnings
 ----------------------------
 
 With ``check_crs=True``, input raster and vector CRSs are compared with the
-parsed TCF ``GIS Projection``, or the parsed ``TIF Projection`` if no GIS
-projection is available. Conflicting TCF GIS and TIF projections warn.
+selected TCF ``GIS Projection``, or the selected ``TIF Projection`` if no GIS
+projection is available. References follow each run's active scenario/event
+commands, not the last projection encountered while initially parsing all
+scopes. Projection files reuse the same inspected metadata; ``.prj`` sources
+are bounded CRS text reads, not vector-feature reads.
+Conflicting TCF GIS and TIF projections warn.
 When the TCF defines no usable projection, selected spatial inputs are
-compared against the first selected input with a usable CRS. This is
+compared against that run's first selected input with a usable CRS. This is
 a comparison baseline, not a guessed TCF projection.
 
 Missing, invalid and different CRS metadata produce ``crs`` findings with
