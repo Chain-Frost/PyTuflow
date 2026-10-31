@@ -214,6 +214,15 @@ commands, not the last projection encountered while initially parsing all
 scopes. Projection files reuse the same inspected metadata; ``.prj`` sources
 are bounded CRS text reads, not vector-feature reads.
 Conflicting TCF GIS and TIF projections warn.
+
+**Independently of these optional CRS checks**, reading a TCF with no GIS
+Projection or TIF Projection declaration logs a general warning through the
+standard ``pytuflow`` logger. This happens when the TCF configuration is
+parsed, once after nested includes and any overrides are considered. It also
+happens when ``check_crs=False`` or the validation API is not called. An
+explicitly declared but unreadable projection keeps its existing extraction
+warning instead of being incorrectly labelled as omitted.
+
 When a selected run has **no active GIS Projection or TIF Projection
 declaration**, validation emits one advisory ``crs`` warning for that run
 referencing the TCF, **even when all of its spatial input CRSs agree**. The

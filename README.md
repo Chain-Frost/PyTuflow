@@ -75,6 +75,8 @@ for warning in report.warnings:
 faster = ValidationOptions(check_raster_metadata=False, check_crs=False)
 ```
 
+Independently of validation options, loading a TCF that contains no GIS Projection or TIF Projection declaration logs a general warning through PyTUFLOW's logger. With CRS validation enabled, an affected selected run also receives a separate advisory finding.
+
 Rasterio is opened lazily and once per unique raster source, with CRS read during that same open. GeoPackage CRS uses safe read-only SQLite and other selected vector CRS uses metadata-only Pyogrio. The optional controls remain available for network and cold storage. No grid alignment, resolution, extent, pixel or vector-feature checks are performed. NetCDF variables follow a bounded policy; see the detailed example.
 
 To collect a run's file references **without physically checking those inputs**, use the parsed model:
