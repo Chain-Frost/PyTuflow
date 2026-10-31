@@ -106,6 +106,10 @@ def _gis_read_role(command_name: str) -> str | None:
         or words[1] not in {"gis", "mi", "mid", "rowcol"}
     ):
         return None
+    # RF triangulation uses geometry only: TUFLOW ignores every attribute.
+    # Keep file/layer/companion checks, but never select BC Names from triangles.
+    if words[2:] == ["rf", "triangle"]:
+        return "geometry"
     return "bc" if len(words) > 2 and words[2] in {"bc", "sa", "rf"} else "gis"
 
 
@@ -275,11 +279,12 @@ def extend_gis_dependencies(
         for link in run.input_references:
             original = link.reference
             layer_name = str(original.layer_pattern or original.path_pattern.stem)
-            bc_command = (
-                _gis_read_role(commands.get(link.command_index, "")) == "bc"
-            )
+            role = _gis_read_role(commands.get(link.command_index, ""))
+            if role == "geometry":
+                continue
+            bc_command = role == "bc"
             known_bc_layer = bool(
-                re.match(r"^2d_(bc|sa|rf)_", layer_name, flags=re.IGNORECASE)
+                re.match(r"^(?:[12]d_bc|2d_(?:sa|rf))_", layer_name, flags=re.IGNORECASE)
             )
             flexible_bc_layer = (
                 original.layer_pattern is not None
