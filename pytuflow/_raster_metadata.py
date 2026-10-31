@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import warnings
+from threading import Lock
 from contextlib import nullcontext
 from collections.abc import Collection
 from pathlib import Path
@@ -31,6 +32,10 @@ RasterHeaderStatus = Literal["present", "unresolved", "unsupported"]
 RasterHeaderOutcome = tuple[RasterHeaderStatus, str]
 _NETCDF_SUFFIXES = frozenset({".nc", ".nc4", ".cdf"})
 _VARIABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*\Z")
+
+# On Python 3.11-3.13, warnings.catch_warnings changes process-global filters.
+# Serialize only NetCDF inspections that temporarily filter one expected warning.
+_NETCDF_WARNING_LOCK = Lock()
 
 
 def inspect_raster_headers(
@@ -89,9 +94,10 @@ def inspect_raster_headers(
     # Rasterio raises NotGeoreferencedWarning before those subdatasets can be
     # checked. Only suppress this *specific* expected warning for NetCDF; CRS
     # absence is reported separately by the public CRS validation stage.
+    warning_guard = _NETCDF_WARNING_LOCK if is_netcdf else nullcontext()
     warning_scope = warnings.catch_warnings() if is_netcdf else nullcontext()
     # Prevent GDAL PAM metadata from generating an auxiliary sidecar.
-    with rasterio.Env(GDAL_PAM_ENABLED="NO"), warning_scope:
+    with warning_guard, rasterio.Env(GDAL_PAM_ENABLED="NO"), warning_scope:
         if is_netcdf:
             warnings.filterwarnings(
                 "ignore",
