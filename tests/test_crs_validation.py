@@ -150,9 +150,13 @@ def test_without_tcf_projection_compare_selected_rasters_and_vectors(
     )
     assert result.passed
     assert result.crs_sources_examined == 2
-    assert len(result.warnings) == 1
-    assert result.warnings[0].path == different
-    assert result.warnings[0].layer == "2d_code"
+    assert len(result.warnings) == 2
+    mismatch = [item for item in result.warnings if item.path == different]
+    assert len(mismatch) == 1
+    assert mismatch[0].layer == "2d_code"
+    missing_projection = [item for item in result.warnings if item.path == tmp_path / "model.tcf"]
+    assert len(missing_projection) == 1
+    assert "No GIS Projection or TIF Projection" in missing_projection[0].detail
     assert _snapshot(tmp_path) == before
 
 
@@ -166,9 +170,11 @@ def test_gpkg_layer_all_requires_separate_crs_comparison(tmp_path: Path) -> None
     )
     assert result.passed
     assert result.crs_sources_examined == 1
-    assert [(f.layer, f.kind) for f in result.warnings] == [
+    source_warnings = [f for f in result.warnings if f.path == file]
+    assert [(f.layer, f.kind) for f in source_warnings] == [
         ("2d_code_B", "crs"),
     ]
+    assert any("No GIS Projection or TIF Projection" in f.detail for f in result.warnings)
     assert _snapshot(tmp_path) == before
 
 
@@ -304,9 +310,15 @@ def test_batch_without_projection_warns_on_different_grids(tmp_path: Path) -> No
     model = TCF(control, case_sensitivity=0)
     result = validate_batch_inputs(model, ["-s1 A"])
     assert result.passed, result.issues
-    assert len(result.warnings) == 1
-    assert result.warnings[0].path == tmp_path / "two.tif"
-    assert "selected input" in result.warnings[0].detail
+    assert len(result.warnings) == 2
+    assert any(
+        w.path == tmp_path / "two.tif" and "selected input" in w.detail
+        for w in result.warnings
+    )
+    assert any(
+        w.path == control and "No GIS Projection or TIF Projection" in w.detail
+        for w in result.warnings
+    )
 
 
 def test_only_one_header_open_for_crs_and_raster_checks(
@@ -407,7 +419,13 @@ def test_unselected_projection_does_not_become_no_projection_reference(tmp_path:
         encoding="utf-8",
     )
     result = validate_batch_inputs(TCF(control, case_sensitivity=0), ["-s1 A", "-s1 B"])
-    assert result.passed and not result.warnings
+    assert result.passed, result.issues
+    assert [w.run_index for w in result.warnings] == [0, 1]
+    assert all(
+        "No GIS Projection or TIF Projection" in w.detail
+        and w.path == control and w.severity == "warning"
+        for w in result.warnings
+    )
 
 
 def test_selected_gis_projection_overrides_conflicting_tif_projection(tmp_path: Path) -> None:
@@ -528,3 +546,89 @@ def test_real_mapinfo_coordsys_conversion_in_native_gdal() -> None:
     converted = parse_crs(_MAPINFO_COORDSYS)
     assert converted.is_projected
     assert converted.to_wkt()
+
+
+@pytest.mark.parametrize(
+    ("flags", "expected_missing"),
+    [
+        (["-s1 A"], [0]),
+        (["-s1 B"], []),
+        (["-s1 A", "-s1 B"], [0]),
+        (["-s1 B", "-s1 A"], [1]),
+    ],
+)
+def test_missing_tcf_projection_warns_only_for_selected_runs(
+    tmp_path: Path,
+    flags: list[str],
+    expected_missing: list[int],
+) -> None:
+    """An inactive projection must not suppress another run's missing warning."""
+    _raster(tmp_path / "A.tif", 28350)
+    _raster(tmp_path / "B.tif", 7850)
+    (tmp_path / "B.prj").write_text(
+        CRS.from_epsg(7850).to_wkt(), encoding="utf-8",
+    )
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text(
+        "If Scenario == A\n"
+        "Read Grid Zpts == A.tif\n"
+        "Else If Scenario == B\n"
+        "GIS Projection == B.prj\n"
+        "Read Grid Zpts == B.tif\n"
+        "End If\n",
+        encoding="utf-8",
+    )
+    model = TCF(tcf, case_sensitivity=0)
+    report = validate_batch_inputs(model, flags)
+    assert report.passed, report.issues
+    assert not report.issues
+    assert [w.run_index for w in report.warnings] == expected_missing
+    assert all(
+        w.path == tcf
+        and w.kind == "crs"
+        and w.status == "unresolved"
+        and w.severity == "warning"
+        and w.origin == "TCF Projection"
+        and "No GIS Projection or TIF Projection" in w.detail
+        for w in report.warnings
+    )
+    assert report.validation.passed
+
+
+def test_missing_tcf_projection_warns_even_when_all_input_crs_match(
+    tmp_path: Path,
+) -> None:
+    """Input agreement does not establish an authoritative TCF projection."""
+    for filename in ("first.tif", "second.tif"):
+        _raster(tmp_path / filename, 28350)
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text(
+        "Read Grid Zpts == first.tif\n"
+        "Read Grid Zpts == second.tif\n",
+        encoding="utf-8",
+    )
+    model = TCF(tcf, case_sensitivity=0)
+    report = validate_batch_inputs(model, ["-s1 A", "-s1 B"])
+    assert report.passed
+    assert not report.issues
+    assert [w.run_index for w in report.warnings] == [0, 1]
+    assert all(w.path == tcf for w in report.warnings)
+    assert all(
+        "No GIS Projection or TIF Projection" in w.detail
+        for w in report.warnings
+    )
+
+
+def test_missing_tcf_projection_warning_respects_crs_opt_out(
+    tmp_path: Path,
+) -> None:
+    _raster(tmp_path / "grid.tif", 28350)
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text("Read Grid Zpts == grid.tif\n", encoding="utf-8")
+    model = TCF(tcf, case_sensitivity=0)
+    report = validate_batch_inputs(
+        model, ["-s1 A"],
+        options=ValidationOptions(case_sensitivity=0, check_crs=False),
+    )
+    assert report.passed and not report.issues
+    assert not report.warnings
