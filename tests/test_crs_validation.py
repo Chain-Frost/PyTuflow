@@ -426,3 +426,105 @@ def test_selected_gis_projection_overrides_conflicting_tif_projection(tmp_path: 
     assert result.passed
     assert len(result.warnings) == 1
     assert "TCF GIS projection EPSG:28350 and TIF projection EPSG:7850 differ" in result.warnings[0].detail
+
+
+_MAPINFO_COORDSYS = (
+    'CoordSys Earth Projection 8, 104, "m", 177, 0, '
+    '0.9996, 500000, 10000000'
+)
+
+
+def test_inline_mapinfo_crs_uses_existing_converter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Native MapInfo CoordSys must be converted before parsing by PROJ."""
+    from pytuflow._crs_validation import parse_crs, same_crs
+    from pytuflow._tmf import gis
+
+    called: list[str] = []
+
+    def convert(value: str) -> str:
+        called.append(value)
+        return CRS.from_epsg(28350).to_wkt()
+
+    monkeypatch.setattr(gis, "mi_projection", convert)
+    assert same_crs(parse_crs(_MAPINFO_COORDSYS), CRS.from_epsg(28350))
+    assert called == [_MAPINFO_COORDSYS]
+    # Already supported EPSG strings must never invoke MapInfo conversion.
+    assert same_crs(parse_crs("EPSG:28350"), CRS.from_epsg(28350))
+    assert called == [_MAPINFO_COORDSYS]
+
+
+def test_inline_mapinfo_projection_is_selected_tcf_crs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Valid MI Projection must override inter-source fallback for this run."""
+    from pytuflow._tmf import gis
+
+    converted: list[str] = []
+
+    def convert(value: str) -> str:
+        converted.append(value)
+        return CRS.from_epsg(28350).to_wkt()
+
+    monkeypatch.setattr(gis, "mi_projection", convert)
+    raster = tmp_path / "grid.tif"
+    _raster(raster, 28350)
+    model_path = tmp_path / "model.tcf"
+    model_path.write_text(
+        f"MI Projection == {_MAPINFO_COORDSYS}\n"
+        "Read Grid Zpts == grid.tif\n", encoding="utf-8",
+    )
+    model = TCF(model_path, case_sensitivity=0)
+
+    good = validate_batch_inputs(model, ["-s1 A"])
+    assert good.passed, good.issues
+    assert not good.warnings
+    assert converted and set(converted) == {_MAPINFO_COORDSYS}
+
+    # Changing only the raster must warn against the declared MI reference.
+    _raster(raster, 7850)
+    wrong = validate_batch_inputs(model, ["-s1 A"])
+    assert wrong.passed, wrong.issues
+    assert len(wrong.warnings) == 1
+    assert wrong.warnings[0].path == raster
+    assert "EPSG:7850" in wrong.warnings[0].detail
+    assert "EPSG:28350" in wrong.warnings[0].detail
+    assert "selected input" not in wrong.warnings[0].detail
+
+
+def test_inline_mapinfo_converter_failure_is_advisory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing native OSR bindings must warn, never crash validation."""
+    from pytuflow._tmf import gis
+
+    def unavailable(_value: str) -> str:
+        raise NotImplementedError("GDAL/OSR Python bindings unavailable")
+
+    monkeypatch.setattr(gis, "mi_projection", unavailable)
+    grid = tmp_path / "grid.tif"
+    _raster(grid, 28350)
+    model_path = tmp_path / "model.tcf"
+    model_path.write_text(
+        f"MI Projection == {_MAPINFO_COORDSYS}\n"
+        "Read Grid Zpts == grid.tif\n", encoding="utf-8",
+    )
+    result = validate_batch_inputs(
+        TCF(model_path, case_sensitivity=0), ["-s1 A"],
+    )
+    assert result.passed, result.issues
+    assert any(
+        "Cannot interpret TCF projection" in warning.detail
+        for warning in result.warnings
+    )
+
+
+def test_real_mapinfo_coordsys_conversion_in_native_gdal() -> None:
+    """Exercise actual PyTUFLOW OSR conversion when native bindings exist."""
+    pytest.importorskip("osgeo.osr")
+    from pytuflow._crs_validation import parse_crs
+
+    converted = parse_crs(_MAPINFO_COORDSYS)
+    assert converted.is_projected
+    assert converted.to_wkt()
