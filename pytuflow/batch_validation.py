@@ -23,6 +23,7 @@ from .validation import (
     ValidationOptions,
     ValidationReport,
     validate_dependencies,
+    _InvocationCache,
 )
 from .validation_links import extend_gis_dependencies, pending_physical_projection
 
@@ -132,18 +133,30 @@ def validate_batch_inputs(
     # Raster headers belong exclusively to the final checked projection: opening
     # them in both passes would duplicate work for every linked-GIS batch.
     initial = pending_physical_projection(dependencies)
-    primary_options = (
-        replace(options, check_raster_metadata=False, check_crs=False)
-        if options.check_raster_metadata or options.check_crs else options
+    # Initial inspection only needs file availability and GIS layer selection.
+    # Postpone BC headers as well as raster/CRS metadata until after linked
+    # sources are known, then reuse initial file/layer results by path.
+    shared = _InvocationCache()
+    primary_options = replace(
+        options,
+        check_bc_csv_headers=False,
+        check_raster_metadata=False,
+        check_crs=False,
     )
-    primary_report = validate_dependencies(initial, options=primary_options, model=tcf)
+    primary_report = validate_dependencies(
+        initial, options=primary_options, model=tcf, _invocation=shared,
+    )
     discovered = extend_gis_dependencies(dependencies, primary_report, tcf, flags)
     # The private checked projection contains only GIS-selected BC/curve rows.
     # An unchanged syntactic run inventory is still exposed separately.
     report = (
-        validate_dependencies(discovered.projection, options=options, model=tcf)
+        validate_dependencies(
+            discovered.projection, options=options, model=tcf,
+            _invocation=shared,
+        )
         if (discovered.projection.runs != initial.runs
-            or options.check_raster_metadata or options.check_crs)
+            or options.check_raster_metadata or options.check_crs
+            or options.check_bc_csv_headers)
         else primary_report
     )
     if discovered.findings:
