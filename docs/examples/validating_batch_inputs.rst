@@ -214,9 +214,19 @@ commands, not the last projection encountered while initially parsing all
 scopes. Projection files reuse the same inspected metadata; ``.prj`` sources
 are bounded CRS text reads, not vector-feature reads.
 Conflicting TCF GIS and TIF projections warn.
-When the TCF defines no usable projection, selected spatial inputs are
-compared against that run's first selected input with a usable CRS. This is
-a comparison baseline, not a guessed TCF projection.
+When a selected run has **no active GIS Projection or TIF Projection
+declaration**, validation emits one advisory ``crs`` warning for that run
+referencing the TCF, **even when all of its spatial input CRSs agree**. The
+selected spatial inputs are still compared with the first input having a
+usable CRS. This is a comparison baseline, not a guessed TCF projection.
+If a projection was declared but is invalid or cannot be resolved, the
+existing invalid-projection warning is used instead of duplicating it.
+No missing-projection warning is generated when ``check_crs=False``.
+
+With direct ``validate_dependencies()``, the missing-TCF-projection warning
+requires either the parsed ``model`` or active command provenance identifying
+a TCF run; an anonymous projection alone cannot establish whether a TCF
+projection was omitted.
 
 Missing, invalid and different CRS metadata produce ``crs`` findings with
 ``severity="warning"``. They do not affect ``passed`` and are excluded

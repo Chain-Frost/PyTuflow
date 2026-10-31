@@ -62,7 +62,7 @@ if not report.passed:
 
 Validation checks required input files, supported GIS layers and their companion files, boundary-condition CSV column references, and recognised files linked from GIS attributes. Findings identify the affected run and source. Missing, ambiguous or unsupported inputs are reported rather than assumed valid.
 
-Raster headers and CRS consistency are checked **by default**. The model projection defined in the TCF is the expected CRS; without it, selected spatial inputs are compared with one another. CRS mismatches and missing metadata produce **non-blocking warnings**:
+Raster headers and CRS consistency are checked **by default**. The model projection defined in the TCF is the expected CRS; without it, the validator **warns once per selected run** and compares spatial inputs with one another where possible. This warning is issued even when all input CRSs agree. CRS mismatches and missing metadata also produce **non-blocking warnings**:
 
 ```python
 from pytuflow.validation import ValidationOptions
