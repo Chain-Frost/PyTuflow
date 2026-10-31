@@ -28,10 +28,23 @@ def is_vector_source(path: Path) -> bool:
 
 
 def parse_crs(value: object) -> CRS:
-    """Normalise WKT, EPSG strings, Rasterio CRS and other PROJ inputs."""
+    """Normalise MapInfo CoordSys, WKT, EPSG and other supported CRS inputs."""
     try:
+        if isinstance(value, str) and value.strip().startswith("CoordSys"):
+            # The TUFLOW parser accepts inline MI Projection declarations,
+            # but PROJ does not understand native MapInfo CoordSys strings.
+            # Use PyTUFLOW's existing OSR converter without a new parser or
+            # dependency. Import it lazily for all other CRS inputs.
+            from ._tmf.gis import mi_projection
+
+            value = mi_projection(value.strip())
         return CRS.from_user_input(value)
-    except (TypeError, ValueError, RuntimeError) as exc:
+    except (
+        TypeError, ValueError, RuntimeError, ImportError, NotImplementedError,
+        AttributeError,
+    ) as exc:
+        # GDAL/OSR bindings may be unavailable outside native GIS installs.
+        # The caller reports an advisory CRS warning, not a fatal preflight.
         raise ValueError(f"Invalid CRS metadata: {exc}") from exc
 
 
