@@ -233,8 +233,14 @@ uses PyTUFLOW's pinned read-only SQLite helper; Shapefile and MapInfo
 metadata uses Pyogrio ``read_info()`` without reading features. Pyogrio
 is already a required dependency of mandatory GeoPandas, so no new
 PyTUFLOW dependency is needed. PROJ compares CRS equivalence, not literal
-WKT text. Unsupported/extensionless sources may have no identifiable
-raster or vector role and cannot be certified by these metadata checks.
+WKT text. Inline MapInfo ``MI Projection == CoordSys ...``
+declarations are normalised with PyTUFLOW's existing ``mi_projection()``
+helper before CRS comparison. This requires the native GDAL/OSR Python
+bindings for that particular syntax; if those bindings are unavailable,
+preflight reports an advisory CRS warning instead of falsely accepting
+a reference or failing with an exception. Unsupported/extensionless sources
+may have no identifiable raster or vector role and cannot be certified by
+these metadata checks.
 
 No grid alignment, resolution suitability, extent, coordinate
 transformation, raster pixel data or vector geometry is inspected.
