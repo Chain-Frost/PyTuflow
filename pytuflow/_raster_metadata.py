@@ -95,7 +95,7 @@ def inspect_raster_headers(
         if is_netcdf:
             warnings.filterwarnings(
                 "ignore",
-                message=r"Dataset has no geotransform, gcps, or rpcs\\..*",
+                message=r"Dataset has no geotransform, gcps, or rpcs\..*",
                 category=NotGeoreferencedWarning,
             )
         try:
