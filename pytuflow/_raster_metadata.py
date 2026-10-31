@@ -7,6 +7,8 @@ statistics, overviews, writable handles or persistent file caches are used.
 from __future__ import annotations
 
 import re
+import warnings
+from contextlib import nullcontext
 from collections.abc import Collection
 from pathlib import Path
 from typing import Literal, Protocol
@@ -52,7 +54,7 @@ def inspect_raster_headers(
     CRS access happens inside the same read-only dataset handle.
     """
     import rasterio
-    from rasterio.errors import RasterioError
+    from rasterio.errors import NotGeoreferencedWarning, RasterioError
 
     requested = set(selectors)
     if not requested or maximum_subdatasets < 1:
@@ -82,8 +84,20 @@ def inspect_raster_headers(
             return results, subdataset_opens, crs_values
         return results, subdataset_opens
 
+    # A bandless NetCDF container can be a valid home for selected grid
+    # subdatasets without having its own geotransform. Under warnings-as-errors,
+    # Rasterio raises NotGeoreferencedWarning before those subdatasets can be
+    # checked. Only suppress this *specific* expected warning for NetCDF; CRS
+    # absence is reported separately by the public CRS validation stage.
+    warning_scope = warnings.catch_warnings() if is_netcdf else nullcontext()
     # Prevent GDAL PAM metadata from generating an auxiliary sidecar.
-    with rasterio.Env(GDAL_PAM_ENABLED="NO"):
+    with rasterio.Env(GDAL_PAM_ENABLED="NO"), warning_scope:
+        if is_netcdf:
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Dataset has no geotransform, gcps, or rpcs\\..*",
+                category=NotGeoreferencedWarning,
+            )
         try:
             with rasterio.open(path, mode="r") as root:
                 root_usable = usable(root)

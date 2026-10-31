@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import rasterio
+import warnings
 from rasterio.transform import from_origin
 
 from pytuflow import TCF
@@ -494,3 +495,43 @@ def test_windows_unc_raster_path_is_passed_unchanged(
     assert result.passed
     assert opened == [unc]
     assert handle.closed
+
+
+def test_real_multivariable_netcdf_under_strict_raster_warnings(tmp_path: Path) -> None:
+    """A bandless NetCDF root must not hide selected, usable subdatasets."""
+    import xarray as xr
+    from rasterio.errors import NotGeoreferencedWarning
+
+    source = tmp_path / "rain.nc"
+    dataset = xr.Dataset(
+        {
+            "rainfall": (("lat", "lon"), np.ones((2, 2), dtype=np.float32)),
+            "other": (("lat", "lon"), np.ones((2, 2), dtype=np.float32)),
+        },
+        coords={
+            "lat": ("lat", [0.0, 1.0], {
+                "standard_name": "latitude", "units": "degrees_north",
+            }),
+            "lon": ("lon", [100.0, 101.0], {
+                "standard_name": "longitude", "units": "degrees_east",
+            }),
+        },
+    )
+    dataset.to_netcdf(source, engine="scipy")
+    before = _inventory(tmp_path)
+
+    from pytuflow._raster_metadata import inspect_raster_headers
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", NotGeoreferencedWarning)
+        outcomes, child_opens, crs_values = inspect_raster_headers(
+            source, {"rainfall", "other"},
+            maximum_subdatasets=64, include_crs=True,
+        )
+
+    assert outcomes == {
+        "rainfall": ("present", ""), "other": ("present", ""),
+    }
+    assert child_opens == 2
+    assert set(crs_values) == {"rainfall", "other"}
+    assert _inventory(tmp_path) == before
