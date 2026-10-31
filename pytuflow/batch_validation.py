@@ -3,7 +3,7 @@
 This module is the orchestration boundary; ordinary TCF parsing, Context and
 single-run semantics remain unchanged. A batch uses one parsed TCF and the
 existing immutable fragment collector before checking distinct physical files,
-GeoPackage layers and ordinary BC CSV headers. It never launches TUFLOW.
+GeoPackage layers, optional raster headers and BC CSV headers. It never launches TUFLOW.
 
 Pass actual scheduled flags rather than generating a Cartesian product from
 scenario/event names. Syntactic collection alone never opens physical inputs;
@@ -49,11 +49,16 @@ class BatchValidationResult:
         return self.dependencies.passed and self.validation.passed
 
     @property
+    def warnings(self) -> tuple[ValidationFinding, ...]:
+        """CRS warnings are advisory and do not make the batch fail."""
+        return self.validation.warnings
+
+    @property
     def issues(self) -> tuple[ValidationFinding, ...]:
         """Missing, unresolved or unsupported files, layers and run contexts."""
         return tuple(
             item for item in self.validation.findings
-            if item.status != "present"
+            if item.status != "present" and item.severity != "warning"
         )
 
 
@@ -74,8 +79,10 @@ def validate_batch_inputs(
     BC CSV headers, and use the same filename-case policy as the parsed model.
     GIS attribute-bearing layers receive a second read-only discovery stage;
     their linked source files are included in physical validation. Unknown GIS
-    feature schemas fail closed rather than being marked as present. Raster
-    pixel data and raster-content validity are outside this file-existence API.
+    feature schemas fail closed. Raster headers and CRS metadata are checked
+    by default; both can be disabled independently. CRS differences produce
+    advisory warnings without failing physical preflight. Header checks never
+    read pixels or certify raster-content validity.
     """
     from ._tmf.cf.tcf import TCF
 
@@ -122,14 +129,22 @@ def validate_batch_inputs(
     started = perf_counter()
     # First confirm primary physical sources and GeoPackage layers. GIS
     # attribute tables must not be opened for nonexistent or unresolved files.
+    # Raster headers belong exclusively to the final checked projection: opening
+    # them in both passes would duplicate work for every linked-GIS batch.
     initial = pending_physical_projection(dependencies)
-    primary_report = validate_dependencies(initial, options=options)
+    primary_options = (
+        replace(options, check_raster_metadata=False, check_crs=False)
+        if options.check_raster_metadata or options.check_crs else options
+    )
+    primary_report = validate_dependencies(initial, options=primary_options, model=tcf)
     discovered = extend_gis_dependencies(dependencies, primary_report, tcf, flags)
     # The private checked projection contains only GIS-selected BC/curve rows.
     # An unchanged syntactic run inventory is still exposed separately.
     report = (
-        validate_dependencies(discovered.projection, options=options)
-        if discovered.projection.runs != initial.runs else primary_report
+        validate_dependencies(discovered.projection, options=options, model=tcf)
+        if (discovered.projection.runs != initial.runs
+            or options.check_raster_metadata or options.check_crs)
+        else primary_report
     )
     if discovered.findings:
         by_run: dict[int, list[ValidationFinding]] = {}

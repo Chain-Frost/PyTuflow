@@ -2,7 +2,7 @@
 
 Dependency collection and control-file interpretation remain entirely separate.
 This module accepts immutable per-run dependency projections and inspects only
-the selected source paths, GeoPackage metadata and ordinary BC CSV headers.
+the selected source paths, GeoPackage metadata, optional raster headers and BC CSV headers.
 Inspection does not execute TUFLOW or require the QGIS runtime.
 """
 
@@ -15,7 +15,7 @@ import stat
 from collections import defaultdict
 from collections.abc import Collection, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
@@ -25,9 +25,13 @@ from ._tmf.options import CaseSensitivity, parse_case_sensitivity
 if TYPE_CHECKING:
     from ._tmf.dependency_records import BatchDependencyRun
     from ._tmf.file_reference import FileReference
+    from ._tmf.cf.tcf import TCF
 
 ValidationStatus = Literal["present", "missing", "unresolved", "unsupported"]
-ValidationKind = Literal["file", "wildcard", "layer", "csv_header", "attribute", "context"]
+ValidationKind = Literal[
+    "file", "wildcard", "layer", "csv_header", "raster_metadata",
+    "crs", "attribute", "context",
+]
 
 
 class DependencyProjection(Protocol):
@@ -47,6 +51,9 @@ class ValidationOptions:
         check_files: Verify selected input paths exist and are readable.
         check_gpkg_layers: Verify selected GeoPackage layers.
         check_bc_csv_headers: Check referenced BC CSV column names.
+        check_raster_metadata: Open required raster headers read-only (on by default).
+        check_crs: Warn about absent, invalid or inconsistent raster/vector CRSs (on by default).
+        maximum_raster_subdatasets: Bound NetCDF variable enumeration.
         io_workers: Maximum concurrent workers for independent input checks.
         maximum_directory_entries: Limit names visited per wildcard directory.
         maximum_header_lines: Limit lines inspected for a BC CSV header.
@@ -66,6 +73,10 @@ class ValidationOptions:
     # Linux TUFLOW -cs0/-cs1/-cs2. None means the projection has not
     # provided a policy: a possible spelling mismatch must fail closed.
     case_sensitivity: CaseSensitivity | None = None
+    # Append fields to preserve positional construction of existing options.
+    check_raster_metadata: bool = True
+    maximum_raster_subdatasets: int = 64
+    check_crs: bool = True
 
     def __post_init__(self) -> None:
         """Reject invalid resource limits and filename-case modes."""
@@ -79,6 +90,7 @@ class ValidationOptions:
             self.maximum_directory_entries,
             self.maximum_header_lines,
             self.maximum_header_bytes,
+            self.maximum_raster_subdatasets,
         ) < 1:
             raise ValueError("Inspection limits must be positive")
 
@@ -87,9 +99,10 @@ class ValidationOptions:
 class ValidationFinding:
     """Record the status of one input and its source-command provenance.
 
-    The status is present, missing, unresolved or unsupported. Source ownership,
-    input UUID and run index identify the original model declaration, allowing
-    the same physical file to be reported separately for each affected run.
+    The status is present, missing, unresolved or unsupported. For advisory
+    CRS findings, severity="warning" means an unresolved CRS does not fail
+    the preflight. Source ownership, input UUID and run index allow the
+    same physical file to be attributed separately to each affected run.
     """
 
     run_index: int
@@ -106,6 +119,8 @@ class ValidationFinding:
     database_kind: str | None = None
     source_pattern: Path | None = None
     csv_columns: tuple[str, ...] | None = None
+    # CRS findings are advisory; their unresolved status is not a failed preflight.
+    severity: Literal["error", "warning"] = "error"
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,12 +138,23 @@ class ValidationReport:
     geopackages_examined: int
     csv_headers_examined: int
     directories_scanned: int
+    # Count unique existing raster source paths, not GDAL root/subdataset handles.
+    raster_sources_examined: int = 0
+    # Count additional NetCDF subdataset open attempts, excluding root opens.
+    raster_subdatasets_opened: int = 0
+    crs_sources_examined: int = 0
+
+    @property
+    def warnings(self) -> tuple[ValidationFinding, ...]:
+        """Return non-failing CRS diagnostics with original run provenance."""
+        return tuple(item for item in self.findings if item.severity == "warning")
 
     @property
     def passed(self) -> bool:
-        """Return whether every inspected source was present."""
+        """Warnings do not override ordinary physical-validation success."""
         return bool(self.run_count) and all(
-            item.status == "present" for item in self.findings
+            item.status == "present" or item.severity == "warning"
+            for item in self.findings
         )
 
 
@@ -149,6 +175,8 @@ class _Requirement:
     unresolved: tuple[str, ...] = ()
     secondary_source: bool = False
     implicit_gpkg_layer: bool = False
+    requires_raster_metadata_scan: bool = False
+    requires_vector_crs_scan: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +191,16 @@ class _Inspection:
     csv_error: str = ""
     gpkg_examined: bool = False
     csv_examined: bool = False
+    raster_results: tuple[tuple[str | None, ValidationStatus, str], ...] = ()
+    raster_examined: bool = False
+    raster_subdatasets_opened: int = 0
+    # Raster CRS is captured during the same Rasterio open as its header.
+    raster_crs: tuple[tuple[str | None, str | None], ...] = ()
+    # Each vector request may select one or several concrete GPKG layers.
+    vector_crs: tuple[
+        tuple[tuple[str | None, bool], tuple[tuple[str | None, str | None, str], ...]], ...
+    ] = ()
+    crs_examined: bool = False
 
 
 def _implicit_gpkg_layer(reference: FileReference) -> bool:
@@ -220,6 +258,8 @@ def _requirements(projection: DependencyProjection) -> tuple[
                         getattr(reference, "csv_columns", None),
                         reference.unresolved_variables,
                         implicit_gpkg_layer=_implicit_gpkg_layer(reference),
+                        requires_raster_metadata_scan=reference.requires_raster_metadata_scan,
+                        requires_vector_crs_scan=reference.requires_vector_crs_scan,
                     )
                 )
         else:
@@ -240,6 +280,8 @@ def _requirements(projection: DependencyProjection) -> tuple[
                         getattr(reference, "csv_columns", None),
                         reference.unresolved_variables,
                         implicit_gpkg_layer=_implicit_gpkg_layer(reference),
+                        requires_raster_metadata_scan=reference.requires_raster_metadata_scan,
+                        requires_vector_crs_scan=reference.requires_vector_crs_scan,
                     )
                 )
 
@@ -294,6 +336,8 @@ def _requirements(projection: DependencyProjection) -> tuple[
                     source.database_kind,
                     getattr(source, "csv_columns", None),
                     secondary_source=True,
+                    requires_raster_metadata_scan=source.requires_raster_metadata_scan,
+                    requires_vector_crs_scan=source.requires_vector_crs_scan,
                 )
             )
     return requirements, errors
@@ -709,13 +753,16 @@ def validate_dependencies(
     projection: DependencyProjection,
     *,
     options: ValidationOptions | None = None,
+    model: TCF | None = None,
 ) -> ValidationReport:
     """Inspect explicitly requested TUFLOW inputs without changing the model.
 
     Source references come from an already-parsed run projection. No TCF
     parsing, variable substitution, simulator execution or model edits occur.
     File results are shared only within this invocation; finding ownership is
-    restored independently for each run and source declaration.
+    restored independently for each run and source declaration. Supplying the
+    parsed model enables TCF projection-based CRS comparison. Without a model,
+    selected spatial references are compared with one another.
     """
     policy = options if options is not None else ValidationOptions()
     if not projection.runs:
@@ -738,7 +785,7 @@ def validate_dependencies(
             path,
             detail,
             (path.stem if item.implicit_gpkg_layer else item.layer)
-            if kind == "layer" else None,
+            if kind == "layer" else (item.layer if kind == "raster_metadata" else None),
             item.origin,
             item.input_uuid,
             item.command_index,
@@ -847,6 +894,8 @@ def validate_dependencies(
 
     gpkg_paths: set[Path] = set()
     csv_requests: dict[Path, set[tuple[str, ...]]] = defaultdict(set)
+    raster_requests: dict[Path, set[str | None]] = defaultdict(set)
+    vector_requests: dict[Path, set[tuple[str | None, bool]]] = defaultdict(set)
     for item, path in concrete:
         if (
             policy.check_gpkg_layers
@@ -861,6 +910,10 @@ def validate_dependencies(
             and path.suffix.casefold() == ".csv"
         ):
             csv_requests[path].add(item.csv_columns)
+        if (policy.check_raster_metadata or policy.check_crs) and item.requires_raster_metadata_scan:
+            raster_requests[path].add(item.layer)
+        if policy.check_crs and item.requires_vector_crs_scan:
+            vector_requests[path].add((item.layer, item.implicit_gpkg_layer))
     files = {path for _, path in concrete}
 
     def inspect(path: Path) -> tuple[Path, _Inspection]:
@@ -880,6 +933,37 @@ def validate_dependencies(
                 lines_limit=policy.maximum_header_lines,
                 bytes_limit=policy.maximum_header_bytes,
             )
+        raster_results: tuple[tuple[str | None, ValidationStatus, str], ...] = ()
+        raster_crs: tuple[tuple[str | None, str | None], ...] = ()
+        vector_crs: tuple[
+            tuple[tuple[str | None, bool], tuple[tuple[str | None, str | None, str], ...]], ...
+        ] = ()
+        subdataset_opens = 0
+        if path in raster_requests:
+            from ._raster_metadata import inspect_raster_headers
+
+            if policy.check_crs:
+                checks, subdataset_opens, raster_crs_by_selector = inspect_raster_headers(
+                    path, raster_requests[path],
+                    maximum_subdatasets=policy.maximum_raster_subdatasets,
+                    include_crs=True,
+                )
+                raster_crs = tuple(raster_crs_by_selector.items())
+            else:
+                checks, subdataset_opens = inspect_raster_headers(
+                    path, raster_requests[path],
+                    maximum_subdatasets=policy.maximum_raster_subdatasets,
+                )
+            raster_results = tuple(
+                (selector, *checks[selector])
+                for selector in sorted(checks, key=lambda name: (name is not None, name or ""))
+            )
+        if path in vector_requests:
+            from ._crs_validation import inspect_vector_crs
+
+            vector_crs = tuple(
+                inspect_vector_crs(path, vector_requests[path]).items()
+            )
         return path, _Inspection(
             status,
             detail,
@@ -889,6 +973,14 @@ def validate_dependencies(
             csv_error,
             path in gpkg_paths,
             path in csv_requests,
+            raster_results=raster_results,
+            raster_examined=path in raster_requests,
+            raster_subdatasets_opened=subdataset_opens,
+            raster_crs=raster_crs,
+            vector_crs=vector_crs,
+            crs_examined=bool(policy.check_crs and (
+                path in raster_requests or path in vector_requests
+            )),
         )
 
     examined: dict[Path, _Inspection] = {}
@@ -907,6 +999,13 @@ def validate_dependencies(
         add(item, finding(item, info.status, "file", path, info.detail))
         if info.status != "present":
             continue
+        if policy.check_raster_metadata and item.requires_raster_metadata_scan:
+            metadata = {
+                selector: (status, detail)
+                for selector, status, detail in info.raster_results
+            }
+            status, detail = metadata[item.layer]
+            add(item, finding(item, status, "raster_metadata", path, detail))
         if (
             policy.check_gpkg_layers and item.layer is not None
             and path.suffix.casefold() == ".gpkg"
@@ -973,6 +1072,161 @@ def validate_dependencies(
                     finding(item, status, "csv_header", path, detail)
                 )
 
+
+    # Compare selected spatial inputs only after all physical headers/layers
+    # have been checked. The reference is the TCF CRS (when known) or the
+    # first selected source with a valid CRS in dependency/run order.
+    if policy.check_crs:
+        from ._crs_validation import crs_label, parse_crs, same_crs
+
+        candidates: list[
+            tuple[_Requirement, Path, str | None, str | None, str]
+        ] = []
+        for item, path in concrete:
+            info = examined[path]
+            if info.status != "present":
+                continue
+            if item.requires_raster_metadata_scan:
+                raster_state = {
+                    selector: status
+                    for selector, status, _detail in info.raster_results
+                }
+                # A corrupt header already produces a normal failure when
+                # enabled; it must not also produce a misleading CRS mismatch.
+                if raster_state.get(item.layer) != "present":
+                    continue
+                raster_crs = dict(info.raster_crs)
+                candidates.append((
+                    item, path, item.layer, raster_crs.get(item.layer),
+                    "Raster has no declared CRS",
+                ))
+            elif item.requires_vector_crs_scan:
+                layer_results = dict(info.vector_crs)
+                for layer, raw_crs, detail in layer_results.get(
+                    (item.layer, item.implicit_gpkg_layer), ()
+                ):
+                    if "was not found" in detail:
+                        continue  # Existing layer validation reports this.
+                    candidates.append((
+                        item, path, layer, raw_crs,
+                        detail or "Vector layer has no declared CRS",
+                    ))
+
+        reference = None
+        reference_description = ""
+        has_projection_command = False
+        if model is not None:
+            # Existing TCF parsing owns projection resolution. Do not reopen
+            # or reparse projection files, or infer a different model CRS.
+            gis_wkt = getattr(model.config, "projection_wkt", "") or ""
+            tif_wkt = getattr(model.config, "tif_projection", "") or ""
+            has_projection_command = any(
+                "PROJECTION" in command.command_name.upper()
+                and "CHECK" not in command.command_name.upper()
+                for run in projection.runs if run.error is None
+                for command in run.ordered_inputs
+            )
+            preferred = gis_wkt or tif_wkt
+            if preferred:
+                try:
+                    reference = parse_crs(preferred)
+                    reference_description = f"TCF projection {crs_label(reference)}"
+                except (TypeError, ValueError) as exc:
+                    has_projection_command = True
+                    for run in projection.runs:
+                        if run.error is None:
+                            failures.append(ValidationFinding(
+                                run.index, run.flags, "unresolved", "crs",
+                                getattr(model, "fpath", None),
+                                f"Cannot interpret TCF projection: {exc}",
+                                origin="TCF Projection", severity="warning",
+                            ))
+            elif has_projection_command:
+                for run in projection.runs:
+                    if run.error is None:
+                        failures.append(ValidationFinding(
+                            run.index, run.flags, "unresolved", "crs",
+                            getattr(model, "fpath", None),
+                            "A TCF projection was declared but its CRS could not "
+                            "be resolved; checking selected spatial inputs against "
+                            "one another instead",
+                            origin="TCF Projection", severity="warning",
+                        ))
+
+            if gis_wkt and tif_wkt:
+                try:
+                    gis_crs = parse_crs(gis_wkt)
+                    tif_crs = parse_crs(tif_wkt)
+                    if not same_crs(gis_crs, tif_crs):
+                        for run in projection.runs:
+                            if run.error is None:
+                                failures.append(ValidationFinding(
+                                    run.index, run.flags, "unresolved", "crs",
+                                    getattr(model, "fpath", None),
+                                    f"TCF GIS projection {crs_label(gis_crs)} and "
+                                    f"TIF projection {crs_label(tif_crs)} differ",
+                                    origin="TCF Projection", severity="warning",
+                                ))
+                except (TypeError, ValueError):
+                    pass  # The individual invalid reference is warned above.
+
+        parsed: list[
+            tuple[_Requirement, Path, str | None, object | None, str]
+        ] = []
+        # A shared source can occur in thousands of selected runs. Parse any
+        # identical CRS definition once per validation invocation, without a
+        # persistent cache that could become stale after a model edit.
+        parsed_cache: dict[str, tuple[object | None, str | None]] = {}
+        for item, path, layer, value, error in candidates:
+            crs = None
+            if value:
+                if value not in parsed_cache:
+                    try:
+                        parsed_cache[value] = (parse_crs(value), None)
+                    except (TypeError, ValueError) as exc:
+                        parsed_cache[value] = (None, str(exc))
+                crs, parse_error = parsed_cache[value]
+                if parse_error:
+                    error = f"Cannot interpret input CRS: {parse_error}"
+            parsed.append((item, path, layer, crs, error))
+
+        if reference is None:
+            # There is no usable TCF CRS. Use the first selected input as a
+            # deterministic comparison baseline, not a guessed projection.
+            for _item, path, layer, crs, _error in parsed:
+                if crs is not None:
+                    reference = crs
+                    reference_description = (
+                        f"selected input {path}"
+                        + (f" >> {layer}" if layer else "")
+                        + f" ({crs_label(crs)})"
+                    )
+                    break
+
+        compared_cache: dict[int, bool] = {}
+        for item, path, layer, crs, detail in parsed:
+            if crs is None:
+                detail = (
+                    f"{detail}; cannot confirm consistency with "
+                    f"{reference_description or 'other spatial inputs'}"
+                )
+            elif reference is not None:
+                key = id(crs)
+                if key not in compared_cache:
+                    compared_cache[key] = same_crs(crs, reference)
+                if compared_cache[key]:
+                    continue
+                detail = (
+                    f"Input CRS {crs_label(crs)} differs from "
+                    f"{reference_description}"
+                )
+            else:
+                continue
+            add(item, replace(
+                finding(item, "unresolved", "crs", path, detail),
+                layer=layer, severity="warning",
+            ))
+
     return ValidationReport(
         ordered_findings(),
         len(projection.runs),
@@ -980,4 +1234,7 @@ def validate_dependencies(
         sum(result.gpkg_examined for result in examined.values()),
         sum(result.csv_examined for result in examined.values()),
         scan_count,
+        sum(result.raster_examined for result in examined.values()),
+        sum(result.raster_subdatasets_opened for result in examined.values()),
+        sum(result.crs_examined for result in examined.values()),
     )
