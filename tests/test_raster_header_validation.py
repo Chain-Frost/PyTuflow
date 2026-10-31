@@ -693,3 +693,40 @@ def test_csv_headers_are_inspected_only_in_the_final_batch_pass(
     assert sorted(file_stats) == sorted([database, source])
     assert result.validation.csv_headers_examined == 1
     assert result.validation.files_examined == 2
+
+
+def test_netcdf_strict_warning_filter_is_safe_with_parallel_workers(
+    tmp_path: Path,
+) -> None:
+    """NetCDF-only warning filters must not interfere across IO worker threads."""
+    from netCDF4 import Dataset
+    from rasterio.errors import NotGeoreferencedWarning
+
+    sources: list[Path] = []
+    for index in range(2):
+        source = tmp_path / f"rain_{index}.nc"
+        with Dataset(source, "w", format="NETCDF4") as dataset:
+            dataset.createDimension("lat", 2)
+            dataset.createDimension("lon", 2)
+            lat = dataset.createVariable("lat", "f8", ("lat",))
+            lon = dataset.createVariable("lon", "f8", ("lon",))
+            lat.standard_name, lat.units = "latitude", "degrees_north"
+            lon.standard_name, lon.units = "longitude", "degrees_east"
+            lat[:] = (0.0, 1.0)
+            lon[:] = (100.0, 101.0)
+            for name in ("rainfall", "other"):
+                variable = dataset.createVariable(name, "f4", ("lat", "lon"))
+                variable[:] = np.ones((2, 2), dtype=np.float32)
+        sources.append(source)
+
+    before = _inventory(tmp_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", NotGeoreferencedWarning)
+        result = validate_dependencies(
+            _project(_run(0, *(_ref(path, selector="rainfall") for path in sources))),
+            options=_options(io_workers=4),
+        )
+    assert result.passed
+    assert result.raster_sources_examined == 2
+    assert result.raster_subdatasets_opened == 2
+    assert _inventory(tmp_path) == before
