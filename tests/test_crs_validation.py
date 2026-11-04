@@ -178,6 +178,62 @@ def test_gpkg_layer_all_requires_separate_crs_comparison(tmp_path: Path) -> None
     assert _snapshot(tmp_path) == before
 
 
+def test_gpkg_null_and_invalid_srs_ids_warn_without_losing_valid_layers(
+    tmp_path: Path,
+) -> None:
+    """Malformed SRS metadata must stay advisory and preserve good layer CRS."""
+    from pytuflow._crs_validation import inspect_vector_crs
+
+    path = tmp_path / "mixed_crs.gpkg"
+    _gpkg(path, {"good": 28350, "null_srs": 7850, "invalid_srs": 4326})
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "UPDATE gpkg_geometry_columns SET srs_id = NULL "
+            "WHERE table_name = 'null_srs'"
+        )
+        db.execute(
+            "UPDATE gpkg_geometry_columns SET srs_id = 'not-an-integer' "
+            "WHERE table_name = 'invalid_srs'"
+        )
+        # Even unrelated malformed reference definitions must not poison
+        # the lookup of a valid SRS ID from another layer.
+        db.execute(
+            "INSERT INTO gpkg_spatial_ref_sys VALUES "
+            "(NULL, 'EPSG', '0', 'undefined')"
+        )
+        db.execute(
+            "INSERT INTO gpkg_spatial_ref_sys VALUES "
+            "('not-an-integer', 'EPSG', '0', 'undefined')"
+        )
+
+    before = _snapshot(tmp_path)
+    inspected = inspect_vector_crs(path, {("all", False)})[("all", False)]
+    assert {name: (crs, error) for name, crs, error in inspected} == {
+        "good": ("EPSG:28350", ""),
+        "invalid_srs": (None, "GeoPackage layer lacks spatial CRS metadata"),
+        "null_srs": (None, "GeoPackage layer lacks spatial CRS metadata"),
+    }
+
+    report = validate_dependencies(
+        _project(_reference(path, vector=True, layer="all")),
+        options=_options(),
+        model=_model(tmp_path, CRS.from_epsg(28350).to_wkt()),
+    )
+    assert report.passed
+    assert report.crs_sources_examined == 1
+    assert {warning.layer for warning in report.warnings} == {
+        "null_srs", "invalid_srs",
+    }
+    assert all(
+        warning.kind == "crs"
+        and warning.severity == "warning"
+        and warning.status == "unresolved"
+        and "lacks spatial CRS metadata" in warning.detail
+        for warning in report.warnings
+    )
+    assert _snapshot(tmp_path) == before
+
+
 def test_missing_invalid_crs_warn_and_do_not_crash(tmp_path: Path) -> None:
     path = tmp_path / "unprojected.tif"
     _raster(path, None)
