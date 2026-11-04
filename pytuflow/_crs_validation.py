@@ -92,23 +92,39 @@ def _gpkg_crs(
                     "SELECT table_name FROM gpkg_contents ORDER BY table_name"
                 )
             )
+            # Bad SRS IDs belong to individual layers; do not let one NULL
+            # or malformed row prevent other selected layers being inspected.
+            spatial: dict[str, int] = {}
             try:
-                spatial = {
-                    str(table).casefold(): int(srid)
-                    for table, srid in database.execute(
-                        "SELECT table_name, srs_id FROM gpkg_geometry_columns"
-                    )
-                }
+                for table, srid in database.execute(
+                    "SELECT table_name, srs_id FROM gpkg_geometry_columns"
+                ):
+                    if table is None:
+                        continue
+                    try:
+                        spatial[str(table).casefold()] = int(srid)
+                    except (TypeError, ValueError, OverflowError):
+                        # An absent mapping produces an advisory warning below.
+                        continue
             except sqlite3.DatabaseError:
                 spatial = {}
+
+            definitions: dict[int, tuple[str, str, str]] = {}
             try:
-                definitions = {
-                    int(row[0]): (str(row[1]), str(row[2]), str(row[3]))
-                    for row in database.execute(
-                        "SELECT srs_id, organization, organization_coordsys_id, "
-                        "definition FROM gpkg_spatial_ref_sys"
+                for srid, organisation, code, wkt in database.execute(
+                    "SELECT srs_id, organization, organization_coordsys_id, "
+                    "definition FROM gpkg_spatial_ref_sys"
+                ):
+                    try:
+                        key = int(srid)
+                    except (TypeError, ValueError, OverflowError):
+                        # Ignore malformed definitions without losing valid IDs.
+                        continue
+                    definitions[key] = (
+                        "" if organisation is None else str(organisation),
+                        "" if code is None else str(code),
+                        "" if wkt is None else str(wkt),
                     )
-                }
             except sqlite3.DatabaseError:
                 definitions = {}
 
@@ -137,7 +153,7 @@ def _gpkg_crs(
                     organisation, code, wkt = definition
                     # EPSG and other authority codes may be more useful than a
                     # placeholder/invalid WKT. The comparison layer parses both.
-                    if organisation.upper() != "NONE" and code not in {"0", "-1"}:
+                    if organisation and organisation.upper() != "NONE" and code and code not in {"0", "-1"}:
                         crs = f"{organisation}:{code}"
                     elif wkt and wkt.casefold() != "undefined":
                         crs = wkt
