@@ -234,11 +234,12 @@ class TCFConfig:
         from .parsers.non_recursive_basic_parser import get_commands
         return get_commands
 
-    def _run_tcf_passes(self, ctx: _ParseContext) -> _ParseContext:
+    def _run_tcf_passes(self, ctx: _ParseContext, *, include_override: bool = True) -> _ParseContext:
         """Run all three parsing passes on *ctx* and return the final context.
 
         If a ``_TUFLOW_Override`` file is found, an override context is seeded
-        from the accumulated *ctx* and the passes are run recursively on it.
+        from the accumulated *ctx* and the passes are run once on that file,
+        with further implicit override discovery disabled.
         The override context (which includes all accumulated state from both
         the base TCF and the override) is then returned in place of *ctx*.
         """
@@ -261,13 +262,17 @@ class TCFConfig:
         ctx.set_spatial_database(None)
 
         # Optional _TUFLOW_Override
-        tcf_override = self.tuflow_override(ctx.tcf)
+        tcf_override = self.tuflow_override(ctx.tcf) if include_override else None
         if tcf_override:
             # Seed the override context from the fully accumulated base state.
-            # variables and event_db are shared by reference so that override
-            # additions merge additively with what the base TCF accumulated.
+            # Retain accumulated variables and event definitions while parsing
+            # the override relative to its own control-file path.
             override_ctx = _copy_parse_context(ctx)
-            ctx = self._run_tcf_passes(override_ctx)
+            override_ctx.control_file = tcf_override
+            ctx = self._run_tcf_passes(override_ctx, include_override=False)
+            # Keep the model identity and default relative-path base at the
+            # original TCF, rather than publishing the override as the model.
+            ctx.control_file = self.tcf
 
         return ctx
 

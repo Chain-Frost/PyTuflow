@@ -6,6 +6,7 @@ Changelog for 1.2
 
 Release date: TBD
 
+- Fixed recursive TCF override parsing and applied the selected generic or machine-specific override to public run contexts, including log/output folder discovery and variable substitutions while retaining the original model filename.
 - Recognised ``BC Event File`` as well as ``Event File`` when loading TEF declarations, allowing selected ``BC Event Source`` substitutions to expand BC Database CSV column selectors in batch validation.
 - Fixed public batch validation of selected ``1d_bc`` HT/HQ/QT/QH sources, including automatic HQ ``slope=`` boundaries, and stopped interpreting geometry-only ``Read GIS RF Triangle`` attributes as BC database Names. Required source CSV/header and triangle file/companion checks remain active.
 - Added default-on, individually switchable raster-header and spatial CRS metadata checks via ``ValidationOptions(check_raster_metadata=True, check_crs=True)``. Inconsistent CRSs generate advisory warnings; selected NetCDF variables and vector layers are checked without reading pixels or features.
