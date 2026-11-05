@@ -118,3 +118,62 @@ def test_variable_only_override_and_scoped_run_isolation(tmp_path, resolution):
     model.write(inc="inplace")
     assert tcf.read_text(encoding="utf-8") == original
     assert override.read_text(encoding="utf-8") == original_override
+
+
+def test_implicit_override_fragment_collector_reuses_40_distinct_runs(tmp_path):
+    """A normal implicit override is a supported include, not a fallback."""
+    from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
+
+    top = tmp_path / "model_~s1~_~e1~.tcf"
+    top.write_text(
+        "Read Grid Zpts == common.tif\n"
+        "If Scenario == EXG\nRead GIS Code == existing.shp\nEnd If\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "_TUFLOW_Override.tcf").write_text(
+        "Read GIS Code == additional.shp\n"
+        "If Scenario == NEW\nRead Grid Zpts == new.tif\nEnd If\n",
+        encoding="utf-8",
+    )
+    model = TCF(top)
+    flags = [
+        {"s1": "EXG" if index % 2 else "NEW", "e1": f"TP{index:02d}"}
+        for index in range(40)
+    ]
+    actual = model.collect_file_dependencies(flags)
+    expected = collect_fallback_dependencies(model, flags)
+
+    assert actual.passed
+    assert actual.fallback_runs == 0, actual.fallback_reason
+    assert actual.fragment_reuses > 0
+    assert actual.runs == expected.runs
+    assert len(actual.runs) == 40
+    first = {r.path_pattern.name for r in actual.runs[0].file_references}
+    second = {r.path_pattern.name for r in actual.runs[1].file_references}
+    assert {"common.tif", "new.tif", "additional.shp"} <= first
+    assert {"common.tif", "existing.shp", "additional.shp"} <= second
+
+
+def test_monkeypatched_override_evaluator_still_forces_fallback(tmp_path):
+    """Never allow custom implicit-override context hooks into fragment reuse."""
+    from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
+
+    top = tmp_path / "model.tcf"
+    top.write_text("Read Grid Zpts == common.tif\n", encoding="utf-8")
+    (tmp_path / "_TUFLOW_Override.tcf").write_text(
+        "Read GIS Code == additional.shp\n", encoding="utf-8",
+    )
+    model = TCF(top)
+    override = next(inp for inp in model.inputs if type(inp).__name__ == "_OverrideInput")
+    original = override.context
+
+    def wrapper(*args, **kwargs):
+        return original(*args, **kwargs)
+
+    override.context = wrapper
+    flags = [{"s1": "EXG"}, {"s1": "NEW"}]
+    actual = model.collect_file_dependencies(flags)
+    expected = collect_fallback_dependencies(model, flags)
+    assert actual.fallback_runs == len(flags)
+    assert actual.fallback_reason == "Custom input context hook"
+    assert actual.runs == expected.runs
