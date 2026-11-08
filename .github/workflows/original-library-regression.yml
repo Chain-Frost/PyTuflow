@@ -7,6 +7,7 @@ on:
     branches: ['ci-validation/**']
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
   group: original-staged-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -69,9 +70,10 @@ jobs:
           REQUIRED: ${{ needs.changes.outputs.required }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           PYTHON312_REQUIRED: ${{ needs.changes.outputs.python312_required }}
+          PR_GATE_TOKEN: ${{ github.token }}
           EXPECTED_JOBS: python311_fast,python312_fast,python314_fast
           JOB_RESULTS: '{"python311_fast": "${{ needs.python311_fast.result }}", "python312_fast": "${{ needs.python312_fast.result }}", "python314_fast": "${{ needs.python314_fast.result }}"}'
-        run: python ci/pr_gate.py verify --conditional-python312
+        run: python ci/pr_gate.py verify --conditional-python312 --verify-current-pr
   python311_full:
     needs: [changes, fast_gate]
     if: needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
@@ -115,6 +117,7 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           FAST_GATE_RESULT: ${{ needs.fast_gate.result }}
           PYTHON312_REQUIRED: ${{ needs.changes.outputs.python312_required }}
+          PR_GATE_TOKEN: ${{ github.token }}
           EXPECTED_JOBS: python311_full,python312_full,python314_full
           JOB_RESULTS: '{"python311_full": "${{ needs.python311_full.result }}", "python312_full": "${{ needs.python312_full.result }}", "python314_full": "${{ needs.python314_full.result }}"}'
-        run: python ci/pr_gate.py verify --require-fast-gate --conditional-python312
+        run: python ci/pr_gate.py verify --require-fast-gate --conditional-python312 --verify-current-pr

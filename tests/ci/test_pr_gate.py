@@ -1,6 +1,6 @@
 import pytest
 
-from ci.pr_gate import applicable, require_results
+from ci.pr_gate import applicable, require_live_pr_state, require_results
 
 
 @pytest.mark.parametrize('mode', ['fast', 'full'])
@@ -145,6 +145,9 @@ def test_staged_workflow_has_single_scope_and_fail_closed_gates():
     assert "run: python ci/pr_gate.py verify --require-fast-gate --conditional-python312" in workflow
     assert "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]" in workflow
     assert workflow.count("PYTHON312_REQUIRED:") == 2
+    assert workflow.count("PR_GATE_TOKEN:") == 2
+    assert workflow.count("--verify-current-pr") == 2
+    assert "pull-requests: read" in workflow
     assert workflow.count("needs.changes.outputs.python312_required == 'true'") == 2
     assert workflow.count("run_contracts: false") == 3
     assert "run_contracts:" in lane and "default: true" in lane
@@ -268,3 +271,85 @@ def test_gate_rejects_optional_unknown_job():
             True, "success", {"python311_fast": "success"},
             optional_skipped_jobs={"python312_fast"},
         )
+
+
+
+def _pr_snapshot(*, draft: bool, head: str = "a" * 40, base: str = "b" * 40) -> dict:
+    return {
+        "number": 66, "state": "open", "draft": draft,
+        "head": {"sha": head, "ref": "ci/feature"},
+        "base": {"sha": base, "ref": "contrib/integration"},
+    }
+
+
+@pytest.mark.parametrize("draft", [True, False])
+def test_live_pr_check_accepts_unchanged_review_state_and_revision(draft):
+    pr = _pr_snapshot(draft=draft)
+    require_live_pr_state({"pull_request": pr}, pr)
+
+
+@pytest.mark.parametrize("event_draft, current_draft", [(True, False), (False, True)])
+def test_live_pr_check_rejects_stale_draft_and_ready_reruns(event_draft, current_draft):
+    with pytest.raises(ValueError, match="Stale PR draft/ready state"):
+        require_live_pr_state(
+            {"pull_request": _pr_snapshot(draft=event_draft)},
+            _pr_snapshot(draft=current_draft),
+        )
+
+
+@pytest.mark.parametrize("revision", ["head", "base"])
+def test_live_pr_check_rejects_moving_candidate_or_base(revision):
+    old = _pr_snapshot(draft=True)
+    live = _pr_snapshot(draft=True)
+    live[revision]["sha"] = "c" * 40
+    with pytest.raises(ValueError, match=f"Stale PR {revision} revision"):
+        require_live_pr_state({"pull_request": old}, live)
+
+
+def test_live_pr_check_rejects_retarget_to_another_base():
+    old = _pr_snapshot(draft=False)
+    live = _pr_snapshot(draft=False)
+    live["base"]["ref"] = "contrib/other"
+    with pytest.raises(ValueError, match="Stale PR base ref"):
+        require_live_pr_state({"pull_request": old}, live)
+
+
+@pytest.mark.parametrize("state", ["closed", "merged"])
+def test_live_pr_check_rejects_closed_request(state):
+    old = _pr_snapshot(draft=True)
+    live = _pr_snapshot(draft=True)
+    live["state"] = state
+    with pytest.raises(ValueError, match="no longer open"):
+        require_live_pr_state({"pull_request": old}, live)
+
+
+def test_live_pr_verifier_rejects_missing_token(tmp_path, monkeypatch):
+    import json
+    from ci.pr_gate import verify_current_pr_state
+
+    pr = _pr_snapshot(draft=True)
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps({"number": 66, "pull_request": pr}))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Chain-Frost/PyTuflow")
+    monkeypatch.delenv("PR_GATE_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="Missing GitHub token"):
+        verify_current_pr_state()
+
+
+def test_live_pr_verifier_rejects_stale_api_snapshot(tmp_path, monkeypatch):
+    import json
+    from io import BytesIO
+    from ci import pr_gate
+
+    pr = _pr_snapshot(draft=True)
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps({"number": 66, "pull_request": pr}))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Chain-Frost/PyTuflow")
+    monkeypatch.setenv("PR_GATE_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.com")
+    payload = json.dumps(_pr_snapshot(draft=False)).encode()
+    monkeypatch.setattr(pr_gate.urllib.request, "urlopen", lambda request, timeout: BytesIO(payload))
+    with pytest.raises(ValueError, match="Stale PR draft/ready state"):
+        pr_gate.verify_current_pr_state()

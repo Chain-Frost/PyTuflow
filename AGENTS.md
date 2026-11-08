@@ -47,7 +47,9 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
   full Windows lanes start only after the same candidate's fast gate succeeds.
   Draft PRs skip the Python 3.12 Windows lanes for resource efficiency; marking
   them ready for review must retrigger all three before integration. Existing
-  required checks fail closed on missing or failed required lanes.
+  required checks fail closed on missing or failed required lanes. On PR gate
+  completion, verify current GitHub PR draft/ready state and pinned head/base
+  revision via read-only API; historical reruns must not reuse draft exemptions.
 - For exhaustive focused-matrix diagnostics, re-run all jobs on the same head:
   only the first PR attempt stops sibling lanes on the first failure. Full
   upstream/base/candidate comparisons must still retain complete raw outcomes.

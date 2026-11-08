@@ -103,3 +103,11 @@ weekly schedules cannot execute from this fork's integration-only workflow
 while `master` must remain an exact upstream mirror; any recurring external
 trigger will be tracked separately and is not implemented here. Real native
 QGIS validation remains a separate acceptance boundary.
+
+A subsequent Codex review identified stale draft-rerun risk: rerunning an old
+draft workflow after marking the PR ready could cancel fresh full validation and
+publish green gates with only 3.11/3.14. Both gates now re-query the current PR
+from GitHub using read-only token permission and require an open PR with the
+same draft/ready state, head and exact review-base revision as the original
+event. This executes during partial reruns too. The original event-pinned
+upstream/base/candidate snapshots are unchanged; API failure fails closed.

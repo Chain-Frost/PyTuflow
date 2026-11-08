@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import urllib.request
 import subprocess
 from pathlib import Path
 
@@ -38,12 +40,74 @@ def require_results(
         raise ValueError(f'Expected substantive job outcomes {required}: {results}')
 
 
+
+def require_live_pr_state(event: dict, live: dict) -> None:
+    """Reject an out-of-date PR state before reporting a protected gate success."""
+    pr = event.get('pull_request')
+    if not isinstance(pr, dict) or not isinstance(live, dict):
+        raise ValueError('Missing PR event or current PR state')
+    if live.get('state') != 'open':
+        raise ValueError('Pull request is no longer open')
+    if not isinstance(pr.get('draft'), bool) or not isinstance(live.get('draft'), bool):
+        raise ValueError('Missing draft status in PR snapshot')
+    if pr['draft'] != live['draft']:
+        raise ValueError('Stale PR draft/ready state: rerun after the current review-state change')
+    for name in ('head', 'base'):
+        pinned = pr.get(name)
+        current = live.get(name)
+        if not isinstance(pinned, dict) or not isinstance(current, dict):
+            raise ValueError(f'Missing {name} revision in PR snapshot')
+        old_sha, new_sha = pinned.get('sha'), current.get('sha')
+        if not isinstance(old_sha, str) or not re.fullmatch(r'[0-9a-f]{40}', old_sha):
+            raise ValueError(f'Invalid event-pinned {name} SHA')
+        if new_sha != old_sha:
+            raise ValueError(f'Stale PR {name} revision: {old_sha} != {new_sha}')
+        # A retarget to another branch at an identical SHA is still a new review base.
+        old_ref, new_ref = pinned.get('ref'), current.get('ref')
+        if old_ref is not None and new_ref != old_ref:
+            raise ValueError(f'Stale PR {name} ref: {old_ref!r} != {new_ref!r}')
+
+
+def verify_current_pr_state() -> None:
+    """Read GitHub's *current* PR status; never trust a historical rerun payload."""
+    event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
+    if 'pull_request' not in event:  # Explicit ci-validation push probes have no PR.
+        return
+    pr = event['pull_request']
+    if not isinstance(pr, dict):
+        raise ValueError('Invalid pull-request event')
+    number = event.get('number', pr.get('number'))
+    if type(number) is not int or number <= 0:
+        raise ValueError('Missing or invalid pull request number')
+    token = os.environ.get('PR_GATE_TOKEN')
+    if not token:
+        raise ValueError('Missing GitHub token for current PR verification')
+    repo = os.environ.get('GITHUB_REPOSITORY', '')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+        raise ValueError('Invalid current repository')
+    api_root = os.environ.get('GITHUB_API_URL', 'https://api.github.com').rstrip('/')
+    request = urllib.request.Request(
+        f'{api_root}/repos/{repo}/pulls/{number}',
+        headers={
+            'Authorization': f'Bearer {token}',
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        live = json.load(response)
+    if not isinstance(live, dict) or live.get('number') != number:
+        raise ValueError('Current GitHub PR identity does not match event')
+    require_live_pr_state(event, live)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['classify', 'verify'])
     parser.add_argument('--mode', choices=['fast', 'full'])
     parser.add_argument('--require-fast-gate', action='store_true')
     parser.add_argument('--conditional-python312', action='store_true')
+    parser.add_argument('--verify-current-pr', action='store_true')
     args = parser.parse_args()
     if args.command == 'classify':
         if not args.mode:
@@ -98,6 +162,8 @@ def main() -> None:
             fast_gate_result=os.environ.get('FAST_GATE_RESULT', '') if args.require_fast_gate else None,
             optional_skipped_jobs=optional_skips,
         )
+        if args.verify_current_pr:
+            verify_current_pr_state()
         print('Applicable jobs succeeded' if value == 'true' else 'Documentation/unrelated scope: substantive jobs not required')
 
 

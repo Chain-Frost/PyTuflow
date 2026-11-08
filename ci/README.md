@@ -33,6 +33,11 @@ back to draft does not permit merging. Explicit `ci-validation/**` push probes
 always run all three versions. The existing two protected gate names remain
 required; their per-interpreter expectations fail closed on missing Python
 3.12 classification, incorrect skips or failures.
+Before either protected gate reports success on a PR, a read-only GitHub API
+lookup must confirm the PR is still open and that its live draft/ready status,
+head SHA and exact review-base SHA match the event-pinned snapshot. Historical
+draft reruns and partial job reruns cannot reuse the Python 3.12 exemption after
+the PR becomes ready. Missing token/API responses fail the gate closed.
 This repository's `master` remains an exact upstream mirror, so native
 `schedule` on the integration-only workflow cannot run here. A recurring
 external trigger is a separate follow-up, not claimed as implemented.
