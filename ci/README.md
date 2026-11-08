@@ -45,7 +45,8 @@ Missing classifier output, missing jobs, failures and cancellation fail closed.
 An entirely cancelled workflow cannot satisfy the required success checks.
 Both scope jobs now audit Python grammar before their Windows lanes start. Grammar
 also runs before dependency installation in each reusable or focused lane.
-The original quick and full workflows still execute independently.
+The original quick and full workflows still execute independently; their further
+consolidation is scoped in the [follow-up handoff](RESOURCE_EFFICIENCY_FOLLOW_UP.md).
 
 ## Iteration, cancellation and retained evidence
 

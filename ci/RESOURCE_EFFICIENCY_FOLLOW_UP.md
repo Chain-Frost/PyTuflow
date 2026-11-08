@@ -1,0 +1,85 @@
+# Follow-up: stage original-library acceptance after fast contracts
+
+Status: design handoff, not implemented by the resource-efficiency PR.
+Predecessor: [PR #65](https://github.com/Chain-Frost/PyTuflow/pull/65), branch
+`ci/resource-efficiency-20261108`, exact base
+`d10fa694568e504f13b556a097d43dd3c609fb4b`. Before implementation, fetch the
+predecessor again and record any refreshed base SHA. Keep the follow-up stacked
+on #65 while the predecessor remains open. Do not merge into `master` or enable
+auto-merge.
+
+The inherited original quick/full workflows select PR bases `contrib/integration`,
+`contrib/**` and `master`; the current stacked base `ci/resource-efficiency-20261108`
+does not match. This documentation-only handoff therefore makes no claim of
+inherited protected-gate validation. Before implementation, ensure the chosen PR
+base and trigger strategy actually run both gates. For example, deliberately add
+coverage for the stacked base in that implementation and verify the resulting
+hosted checks, or retarget to integration after the predecessor is accepted.
+Preserve the `master` upstream mirror. Missing checks are never acceptance.
+
+## Evidence and objective
+
+At audited head `7890a51d494f6b41118aff51cfe67c24f079c94b`,
+[fast run 42449677851](https://github.com/Chain-Frost/PyTuflow/actions/runs/42449677851)
+used 7 minutes of Windows runner time across Python 3.11, 3.12 and 3.14.
+[Full run 42449677849](https://github.com/Chain-Frost/PyTuflow/actions/runs/42449677849)
+used 61 minutes 41 seconds. Both workflows started independently and each full
+lane repeated the same infrastructure/numerical contracts: 225 seconds of test
+steps in total. These are observed runner times, not a billed-cost estimate.
+
+The current PR adds grammar checks before Windows fan-out and bounds/cancels
+focused work. It does not yet prevent full regression from starting when a
+runtime contract fails in the separate fast workflow.
+
+## Bounded implementation
+
+1. Read `AGENTS.md`, `ci/README.md`, the current PR checks and the exact branch
+   protection requirements. Preserve the required check names `Fast contracts
+   gate` and `Original library acceptance`, both bound to GitHub Actions.
+2. Consolidate quick and full orchestration into one PR-triggered workflow with
+   one scope classifier. Retain the existing pull-request base branches and
+   `ci-validation/**` push-probe behaviour, and explicitly cover the chosen stacked
+   base when it falls outside those filters. Retire the old automatic quick trigger
+   only when the replacement reports both required check names without prefixes
+   or duplicate contexts. Do not use `workflow_run` on untrusted PR code or reuse
+   a result from a previous head.
+3. Run the same three Windows fast lanes, then report `Fast contracts gate`.
+   Start the three full lanes only when that gate has succeeded for the same
+   event-pinned candidate. Keep the full lanes' upstream, exact-base and exact-
+   candidate snapshots, removed-test inventory, both comparisons, and every
+   per-interpreter sdist-to-wheel and installed-wheel check unchanged.
+4. Avoid repeating infrastructure/numerical contracts inside full lanes only
+   after the dependency graph guarantees their successful fast counterparts.
+   Standalone reusable-lane calls must still run their own contracts by default.
+   Both gates must use `always()` and reject missing, failed, cancelled or
+   unexpectedly skipped prerequisite jobs. Explicit prose-only classification
+   remains the only successful substantive-job skip.
+5. Keep full comparison outcome collection exhaustive. Do not add pytest
+   `--maxfail`, suppress inherited failures, cache baseline results, alter
+   reference data, remove interpreter coverage or change public dependencies.
+   Pushing a draft PR must still produce applicable acceptance checks.
+
+Primary files: `.github/workflows/original-library-quick.yml`,
+`.github/workflows/original-library-regression.yml`,
+`.github/workflows/original-library-lane.yml`, `ci/pr_gate.py`, and relevant
+`tests/ci/` gate contracts. Coordinate any overlapping workflow changes.
+
+## Acceptance before handoff
+
+- Verify the actual stacked PR base triggers both protected checks on the exact
+  candidate. Neither a missing workflow nor an absent check is a successful gate.
+- Validate workflow syntax and fail-closed gate behaviour for classifier failure,
+  missing output, fast failure, cancellation, skipped lanes and documentation-
+  only changes. Preserve source-to-prose rename coverage and unknown-path safety.
+- Show on hosted evidence that a deliberate cheap/fast failure starts no full
+  Windows regression lanes, and that the full acceptance gate reports failure.
+  Keep such probes separate from the final candidate and its protected checks.
+- On the stable final head, require both protected gates and all three complete
+  Windows upstream/base/candidate comparisons, packaging and installed-wheel
+  checks. Record candidate/base/upstream SHAs and retain raw failures honestly.
+- Compare runner minutes and time to first failure with the measured runs above.
+  Expect a longer successful critical path because fast contracts now precede
+  full regression. Claim only measured savings; dependency installation still
+  occurs in separate Windows jobs and is not eliminated by this design.
+- Push one tested implementation batch and rerun only the validation that needs
+  it. No branch-protection changes, release or merge is authorised by this handoff.
