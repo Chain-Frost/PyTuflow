@@ -2,6 +2,7 @@ name: Public API compatibility contracts 08B
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
     paths:
       - ".github/workflows/public-api-contracts.yml"
       - "tests/test_public_api_contracts.py"
@@ -30,7 +31,7 @@ jobs:
     strategy:
       fail-fast: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
       matrix:
-        python-version: ["3.11", "3.12", "3.14"]
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft == true && '["3.11", "3.14"]' || '["3.11", "3.12", "3.14"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

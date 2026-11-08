@@ -24,8 +24,21 @@ those helpers still require careful review.
 No engineering reference data is changed. Raw failures remain failed in reports;
 a green comparison means no new regressions, not that all tests passed.
 
-Windows Python 3.11, 3.12 and 3.14 each run fast infrastructure contracts and
-full original-library regression plus sdist-to-wheel installation checks.
+Windows Python 3.11 and 3.14 run fast contracts and full original-library
+regression plus per-interpreter sdist-to-wheel installation checks on ordinary
+draft PRs. Once a PR is marked ready for review, Python 3.12 also becomes
+mandatory for both stages on every substantive candidate update. The
+`ready_for_review` event triggers that pre-merge validation; changing a PR
+back to draft does not permit merging. Explicit `ci-validation/**` push probes
+always run all three versions. The existing two protected gate names remain
+required; their per-interpreter expectations fail closed on missing Python
+3.12 classification, incorrect skips or failures.
+Before either protected gate reports success on a PR, a read-only GitHub API
+lookup must confirm the PR is still open and that its live draft/ready status,
+head SHA and exact review-base SHA match the event-pinned snapshot. Historical
+draft reruns and partial job reruns cannot reuse the Python 3.12 exemption after
+the PR becomes ready. Missing token/API responses fail the gate closed.
+No real QGIS runtime is supplied by these Windows library tests.
 Windows remains the acceptance baseline. Ubuntu runs inexpensive scope, grammar
 and final-gate checks; Linux filename-case lanes retain their distinct filesystem
 contract. A successful Linux job does not replace Windows or native QGIS evidence.
@@ -43,9 +56,22 @@ Classification uses complete Git diffs without rename detection. Both gates
 always report; every named lane must be success for code or skipped for prose.
 Missing classifier output, missing jobs, failures and cancellation fail closed.
 An entirely cancelled workflow cannot satisfy the required success checks.
-Both scope jobs now audit Python grammar before their Windows lanes start. Grammar
-also runs before dependency installation in each reusable or focused lane.
-The original quick and full workflows still execute independently.
+A single original-library scope job now audits Python grammar before the Windows
+fast lanes start and determines whether Python 3.12 is mandatory from the PR
+draft/ready state or explicit CI-validation push event. Its `Fast contracts gate` must succeed on the event-pinned
+candidate before any Windows full-regression lane can start. All three full lanes
+then retain upstream/base/candidate comparisons and installed-wheel verification.
+The `Original library acceptance` gate also verifies the fast gate succeeded,
+including for prose-only changes where both sets of Windows lanes are skipped.
+Full Windows jobs use `always() && !cancelled()` with positive classifier and
+fast-gate checks. This avoids GitHub's implicit transitive skip when an optional
+Python 3.12 fast predecessor is skipped, while permitting cancellation of
+superseded runs. Both protected gates still fail closed.
+Standalone reusable lanes run their own contracts by default; staged full lanes
+omit the contracts already passed by their corresponding fast lanes.
+Grammar still runs before dependency installation in each reusable or focused lane.
+Both protected check names are emitted once by the same staged workflow; see the
+[follow-up record](RESOURCE_EFFICIENCY_FOLLOW_UP.md).
 
 ## Iteration, cancellation and retained evidence
 
@@ -61,6 +87,14 @@ same head for exhaustive diagnostics: subsequent attempts do not fail fast.
 This path works without adding fork workflows to the upstream-mirror `master`.
 The original full comparison still gathers every required raw test outcome.
 
+Path-filtered focused workflows follow the same resource policy: draft PRs
+test Python 3.11 and 3.14, and the `ready_for_review` event restores Python
+3.12 (including each pandas-variant combination and both Linux/Windows
+filesystem-case lanes) before a PR can merge. Focused workflows that do not
+match a PR's changed paths remain intentionally untriggered; their scope is
+also protected by the always-reported original-library gates. Workflow
+dispatch, where available, defaults to all three versions.
+
 Focused lanes cache downloaded pip packages, not installed environments, source,
 regression results or acceptance reports. Every job installs its declared
 dependencies and every full lane reruns upstream, exact base and candidate.
@@ -70,7 +104,7 @@ Artifact retention is now:
 
 | Evidence | Retention |
 | --- | --- |
-| Fast/full infrastructure contract reports | 14 days |
+| Fast infrastructure contract reports (full stages reuse those results) | 14 days |
 | Every interpreter's built wheel, provenance and complete smoke JSON | 14 days |
 | Original regression raw JSON, JUnit, logs and comparison evidence | 21 days |
 | Reference Python 3.12 source distribution and any failing lane's available sdist | 14 days |

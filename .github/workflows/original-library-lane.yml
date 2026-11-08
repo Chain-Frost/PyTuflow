@@ -8,6 +8,11 @@ on:
       kind:
         required: true
         type: string
+      run_contracts:
+        description: Run infrastructure and numerical contract tests for standalone calls
+        required: false
+        type: boolean
+        default: true
 permissions:
   contents: read
 jobs:
@@ -40,28 +45,33 @@ jobs:
           python -m pip install -r ci/requirements-regression.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run infrastructure contracts
+        if: inputs.run_contracts
         run: |
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/contracts" | Out-Null
           python -m pytest -q tests/ci --junitxml="$env:RUNNER_TEMP/contracts/tests.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify FV averaging and numerical public-reader regressions
+        if: inputs.run_contracts
         run: |
           python -m pytest -q tests/test_numerical_depth_averaging.py tests/test_numerical_mesh_reductions.py tests/test_numerical_fv_reader.py --junitxml="$env:RUNNER_TEMP/contracts/numerical.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify QGIS face-centroid analytical contracts (provider-independent)
+        if: inputs.run_contracts
         run: |
           python -m pytest -q tests/test_qgis_centroid_math.py --junitxml="$env:RUNNER_TEMP/contracts/qgis-centroid.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify QGIS angle-weighted vertex interpolation maths (provider-independent)
+        if: inputs.run_contracts
         run: |
           python -m pytest -q tests/test_qgis_vertex_angle_math.py --junitxml="$env:RUNNER_TEMP/contracts/qgis-vertex-angles.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify cell-centred point scalar/vector public contracts
+        if: inputs.run_contracts
         run: |
           python -m pytest -q tests/test_cell_point_vector_corrections.py --junitxml="$env:RUNNER_TEMP/contracts/cell-point-vector.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Archive infrastructure contracts
-        if: always()
+        if: always() && inputs.run_contracts
         uses: actions/upload-artifact@v4
         with:
           name: contracts-${{ inputs.python }}-${{ inputs.kind }}
