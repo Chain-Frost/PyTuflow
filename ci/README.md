@@ -38,9 +38,6 @@ lookup must confirm the PR is still open and that its live draft/ready status,
 head SHA and exact review-base SHA match the event-pinned snapshot. Historical
 draft reruns and partial job reruns cannot reuse the Python 3.12 exemption after
 the PR becomes ready. Missing token/API responses fail the gate closed.
-This repository's `master` remains an exact upstream mirror, so native
-`schedule` on the integration-only workflow cannot run here. A recurring
-external trigger is a separate follow-up, not claimed as implemented.
 No real QGIS runtime is supplied by these Windows library tests.
 Windows remains the acceptance baseline. Ubuntu runs inexpensive scope, grammar
 and final-gate checks; Linux filename-case lanes retain their distinct filesystem
@@ -66,10 +63,10 @@ candidate before any Windows full-regression lane can start. All three full lane
 then retain upstream/base/candidate comparisons and installed-wheel verification.
 The `Original library acceptance` gate also verifies the fast gate succeeded,
 including for prose-only changes where both sets of Windows lanes are skipped.
-Full Windows jobs use explicit `always()` expressions with positive classifier
-and fast-gate checks. GitHub otherwise implicitly skips downstream jobs when
-an optional Python 3.12 fast predecessor is skipped, even after `Fast contracts
-gate` succeeds; an `always()` without those positive checks is not sufficient.
+Full Windows jobs use `always() && !cancelled()` with positive classifier and
+fast-gate checks. This avoids GitHub's implicit transitive skip when an optional
+Python 3.12 fast predecessor is skipped, while permitting cancellation of
+superseded runs. Both protected gates still fail closed.
 Standalone reusable lanes run their own contracts by default; staged full lanes
 omit the contracts already passed by their corresponding fast lanes.
 Grammar still runs before dependency installation in each reusable or focused lane.

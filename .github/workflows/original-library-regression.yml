@@ -76,7 +76,7 @@ jobs:
         run: python ci/pr_gate.py verify --conditional-python312 --verify-current-pr
   python311_full:
     needs: [changes, fast_gate]
-    if: always() && needs.changes.result == 'success' && needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
+    if: always() && !cancelled() && needs.changes.result == 'success' && needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
     uses: ./.github/workflows/original-library-lane.yml
     with:
       python: '3.11'
@@ -84,7 +84,7 @@ jobs:
       run_contracts: false
   python312_full:
     needs: [changes, fast_gate]
-    if: always() && needs.changes.result == 'success' && needs.changes.outputs.required == 'true' && needs.changes.outputs.python312_required == 'true' && needs.fast_gate.result == 'success'
+    if: always() && !cancelled() && needs.changes.result == 'success' && needs.changes.outputs.required == 'true' && needs.changes.outputs.python312_required == 'true' && needs.fast_gate.result == 'success'
     uses: ./.github/workflows/original-library-lane.yml
     with:
       python: '3.12'
@@ -92,7 +92,7 @@ jobs:
       run_contracts: false
   python314_full:
     needs: [changes, fast_gate]
-    if: always() && needs.changes.result == 'success' && needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
+    if: always() && !cancelled() && needs.changes.result == 'success' && needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
     uses: ./.github/workflows/original-library-lane.yml
     with:
       python: '3.14'

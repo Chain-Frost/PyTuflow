@@ -139,13 +139,13 @@ def test_staged_workflow_has_single_scope_and_fail_closed_gates():
     assert "'ci-validation/**'" in workflow
     assert workflow.count("    name: Fast contracts gate") == 1
     assert workflow.count("    name: Original library acceptance") == 1
-    assert workflow.count("    if: always()") == 2
+    assert workflow.splitlines().count("    if: always()") == 2
     assert "needs: [changes, fast_gate]" in workflow
     assert workflow.count("needs.fast_gate.result == 'success'") == 3
     # An optional skipped Python 3.12 fast lane is a transitive dependency of
     # fast_gate. GitHub's implicit success() would otherwise skip both required
     # full lanes despite a successful fast gate.
-    assert workflow.count("if: always() && needs.changes.result == 'success'") == 3
+    assert workflow.count("if: always() && !cancelled() && needs.changes.result == 'success'") == 3
     assert "run: python ci/pr_gate.py verify --require-fast-gate --conditional-python312" in workflow
     assert "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]" in workflow
     assert workflow.count("PYTHON312_REQUIRED:") == 2

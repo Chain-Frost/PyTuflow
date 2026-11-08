@@ -98,11 +98,7 @@ rerun 3.12 on subsequent candidate changes; `ci-validation/**` push probes
 retain the complete three-version matrix. The classifier supplies an explicit
 fail-closed Python 3.12 decision, and both pre-existing protected gates verify
 that decision. The workflow reacts to `ready_for_review`, so the three-version
-acceptance is a pre-merge requirement without changing branch protection. Native
-weekly schedules cannot execute from this fork's integration-only workflow
-while `master` must remain an exact upstream mirror; any recurring external
-trigger will be tracked separately and is not implemented here. Real native
-QGIS validation remains a separate acceptance boundary.
+acceptance is a pre-merge requirement without changing branch protection. Real native QGIS validation remains a separate acceptance boundary.
 
 A subsequent Codex review identified stale draft-rerun risk: rerunning an old
 draft workflow after marking the PR ready could cancel fresh full validation and
@@ -120,3 +116,9 @@ job in the transitive prerequisite graph. The follow-up fix adds explicit
 classifier success, substantive scope, successful fast gate and the per-lane
 3.12 decision. No failed/cancelled gate can start full regression; missing
 required full jobs still fail final acceptance. Hosted revalidation is required.
+
+A later Codex review identified a test assertion counting compound `always()`
+conditions, and full jobs preventing cancellation of superseded runs. The test
+now counts exact unconditional gate lines. All three full jobs require
+`always() && !cancelled()` plus successful scope and fast-gate prerequisites.
+The final hosted draft and ready validation remains required.
