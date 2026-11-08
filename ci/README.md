@@ -26,6 +26,9 @@ a green comparison means no new regressions, not that all tests passed.
 
 Windows Python 3.11, 3.12 and 3.14 each run fast infrastructure contracts and
 full original-library regression plus sdist-to-wheel installation checks.
+Windows remains the acceptance baseline. Ubuntu runs inexpensive scope, grammar
+and final-gate checks; Linux filename-case lanes retain their distinct filesystem
+contract. A successful Linux job does not replace Windows or native QGIS evidence.
 The wheel check runs with `-I` outside the checkout and verifies package bytes,
 RECORD, public imports, resources, generated TCF and CLI entry-point targets.
 The OS launcher shim is not tested. Direct dependency pins have interpreter
@@ -40,8 +43,48 @@ Classification uses complete Git diffs without rename detection. Both gates
 always report; every named lane must be success for code or skipped for prose.
 Missing classifier output, missing jobs, failures and cancellation fail closed.
 An entirely cancelled workflow cannot satisfy the required success checks.
-Artifacts retain raw JSON, JUnit, logs, dependency provenance and wheels for 30
-days. Download important release/contribution evidence before it expires.
+Both scope jobs now audit Python grammar before their Windows lanes start. Grammar
+also runs before dependency installation in each reusable or focused lane.
+The original quick and full workflows still execute independently.
+
+## Iteration, cancellation and retained evidence
+
+Push a locally checked batch at a review or validation milestone. Multiple local
+commits can share one push; pushing each small correction separately starts more
+hosted work. Required workflows continue to run for draft PRs. Do not use skip-CI
+markers to obtain missing or misleading acceptance checks.
+
+All focused workflows cancel older runs for the same workflow and PR, while
+keeping other workflows and stacked PRs independent. Their matrices stop sibling
+lanes after the first failure on the first PR attempt. Re-run all jobs on the
+same head for exhaustive diagnostics: subsequent attempts do not fail fast.
+This path works without adding fork workflows to the upstream-mirror `master`.
+The original full comparison still gathers every required raw test outcome.
+
+Focused lanes cache downloaded pip packages, not installed environments, source,
+regression results or acceptance reports. Every job installs its declared
+dependencies and every full lane reruns upstream, exact base and candidate.
+Dependency declarations and the three Windows interpreter versions are unchanged.
+
+Artifact retention is now:
+
+| Evidence | Retention |
+| --- | --- |
+| Fast/full infrastructure contract reports | 14 days |
+| Every interpreter's built wheel, provenance and complete smoke JSON | 14 days |
+| Original regression raw JSON, JUnit, logs and comparison evidence | 21 days |
+| Reference Python 3.12 source distribution and any failing lane's available sdist | 14 days |
+| Focused pandas/TMF/raster evidence | 30 days |
+
+Every full interpreter still builds an sdist and builds and tests its own wheel
+from that sdist. Each provenance JSON records the source archive name and SHA-256.
+Successful runs retain one source archive, from reference Python 3.12, instead
+of storing three large archives for the same source revision. Each interpreter's
+wheel and its validation evidence are retained separately. Failed lanes retain
+their available source archive for diagnosis. `outside/` is only the isolated
+working directory; the wheel is installed into the configured interpreter.
+Download important contribution evidence before it expires. Previously uploaded
+artifacts retain their original expiry; this change does not delete them.
 
 ## Local execution (no virtual environments)
 

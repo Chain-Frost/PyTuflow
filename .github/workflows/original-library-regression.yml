@@ -12,6 +12,7 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       required: ${{ steps.scope.outputs.required }}
     steps:
@@ -24,6 +25,9 @@ jobs:
           python-version: '3.11'
       - id: scope
         run: python ci/pr_gate.py classify --mode full
+      - name: Check Python grammar before Windows fan-out
+        if: steps.scope.outputs.required == 'true'
+        run: python ci/python_compatibility.py
   python311:
     needs: changes
     if: needs.changes.outputs.required == 'true'
@@ -50,6 +54,7 @@ jobs:
     if: always()
     needs: [changes, python311, python312, python314]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
         with:

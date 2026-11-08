@@ -27,3 +27,23 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
   modules* within C. Preserve public compatibility and Python >=3.11.
   Exclude fork administration, CI and internal evidence unless requested.
   Neither upstream submission nor automatic merge is authorised by this plan.
+
+## CI-efficient iteration
+
+- Make focused local commits as useful, then push one coherent, locally checked
+  batch at a review or hosted-validation milestone. A push starts CI: do not push
+  every edit, formatting correction or work-note update separately.
+- Run the applicable lightweight checks before pushing. Use existing failed-job
+  reruns for transient infrastructure errors instead of changing source solely
+  to start another workflow. Do not use skip-CI markers to bypass required gates.
+- Windows Python 3.11, 3.12 and 3.14 remains the acceptance baseline. Ubuntu
+  control jobs provide inexpensive early feedback; Linux filename-case tests
+  preserve their specific compatibility contract. Neither replaces Windows or
+  native QGIS evidence, or changes the declared package dependencies.
+- Keep draft PRs subject to applicable checks. Superseded runs may be cancelled
+  per workflow and PR; preserve independent workflows and stacked PRs.
+- For exhaustive focused-matrix diagnostics, re-run all jobs on the same head:
+  only the first PR attempt stops sibling lanes on the first failure. Full
+  upstream/base/candidate comparisons must still retain complete raw outcomes.
+
+See `ci/README.md` for the current gates and artifact policy.
