@@ -66,6 +66,10 @@ candidate before any Windows full-regression lane can start. All three full lane
 then retain upstream/base/candidate comparisons and installed-wheel verification.
 The `Original library acceptance` gate also verifies the fast gate succeeded,
 including for prose-only changes where both sets of Windows lanes are skipped.
+Full Windows jobs use explicit `always()` expressions with positive classifier
+and fast-gate checks. GitHub otherwise implicitly skips downstream jobs when
+an optional Python 3.12 fast predecessor is skipped, even after `Fast contracts
+gate` succeeds; an `always()` without those positive checks is not sufficient.
 Standalone reusable lanes run their own contracts by default; staged full lanes
 omit the contracts already passed by their corresponding fast lanes.
 Grammar still runs before dependency installation in each reusable or focused lane.

@@ -111,3 +111,12 @@ from GitHub using read-only token permission and require an open PR with the
 same draft/ready state, head and exact review-base revision as the original
 event. This executes during partial reruns too. The original event-pinned
 upstream/base/candidate snapshots are unchanged; API failure fails closed.
+
+A hosted draft run on `bbc610d84bafa316a4d655aba5ab0577501865c7`
+passed the fast gate but correctly failed final acceptance when GitHub
+implicitly skipped 3.11/3.14 full lanes due to the optional skipped 3.12 fast
+job in the transitive prerequisite graph. The follow-up fix adds explicit
+`always()` to each full-lane job **together with** positive checks for
+classifier success, substantive scope, successful fast gate and the per-lane
+3.12 decision. No failed/cancelled gate can start full regression; missing
+required full jobs still fail final acceptance. Hosted revalidation is required.
