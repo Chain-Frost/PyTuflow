@@ -81,6 +81,14 @@ same head for exhaustive diagnostics: subsequent attempts do not fail fast.
 This path works without adding fork workflows to the upstream-mirror `master`.
 The original full comparison still gathers every required raw test outcome.
 
+Path-filtered focused workflows follow the same resource policy: draft PRs
+test Python 3.11 and 3.14, and the `ready_for_review` event restores Python
+3.12 (including each pandas-variant combination and both Linux/Windows
+filesystem-case lanes) before a PR can merge. Focused workflows that do not
+match a PR's changed paths remain intentionally untriggered; their scope is
+also protected by the always-reported original-library gates. Workflow
+dispatch, where available, defaults to all three versions.
+
 Focused lanes cache downloaded pip packages, not installed environments, source,
 regression results or acceptance reports. Every job installs its declared
 dependencies and every full lane reruns upstream, exact base and candidate.

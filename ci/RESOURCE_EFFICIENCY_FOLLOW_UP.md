@@ -85,6 +85,12 @@ Primary files: `.github/workflows/original-library-quick.yml`,
 
 ## Python 3.12 draft/pre-merge policy adjustment (2026-11-08)
 
+The same conditional matrix and readiness event are also applied to all six
+path-filtered focused workflows (Linux case policy, imports/logging, pandas
+readers, public API, raster recovery, TMF/pandas). For matrix workflows with
+multiple pandas versions or operating systems, every combination retains the
+3.12 pre-merge lane. Their narrow path/base filters remain unchanged.
+
 The original handoff's unconditional three-version PR matrix is superseded by
 an approved resource-efficiency policy: run Python 3.11 and 3.14 on draft PRs,
 then require Python 3.12 as well when a PR becomes ready for review. Ready PRs

@@ -1,6 +1,7 @@
 name: Pandas result-reader compatibility
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
     branches:
       - contrib/integration
     paths:
@@ -24,7 +25,7 @@ jobs:
     strategy:
       fail-fast: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
       matrix:
-        python: ['3.11', '3.12', '3.14']
+        python: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft == true && '["3.11", "3.14"]' || '["3.11", "3.12", "3.14"]') }}
         pandas: ['3.0.3', '3.1.0']
     defaults:
       run:
