@@ -43,10 +43,17 @@ Classification uses complete Git diffs without rename detection. Both gates
 always report; every named lane must be success for code or skipped for prose.
 Missing classifier output, missing jobs, failures and cancellation fail closed.
 An entirely cancelled workflow cannot satisfy the required success checks.
-Both scope jobs now audit Python grammar before their Windows lanes start. Grammar
-also runs before dependency installation in each reusable or focused lane.
-The original quick and full workflows still execute independently; their further
-consolidation is scoped in the [follow-up handoff](RESOURCE_EFFICIENCY_FOLLOW_UP.md).
+A single original-library scope job now audits Python grammar before the Windows
+fast lanes start. Its `Fast contracts gate` must succeed on the event-pinned
+candidate before any Windows full-regression lane can start. All three full lanes
+then retain upstream/base/candidate comparisons and installed-wheel verification.
+The `Original library acceptance` gate also verifies the fast gate succeeded,
+including for prose-only changes where both sets of Windows lanes are skipped.
+Standalone reusable lanes run their own contracts by default; staged full lanes
+omit the contracts already passed by their corresponding fast lanes.
+Grammar still runs before dependency installation in each reusable or focused lane.
+Both protected check names are emitted once by the same staged workflow; see the
+[follow-up record](RESOURCE_EFFICIENCY_FOLLOW_UP.md).
 
 ## Iteration, cancellation and retained evidence
 
@@ -71,7 +78,7 @@ Artifact retention is now:
 
 | Evidence | Retention |
 | --- | --- |
-| Fast/full infrastructure contract reports | 14 days |
+| Fast infrastructure contract reports (full stages reuse those results) | 14 days |
 | Every interpreter's built wheel, provenance and complete smoke JSON | 14 days |
 | Original regression raw JSON, JUnit, logs and comparison evidence | 21 days |
 | Reference Python 3.12 source distribution and any failing lane's available sdist | 14 days |

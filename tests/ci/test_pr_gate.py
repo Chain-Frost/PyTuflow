@@ -93,3 +93,56 @@ def test_real_git_scope_classification(tmp_path, event_kind, renamed, expected):
     helper = Path(__file__).resolve().parents[2] / "ci/pr_gate.py"
     subprocess.run([sys.executable, str(helper), "classify", "--mode", "full"], cwd=tmp_path, env=env, check=True)
     assert output.read_text() == f"required={expected}\n"
+
+@pytest.mark.parametrize("result", ["failure", "cancelled", "skipped", "pending", ""])
+@pytest.mark.parametrize("substantive", [True, False])
+def test_full_gate_fails_closed_when_fast_gate_is_not_successful(result, substantive):
+    lanes = {name: "success" if substantive else "skipped"
+             for name in ("python311_full", "python312_full", "python314_full")}
+    with pytest.raises(ValueError, match="Fast contracts gate"):
+        require_results(substantive, "success", lanes, set(lanes), fast_gate_result=result)
+
+
+@pytest.mark.parametrize("substantive", [True, False])
+def test_full_gate_accepts_complete_fast_and_full_results(substantive):
+    lanes = {name: "success" if substantive else "skipped"
+             for name in ("python311_full", "python312_full", "python314_full")}
+    require_results(substantive, "success", lanes, set(lanes), fast_gate_result="success")
+
+
+def test_full_gate_cli_rejects_missing_fast_output(monkeypatch):
+    import json
+    import sys
+    from ci.pr_gate import main
+
+    monkeypatch.setattr(sys, "argv", ["pr_gate.py", "verify", "--require-fast-gate"])
+    monkeypatch.setenv("REQUIRED", "true")
+    monkeypatch.setenv("CHANGES_RESULT", "success")
+    monkeypatch.setenv("EXPECTED_JOBS", "python311_full,python312_full,python314_full")
+    monkeypatch.setenv("JOB_RESULTS", json.dumps({
+        name: "skipped" for name in ("python311_full", "python312_full", "python314_full")
+    }))
+    monkeypatch.delenv("FAST_GATE_RESULT", raising=False)
+    with pytest.raises(ValueError, match="Fast contracts gate"):
+        main()
+
+
+def test_staged_workflow_has_single_scope_and_fail_closed_gates():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/original-library-regression.yml").read_text()
+    lane = (root / ".github/workflows/original-library-lane.yml").read_text()
+    assert not (root / ".github/workflows/original-library-quick.yml").exists()
+    assert workflow.count("      - id: scope") == 1
+    assert "ci/resource-efficiency-20261108" in workflow
+    assert "'ci-validation/**'" in workflow
+    assert workflow.count("    name: Fast contracts gate") == 1
+    assert workflow.count("    name: Original library acceptance") == 1
+    assert workflow.count("    if: always()") == 2
+    assert "needs: [changes, fast_gate]" in workflow
+    assert workflow.count("needs.fast_gate.result == 'success'") == 3
+    assert "run: python ci/pr_gate.py verify --require-fast-gate" in workflow
+    assert workflow.count("run_contracts: false") == 3
+    assert "run_contracts:" in lane and "default: true" in lane
+    assert lane.count("if: inputs.run_contracts") == 5

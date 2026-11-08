@@ -15,9 +15,17 @@ def applicable(paths: list[str], mode: str) -> bool:
                for path in paths)
 
 
-def require_results(expected: bool, changes: str, results: dict[str, str], names: set[str] | None = None) -> None:
+def require_results(
+    expected: bool,
+    changes: str,
+    results: dict[str, str],
+    names: set[str] | None = None,
+    fast_gate_result: str | None = None,
+) -> None:
     if changes != 'success':
         raise ValueError('Path classification did not succeed')
+    if fast_gate_result is not None and fast_gate_result != 'success':
+        raise ValueError(f'Fast contracts gate must succeed before full acceptance: {fast_gate_result!r}')
     if names is not None and set(results) != names:
         raise ValueError(f'Missing or unexpected jobs: {set(results)} != {names}')
     required = 'success' if expected else 'skipped'
@@ -29,6 +37,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['classify', 'verify'])
     parser.add_argument('--mode', choices=['fast', 'full'])
+    parser.add_argument('--require-fast-gate', action='store_true')
     args = parser.parse_args()
     if args.command == 'classify':
         if not args.mode:
@@ -58,7 +67,13 @@ def main() -> None:
         value = os.environ['REQUIRED']
         if value not in {'true', 'false'}:
             raise ValueError(f'Invalid scope result: {value!r}')
-        require_results(value == 'true', os.environ['CHANGES_RESULT'], json.loads(os.environ['JOB_RESULTS']), set(os.environ['EXPECTED_JOBS'].split(',')))
+        require_results(
+            value == 'true',
+            os.environ['CHANGES_RESULT'],
+            json.loads(os.environ['JOB_RESULTS']),
+            set(os.environ['EXPECTED_JOBS'].split(',')),
+            fast_gate_result=os.environ.get('FAST_GATE_RESULT', '') if args.require_fast_gate else None,
+        )
         print('Applicable jobs succeeded' if value == 'true' else 'Documentation/unrelated scope: substantive jobs not required')
 
 

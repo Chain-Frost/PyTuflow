@@ -1,6 +1,6 @@
 # Follow-up: stage original-library acceptance after fast contracts
 
-Status: design handoff, not implemented by the resource-efficiency PR.
+Status: staged orchestration implemented in draft PR #66; hosted acceptance is required.
 Predecessor: [PR #65](https://github.com/Chain-Frost/PyTuflow/pull/65), branch
 `ci/resource-efficiency-20261108`, exact base
 `d10fa694568e504f13b556a097d43dd3c609fb4b`. Before implementation, fetch the
@@ -8,14 +8,13 @@ predecessor again and record any refreshed base SHA. Keep the follow-up stacked
 on #65 while the predecessor remains open. Do not merge into `master` or enable
 auto-merge.
 
-The inherited original quick/full workflows select PR bases `contrib/integration`,
-`contrib/**` and `master`; the current stacked base `ci/resource-efficiency-20261108`
-does not match. This documentation-only handoff therefore makes no claim of
-inherited protected-gate validation. Before implementation, ensure the chosen PR
-base and trigger strategy actually run both gates. For example, deliberately add
-coverage for the stacked base in that implementation and verify the resulting
-hosted checks, or retarget to integration after the predecessor is accepted.
-Preserve the `master` upstream mirror. Missing checks are never acceptance.
+The original quick/full triggers did not match the stacked base
+`ci/resource-efficiency-20261108`. PR #66 now adds that explicit pull-request
+base to the single staged workflow, while preserving `contrib/integration`,
+`contrib/**`, `master` and `ci-validation/**` push probes. Its fast and full
+protected gates must both appear and pass on the actual candidate before
+acceptance. Preserve the `master` upstream mirror; missing checks are never
+acceptance.
 
 ## Evidence and objective
 
@@ -27,9 +26,9 @@ used 61 minutes 41 seconds. Both workflows started independently and each full
 lane repeated the same infrastructure/numerical contracts: 225 seconds of test
 steps in total. These are observed runner times, not a billed-cost estimate.
 
-The current PR adds grammar checks before Windows fan-out and bounds/cancels
-focused work. It does not yet prevent full regression from starting when a
-runtime contract fails in the separate fast workflow.
+The predecessor PR #65 added grammar checks before Windows fan-out and bounded
+focused work. PR #66 stages full regression behind the successful fast gate;
+that behaviour still requires hosted evidence of a deliberate fast failure.
 
 ## Bounded implementation
 

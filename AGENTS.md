@@ -41,7 +41,9 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
   preserve their specific compatibility contract. Neither replaces Windows or
   native QGIS evidence, or changes the declared package dependencies.
 - Keep draft PRs subject to applicable checks. Superseded runs may be cancelled
-  per workflow and PR; preserve independent workflows and stacked PRs.
+  per workflow and PR; preserve independent focused workflows and stacked PRs.
+  Original-library fast/full acceptance is intentionally a single staged workflow:
+  full Windows lanes start only after the same candidate's fast gate succeeds.
 - For exhaustive focused-matrix diagnostics, re-run all jobs on the same head:
   only the first PR attempt stops sibling lanes on the first failure. Full
   upstream/base/candidate comparisons must still retain complete raw outcomes.
