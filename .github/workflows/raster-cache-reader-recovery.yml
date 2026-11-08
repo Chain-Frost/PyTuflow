@@ -10,13 +10,16 @@ on:
       - '.github/workflows/raster-cache-reader-recovery.yml'
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   raster-recovery:
     name: Windows Python ${{ matrix.python }} cache/recovery
     runs-on: windows-latest
     timeout-minutes: 40
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
       matrix:
         python: ['3.11', '3.12', '3.14']
     defaults:
@@ -33,6 +36,12 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            ci/requirements-regression.txt
+            .github/workflows/raster-cache-reader-recovery.yml
+      - name: Python 3.11 grammar compatibility
+        run: python ci/python_compatibility.py
       - name: Install pinned regression environment
         run: |
           python -m pip install -r ci/requirements-regression.txt

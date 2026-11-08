@@ -14,7 +14,7 @@ jobs:
   validate:
     name: Windows Python ${{ inputs.python }} ${{ inputs.kind }}
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.kind == 'fast' && 15 || 60 }}
     defaults:
       run:
         shell: pwsh
@@ -33,15 +33,15 @@ jobs:
           python-version: ${{ inputs.python }}
           cache: pip
           cache-dependency-path: ci/requirements-regression.txt
+      - name: Audit Python 3.11 grammar before installing regression dependencies
+        run: python ci/python_compatibility.py
       - name: Install compatible regression dependencies
         run: |
           python -m pip install -r ci/requirements-regression.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Audit Python 3.11 grammar and run infrastructure contracts
+      - name: Run infrastructure contracts
         run: |
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/contracts" | Out-Null
-          python ci/python_compatibility.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pytest -q tests/ci --junitxml="$env:RUNNER_TEMP/contracts/tests.xml"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify FV averaging and numerical public-reader regressions
@@ -67,6 +67,7 @@ jobs:
           name: contracts-${{ inputs.python }}-${{ inputs.kind }}
           path: ${{ runner.temp }}/contracts/
           if-no-files-found: error
+          retention-days: 14
       - name: Pin review base and reject removed test definitions
         id: review-base
         if: inputs.kind == 'full'
@@ -107,7 +108,8 @@ jobs:
           name: original-regression-${{ inputs.python }}
           path: ${{ runner.temp }}/original-regression/
           if-no-files-found: error
-          retention-days: 30
+          # Preserve longer-lived upstream/base/candidate comparison evidence.
+          retention-days: 21
       - name: Build sdist then build wheel from sdist without a virtual environment
         if: success() && inputs.kind == 'full'
         run: |
@@ -116,9 +118,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $pythonVersion = python --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          @{ source_sha=$sourceRevision; python=$pythonVersion; build_command="python -m build --no-isolation" } | ConvertTo-Json | Out-File -Encoding utf8 "$env:RUNNER_TEMP/original-wheel/provenance.json"
+          $provenance = @{ source_sha=$sourceRevision; python=$pythonVersion; build_command="python -m build --no-isolation" }
+          $provenance | ConvertTo-Json | Out-File -Encoding utf8 "$env:RUNNER_TEMP/original-wheel/provenance.json"
           python -m build --no-isolation --outdir "$env:RUNNER_TEMP/original-wheel/dist"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $sdists = @(Get-ChildItem "$env:RUNNER_TEMP/original-wheel/dist/*.tar.gz")
+          if ($sdists.Count -ne 1) { throw "Expected exactly one newly built source distribution" }
+          $provenance.sdist_file = $sdists[0].Name
+          $provenance.sdist_sha256 = (Get-FileHash -LiteralPath $sdists[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $provenance | ConvertTo-Json | Out-File -Encoding utf8 "$env:RUNNER_TEMP/original-wheel/provenance.json"
       - name: Install built wheel into the configured job interpreter
         if: success() && inputs.kind == 'full'
         run: |
@@ -138,11 +146,28 @@ jobs:
           Set-Location $outside
           python -I "$sourceRoot/ci/wheel_smoke.py" --source-root $sourceRoot --wheel $wheel --report "$env:RUNNER_TEMP/original-wheel/wheel-smoke.json"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Archive built distributions and complete smoke evidence
+      - name: Archive each built wheel and complete smoke evidence
         if: always() && inputs.kind == 'full'
         uses: actions/upload-artifact@v4
         with:
           name: original-wheel-${{ inputs.python }}
-          path: ${{ runner.temp }}/original-wheel/
+          # outside/ is only the isolated working directory, not an installation.
+          # Keep every wheel and its evidence; archive the bulky sdist below.
+          path: |
+            ${{ runner.temp }}/original-wheel/dist/*.whl
+            ${{ runner.temp }}/original-wheel/provenance.json
+            ${{ runner.temp }}/original-wheel/wheel-smoke.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
+      - name: Archive reference source distribution or failing-lane evidence
+        if: always() && inputs.kind == 'full' && (inputs.python == '3.12' || failure())
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-sdist-${{ inputs.python }}
+          # Every interpreter still builds and tests its own sdist-to-wheel.
+          # Python 3.12 retains the successful source archive for this source SHA.
+          path: |
+            ${{ runner.temp }}/original-wheel/dist/*.tar.gz
+            ${{ runner.temp }}/original-wheel/provenance.json
+          if-no-files-found: error
+          retention-days: 14

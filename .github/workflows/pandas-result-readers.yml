@@ -13,13 +13,16 @@ on:
       - '.github/workflows/pandas-result-readers.yml'
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   result-reader-compatibility:
     name: Windows Python ${{ matrix.python }} / pandas ${{ matrix.pandas }}
     runs-on: windows-latest
     timeout-minutes: 35
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
       matrix:
         python: ['3.11', '3.12', '3.14']
         pandas: ['3.0.3', '3.1.0']
@@ -37,6 +40,12 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            ci/requirements-regression.txt
+            .github/workflows/pandas-result-readers.yml
+      - name: Python 3.11 grammar compatibility
+        run: python ci/python_compatibility.py
       - name: Install matched dependencies
         run: |
           # GeoPandas 1.1.x warns on pandas 3.1 at import. Pin 1.2.0 in both lanes.

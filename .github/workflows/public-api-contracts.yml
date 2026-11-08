@@ -18,12 +18,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   public-api:
     name: Public API source/wheel Python ${{ matrix.python-version }}
     runs-on: windows-latest
+    timeout-minutes: 20
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
       matrix:
         python-version: ["3.11", "3.12", "3.14"]
     steps:
@@ -31,6 +36,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            .github/workflows/public-api-contracts.yml
+      - name: Python 3.11 grammar compatibility
+        run: python ci/python_compatibility.py
       - name: Install source package and test tools
         run: python -m pip install -e . pytest build hatchling
       - name: Check public API in source installation
