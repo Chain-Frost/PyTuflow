@@ -67,6 +67,7 @@ jobs:
           name: contracts-${{ inputs.python }}-${{ inputs.kind }}
           path: ${{ runner.temp }}/contracts/
           if-no-files-found: error
+          retention-days: 14
       - name: Pin review base and reject removed test definitions
         id: review-base
         if: inputs.kind == 'full'
@@ -107,7 +108,8 @@ jobs:
           name: original-regression-${{ inputs.python }}
           path: ${{ runner.temp }}/original-regression/
           if-no-files-found: error
-          retention-days: 30
+          # Preserve longer-lived upstream/base/candidate comparison evidence.
+          retention-days: 21
       - name: Build sdist then build wheel from sdist without a virtual environment
         if: success() && inputs.kind == 'full'
         run: |
@@ -143,6 +145,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: original-wheel-${{ inputs.python }}
-          path: ${{ runner.temp }}/original-wheel/
+          # Retain distribution and provenance, not the duplicate installed
+          # site-packages copy in original-wheel/outside/ created for smoke tests.
+          path: |
+            ${{ runner.temp }}/original-wheel/dist/
+            ${{ runner.temp }}/original-wheel/provenance.json
+            ${{ runner.temp }}/original-wheel/wheel-smoke.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
