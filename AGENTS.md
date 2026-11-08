@@ -5,8 +5,9 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
 
 - Keep `master` identical to official upstream; work through PRs to
   `contrib/integration`. Do not merge phantom/master wholesale.
-- Minimum runtime and typing language target: Python 3.11. Validate 3.11, 3.12,
-  3.14; real QGIS runs use its own initialized interpreter.
+- Minimum runtime and typing language target: Python 3.11. Draft PR CI runs
+  Python 3.11/3.14; ready-for-review PRs and explicit CI validation runs must
+  pass 3.11/3.12/3.14 on their candidate. Real QGIS runs use its own interpreter.
 - Use configured interpreters, not local virtual environments.
 - Preserve unrelated work. Never force-push, auto-arm a PR, release, or create
   an external upstream PR without explicit authorization.
@@ -44,6 +45,9 @@ Read `docs/contributing/BOOTSTRAP.md`, `docs/contributing/FOLLOW_UPS.md` and
   per workflow and PR; preserve independent focused workflows and stacked PRs.
   Original-library fast/full acceptance is intentionally a single staged workflow:
   full Windows lanes start only after the same candidate's fast gate succeeds.
+  Draft PRs skip the Python 3.12 Windows lanes for resource efficiency; marking
+  them ready for review must retrigger all three before integration. Existing
+  required checks fail closed on missing or failed required lanes.
 - For exhaustive focused-matrix diagnostics, re-run all jobs on the same head:
   only the first PR attempt stops sibling lanes on the first failure. Full
   upstream/base/candidate comparisons must still retain complete raw outcomes.

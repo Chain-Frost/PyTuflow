@@ -82,3 +82,18 @@ Primary files: `.github/workflows/original-library-quick.yml`,
   occurs in separate Windows jobs and is not eliminated by this design.
 - Push one tested implementation batch and rerun only the validation that needs
   it. No branch-protection changes, release or merge is authorised by this handoff.
+
+## Python 3.12 draft/pre-merge policy adjustment (2026-11-08)
+
+The original handoff's unconditional three-version PR matrix is superseded by
+an approved resource-efficiency policy: run Python 3.11 and 3.14 on draft PRs,
+then require Python 3.12 as well when a PR becomes ready for review. Ready PRs
+rerun 3.12 on subsequent candidate changes; `ci-validation/**` push probes
+retain the complete three-version matrix. The classifier supplies an explicit
+fail-closed Python 3.12 decision, and both pre-existing protected gates verify
+that decision. The workflow reacts to `ready_for_review`, so the three-version
+acceptance is a pre-merge requirement without changing branch protection. Native
+weekly schedules cannot execute from this fork's integration-only workflow
+while `master` must remain an exact upstream mirror; any recurring external
+trigger will be tracked separately and is not implemented here. Real native
+QGIS validation remains a separate acceptance boundary.

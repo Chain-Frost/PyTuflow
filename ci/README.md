@@ -24,8 +24,19 @@ those helpers still require careful review.
 No engineering reference data is changed. Raw failures remain failed in reports;
 a green comparison means no new regressions, not that all tests passed.
 
-Windows Python 3.11, 3.12 and 3.14 each run fast infrastructure contracts and
-full original-library regression plus sdist-to-wheel installation checks.
+Windows Python 3.11 and 3.14 run fast contracts and full original-library
+regression plus per-interpreter sdist-to-wheel installation checks on ordinary
+draft PRs. Once a PR is marked ready for review, Python 3.12 also becomes
+mandatory for both stages on every substantive candidate update. The
+`ready_for_review` event triggers that pre-merge validation; changing a PR
+back to draft does not permit merging. Explicit `ci-validation/**` push probes
+always run all three versions. The existing two protected gate names remain
+required; their per-interpreter expectations fail closed on missing Python
+3.12 classification, incorrect skips or failures.
+This repository's `master` remains an exact upstream mirror, so native
+`schedule` on the integration-only workflow cannot run here. A recurring
+external trigger is a separate follow-up, not claimed as implemented.
+No real QGIS runtime is supplied by these Windows library tests.
 Windows remains the acceptance baseline. Ubuntu runs inexpensive scope, grammar
 and final-gate checks; Linux filename-case lanes retain their distinct filesystem
 contract. A successful Linux job does not replace Windows or native QGIS evidence.
@@ -44,7 +55,8 @@ always report; every named lane must be success for code or skipped for prose.
 Missing classifier output, missing jobs, failures and cancellation fail closed.
 An entirely cancelled workflow cannot satisfy the required success checks.
 A single original-library scope job now audits Python grammar before the Windows
-fast lanes start. Its `Fast contracts gate` must succeed on the event-pinned
+fast lanes start and determines whether Python 3.12 is mandatory from the PR
+draft/ready state or explicit CI-validation push event. Its `Fast contracts gate` must succeed on the event-pinned
 candidate before any Windows full-regression lane can start. All three full lanes
 then retain upstream/base/candidate comparisons and installed-wheel verification.
 The `Original library acceptance` gate also verifies the fast gate succeeded,

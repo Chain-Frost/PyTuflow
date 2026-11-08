@@ -2,6 +2,7 @@ name: Original-library staged acceptance
 on:
   pull_request:
     branches: [contrib/integration, 'contrib/**', master, ci/resource-efficiency-20261108]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: ['ci-validation/**']
 permissions:
@@ -15,6 +16,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       required: ${{ steps.scope.outputs.required }}
+      python312_required: ${{ steps.scope.outputs.python312_required }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -37,7 +39,7 @@ jobs:
       kind: fast
   python312_fast:
     needs: changes
-    if: needs.changes.outputs.required == 'true'
+    if: needs.changes.outputs.required == 'true' && needs.changes.outputs.python312_required == 'true'
     uses: ./.github/workflows/original-library-lane.yml
     with:
       python: '3.12'
@@ -66,9 +68,10 @@ jobs:
         env:
           REQUIRED: ${{ needs.changes.outputs.required }}
           CHANGES_RESULT: ${{ needs.changes.result }}
+          PYTHON312_REQUIRED: ${{ needs.changes.outputs.python312_required }}
           EXPECTED_JOBS: python311_fast,python312_fast,python314_fast
           JOB_RESULTS: '{"python311_fast": "${{ needs.python311_fast.result }}", "python312_fast": "${{ needs.python312_fast.result }}", "python314_fast": "${{ needs.python314_fast.result }}"}'
-        run: python ci/pr_gate.py verify
+        run: python ci/pr_gate.py verify --conditional-python312
   python311_full:
     needs: [changes, fast_gate]
     if: needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
@@ -79,7 +82,7 @@ jobs:
       run_contracts: false
   python312_full:
     needs: [changes, fast_gate]
-    if: needs.changes.outputs.required == 'true' && needs.fast_gate.result == 'success'
+    if: needs.changes.outputs.required == 'true' && needs.changes.outputs.python312_required == 'true' && needs.fast_gate.result == 'success'
     uses: ./.github/workflows/original-library-lane.yml
     with:
       python: '3.12'
@@ -111,6 +114,7 @@ jobs:
           REQUIRED: ${{ needs.changes.outputs.required }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           FAST_GATE_RESULT: ${{ needs.fast_gate.result }}
+          PYTHON312_REQUIRED: ${{ needs.changes.outputs.python312_required }}
           EXPECTED_JOBS: python311_full,python312_full,python314_full
           JOB_RESULTS: '{"python311_full": "${{ needs.python311_full.result }}", "python312_full": "${{ needs.python312_full.result }}", "python314_full": "${{ needs.python314_full.result }}"}'
-        run: python ci/pr_gate.py verify --require-fast-gate
+        run: python ci/pr_gate.py verify --require-fast-gate --conditional-python312
