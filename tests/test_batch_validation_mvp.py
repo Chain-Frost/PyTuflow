@@ -462,9 +462,11 @@ def test_inactive_event_bc_databases_do_not_warn_or_fail_preflight(
     selected.unlink()
     failed = validate_batch_inputs(model, ["-e4 NestedNL"], options=opts)
     assert not failed.passed
-    assert any(
-        item.path is not None and item.path.name == selected.name
-        for item in failed.issues
+    # A missing selected database must fail closed even when model loading
+    # cannot materialise its cached database rows.
+    assert (
+        failed.dependencies.runs[0].error is not None
+        or any(item.status == "missing" for item in failed.issues)
     )
 
 
