@@ -95,7 +95,7 @@ class TPC(INFO, ITimeSeries2D):
     """
 
     DOMAIN_TYPES = {'1d': ['1d'], '2d': ['2d', 'po'], 'rl': ['rl', '0d']}
-    GEOMETRY_TYPES = {'point': ['point'], 'line': ['line'], 'polygon': ['polygon', 'region', 'poly']}
+    GEOMETRY_TYPES = {'point': ['point'], 'line': ['line'], 'polygon': ['polygon', 'region', 'poly', 'subcatchment']}
     ATTRIBUTE_TYPES = {}
     ID_COLUMNS = ['id']
 
@@ -610,6 +610,7 @@ class TPC(INFO, ITimeSeries2D):
                 self._gpkgswmm = GPKG1D(self._expand_property_path(prop, value=value))
                 self.node_count += self._gpkgswmm.node_count
                 self.channel_count += self._gpkgswmm.channel_count
+                self.poly_count += self._gpkgswmm.poly_count
                 self.reference_time = self._gpkgswmm.reference_time
                 self.has_reference_time = self._gpkgswmm.has_reference_time
 
@@ -650,7 +651,7 @@ class TPC(INFO, ITimeSeries2D):
     def _filter(self, filter_by: str, filtered_something: bool = False, df: pd.DataFrame = None,
                 ignore_excess_filters: bool = False) -> tuple[pd.DataFrame, dict[str, bool]]:
         # docstring inherited
-        filter_by = self._replace_1d_aliases(filter_by)
+        filter_by = self._map_filter_tokens(filter_by, self._replace_1d_aliases)
         return super()._filter(filter_by, ignore_excess_filters=True)
 
     def _info_name_correction(self, name: str) -> str:
@@ -697,6 +698,7 @@ class TPC(INFO, ITimeSeries2D):
             self._gpkgswmm._load()
             self._time_series_data.update(self._gpkgswmm._time_series_data)
             self._nd_res_types.extend(self._gpkgswmm._nd_res_types)
+            self._poly_res_types.extend(self._gpkgswmm._poly_res_types)
 
         # reporting locations
         if self.rl_point_count:
@@ -757,6 +759,7 @@ class TPC(INFO, ITimeSeries2D):
                 self._gpkgswmm = GPKG1D(self._expand_property_path(prop, value=value))
                 self.node_count += self._gpkgswmm.node_count
                 self.channel_count += self._gpkgswmm.channel_count
+                self.poly_count += self._gpkgswmm.poly_count
                 self.reference_time = self._gpkgswmm.reference_time if not reference_time_set else self.reference_time
                 reference_time_set = True
             elif str(value).lower().endswith('_2d.gpkg'):

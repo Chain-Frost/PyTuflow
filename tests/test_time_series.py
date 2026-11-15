@@ -784,6 +784,41 @@ class Test_TPC_GPKG(TestCase):
         df = res.time_series('Underdrain', 'q')
         self.assertEqual((286, 1), df.shape)
 
+    def test_tpc_gpkg_swmm_ids_polygon(self):
+        p = './tests/swmm_subcatchment/TS03_5m_001.tpc'
+        res = TPC(p)
+        ids = res.ids('polygon')
+        self.assertEqual(14, len(ids))
+        ids = res.ids('subcatchment')
+        self.assertEqual(14, len(ids))
+
+    def test_tpc_gpkg_swmm_maximums_polygon(self):
+        p = './tests/swmm_subcatchment/TS03_5m_001.tpc'
+        res = TPC(p)
+        df = res.maximum('SPit2', 'Rainfall')
+        self.assertEqual((1, 2), df.shape)
+
+    def test_tpc_gpkg_swmm_time_series_polygon(self):
+        p = './tests/swmm_subcatchment/TS03_5m_001.tpc'
+        res = TPC(p)
+        df = res.time_series('SPit2', 'Rainfall')
+        self.assertEqual((181, 1), df.shape)
+        self.assertEqual(['polygon/rainfall/SPit2'], df.columns.tolist())
+
+    def test_tpc_gpkg_swmm_maximums_polygon_filter(self):
+        p = './tests/swmm_subcatchment/TS03_5m_001.tpc'
+        res = TPC(p)
+        df = res.maximum('polygon', 'Rainfall')
+        self.assertEqual((14, 2), df.shape)
+        self.assertEqual(['polygon/rainfall/max', 'polygon/rainfall/tmax'], df.columns.tolist())
+        self.assertIn('SPit2', df.index)
+
+    def test_tpc_gpkg_swmm_time_series_polygon_filter(self):
+        p = './tests/swmm_subcatchment/TS03_5m_001.tpc'
+        res = TPC(p)
+        df = res.time_series('polygon', 'Rainfall')
+        self.assertEqual((181, 14), df.shape)
+        self.assertTrue(all(c.startswith('polygon/rainfall/') for c in df.columns))
     def test_tpc_gpkg_swmm_section(self):
         p = './tests/tpc_gpkg/basin_HPC-2m_SWMM_____2016_8_12.tpc'
         res = TPC(p)
@@ -1901,3 +1936,69 @@ class Test_LP2D(unittest.TestCase):
         self.assertEqual((1, 2), df.shape)
         self.assertEqual(49.91, df.iloc[0, 0])
         self.assertEqual(0.95, df.iloc[0, 1])
+
+
+    def test_add_csv_multi_label(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            src = './tests/lp2d/EG02_012_LP_01_H.csv'
+            h2 = os.path.join(tmp, 'EG02_012_LP_02_H.csv')
+            shutil.copy(src, h2)
+            res = LP2D(src)
+            res.add_csv(['./tests/lp2d/EG02_012_LP_01_V.csv', h2])
+            self.assertEqual(2, res.node_string_count)
+            self.assertEqual(20, len(res.ids()))
+            self.assertEqual(['bed level', 'water level', 'velocity', 'max water level', 'max velocity'],
+                             res.data_types())
+            df = res.section(['EG02_012_LP_01', 'EG02_012_LP_02'], 'h', 1.)
+            self.assertEqual((18, 4), df.shape)
+            self.assertEqual({0, 1}, set(df['branch_id']))
+            expected_msgs = [
+                r'File already loaded: tests/lp2d/EG02_012_LP_01_H.csv... skipping',
+                r'File already loaded: tests\lp2d\EG02_012_LP_01_H.csv... skipping'
+            ]
+            with custom_log_handler.with_filter(expected_msgs) as custom_logger:
+                res.add_csv(src)  # already loaded - ignored
+            self.assertEqual(20, len(res.ids()))
+
+    def test_add_csv_different_simulation(self):
+        import shutil
+        import tempfile
+        gis = './tests/lp2d/2d_lp_EG02_012_L.shp'
+        with tempfile.TemporaryDirectory() as tmp:
+            other = os.path.join(tmp, 'OTHER_LP_01_V.csv')
+            shutil.copy('./tests/lp2d/EG02_012_LP_01_V.csv', other)
+            res = LP2D('./tests/lp2d/EG02_012_LP_01_H.csv', gis)
+            with self.assertRaises(ValueError):
+                res.add_csv(other)
+            self.assertEqual(['bed level', 'water level', 'max water level'], res.data_types())
+
+class Test_FilterBy(TestCase):
+
+    def test_parse_and_build(self):
+        s = TPC._build_filter_by(['1d'], ['a/b', 'Max'], ['h'])
+        self.assertEqual('ids=a%2Fb/Max&resulttype=h&filter=1d', s)
+        self.assertEqual((['h', '1d'], ['a/b', 'max']), TPC._parse_filter_by(s))
+        self.assertEqual((['h', 'max'], None), TPC._parse_filter_by('h/Max'))
+
+    def test_id_named_as_data_type(self):
+        res = TPC('./tests/2016/EG14_001.tpc')
+        id_ = res.ids('h')[0]
+        res._load()
+        df = res.oned_objs
+        df.loc[df['id'] == id_, 'id'] = 'Flow'
+        ctx, _ = res._filter('ids=Flow&resulttype=h', ignore_excess_filters=True)
+        self.assertEqual({'Flow'}, set(ctx['id']))
+        self.assertEqual({'water level'}, set(ctx['data_type']))
+        self.assertEqual(['Flow'], res.ids('ids=flow&resulttype=h'))
+
+    def test_time_series_id_named_as_data_type(self):
+        res = TPC('./tests/2016/EG14_001.tpc')
+        res._load()
+        id_ = res.ids('h')[0]
+        df = res.oned_objs
+        df.loc[df['id'] == id_, 'id'] = 'gauge'
+        ctx, locations, _ = res._time_series_filter_by('gauge', 'water level')
+        self.assertEqual(['gauge'], locations)
+        self.assertEqual(['gauge'], ctx['id'].tolist())
