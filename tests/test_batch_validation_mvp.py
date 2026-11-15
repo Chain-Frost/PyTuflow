@@ -404,6 +404,54 @@ def test_late_conditional_database_binds_nested_bcf(tmp_path: Path) -> None:
         assert tmp_path / f"{other}_flow.csv" not in checked
 
 
+
+def test_inactive_event_bc_databases_do_not_warn_or_fail_preflight(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The -e4 NestedNL selection must exclude other BC Database branches."""
+    selected = tmp_path / "bc_dbase_nested_01.csv"
+    selected.write_text(
+        "Name,Source,Column 1,Column 2\nflow,,,2.0\n", encoding="utf-8",
+    )
+    (tmp_path / "Materials_01.csv").write_text(
+        "\nMaterial ID,Manning's n\n1,0.03\n", encoding="utf-8",
+    )
+    model = tmp_path / "model.tcf"
+    model.write_text(
+        "Read Materials File == Materials_01.csv\n"
+        "If Event == PMP\n"
+        " BC Database == bc_dbase_PMP_01.csv\n"
+        "Else If Event == NestedILCL | NestedNL\n"
+        " BC Database == bc_dbase_nested_01.csv\n"
+        "Else If Event == EnsembleILCL\n"
+        " BC Database == ARR19/bc_dbase_CC.csv\n"
+        "End If\n",
+        encoding="utf-8",
+    )
+    opts = ValidationOptions(check_crs=False, check_raster_metadata=False)
+    with caplog.at_level("WARNING", logger="pytuflow"):
+        result = validate_batch_inputs(model, ["-e4 NestedNL"], options=opts)
+
+    assert result.passed, result.issues
+    assert [item.database_path.name for item in result.dependencies.runs[0].database_activations] == [
+        "Materials_01.csv", "bc_dbase_nested_01.csv",
+    ]
+    for inactive in ("bc_dbase_PMP_01.csv", "bc_dbase_CC.csv"):
+        assert not any(inactive in record.message for record in caplog.records)
+        assert not any(
+            item.path is not None and inactive in str(item.path)
+            for item in result.validation.findings
+        )
+
+    selected.unlink()
+    failed = validate_batch_inputs(model, ["-e4 NestedNL"], options=opts)
+    assert not failed.passed
+    assert any(
+        item.path is not None and item.path.name == selected.name
+        for item in failed.issues
+    )
+
+
 def test_multiple_late_bc_databases_remain_ambiguous(tmp_path: Path) -> None:
     _bc_gpkg(tmp_path / "bc.gpkg", name="flow")
     for name in ("first", "second"):
