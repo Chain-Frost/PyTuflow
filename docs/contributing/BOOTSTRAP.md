@@ -45,8 +45,9 @@ an ancestor, and push that exact commit without force. Re-read both refs after
 pushing. Never put fork development commits on master or squash a sync PR,
 which would destroy exact upstream identity. Admin bypass is broad in GitHub;
 its synchronisation-only purpose is an operator policy, not server enforcement.
-A separate non-bypassable master ruleset enforces deletion, force-push and linear-
-history restrictions even for administrators.
+A separate non-bypassable master ruleset enforces deletion and non-fast-forward
+restrictions even for administrators. Master permits upstream merge commits;
+required linear history applies to integration, not the upstream mirror.
 Integration has no bypass and requires both verified CI gates.
 
 ## Compatibility policy
@@ -80,8 +81,9 @@ under development; this snapshot is not acceptance of its remaining work.
 ## Repository configuration
 
 Exact snapshots: [before](bootstrap-before.json), [after](bootstrap-after.json).
-Squash only; zero required approvals; PRs and resolved review threads required;
-linear history, no force pushes or branch deletion. Automatic merge and automatic
+Squash-only PR merging; zero required approvals; PRs and resolved review threads
+required. Integration requires linear history. Master permits upstream merge
+commits for exact mirroring. Both branches prohibit force pushes and deletion. Automatic merge and automatic
 merged-branch deletion are disabled. Issues were enabled to record compatibility
 follow-up #2 (now superseded by the owner's 3.11 minimum policy).
 
@@ -89,8 +91,34 @@ follow-up #2 (now superseded by the owner's 3.11 minimum policy).
   `Fast contracts gate` and `Original library acceptance`, bound to GitHub Actions
   app **15368**. Names were observed on real hosted runs before activation.
 - Master PR ruleset **25880727**: admin bypass for exact upstream fast-forwards.
-- Master immutable-history ruleset **25881302**: no bypass. Master deliberately
-  has no fork CI requirements, because official upstream has no such workflows.
+- Master immutable-history ruleset **25881302**: deletion and non-fast-forward
+  protection, no bypass, no required linear history. Master deliberately has no
+  fork CI requirements, because official upstream has no such workflows.
+- Recovery-tag ruleset **27304092**: no updates or deletion, no bypass; applies
+  only to `recovery/master-before-upstream-history-repair-20261115-255744e5ffcd`.
+
+### One-time history repair (2026-11-15)
+
+Fork sync PR #71 had squash-merged the upstream source, leaving equal trees but
+unequal history. With explicit owner authorisation, the pre-repair fork commit
+`255744e5ffcdba3974800f5266ade560a6343d9a` was preserved under the protected recovery
+tag above. Master was replaced with exact official upstream commit
+`f2b1ec8e80d6ddf02fdd49c409eda5a3fca2687f` using an explicit old-SHA
+`--force-with-lease`. Both trees were
+`71a86a68b33cd9b768cef87f581d16ec711e2898`; complete ancestry matched afterwards.
+
+The temporary administrator bypass on 25881302 was removed in `finally` cleanup
+and its permanent configuration independently re-read. Required linear history
+was permanently removed from master because official upstream contains merge
+commits. Mirror PR bypass 25880727 and integration protections 25880728 were
+unchanged. The repair did not change integration, existing development branches
+or upstream PR #17. Fork PRs #55/#57 remain open for a separate reviewed decision
+about rebasing or superseding; their branches were not rewritten.
+
+This one-time authorisation does not permit future history replacements. Future
+syncs must verify ancestry and use ordinary non-force fast-forward pushes of the
+exact official commit. A divergent mirror requires investigation and separate
+owner authorisation; never repair it with a squash synchronisation PR.
 
 The initial hosted 3.10 fast run **40329310658** failed on the runner's older
 3.10.11 tarfile API (`extractall(filter=...)`); the gate correctly failed. Local
