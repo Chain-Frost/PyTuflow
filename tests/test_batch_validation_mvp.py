@@ -405,6 +405,22 @@ def test_late_conditional_database_binds_nested_bcf(tmp_path: Path) -> None:
 
 
 
+
+@pytest.mark.parametrize("flags", ["-e4 NestedNL", {"e4": "NestedNL"}])
+def test_sparse_event_slot_selects_conditional_branch(flags: str | dict[str, str]) -> None:
+    from pytuflow._tmf.context import Context
+    from pytuflow._tmf.scope import Scope, ScopeList
+
+    context = Context(flags)
+    assert context.var_map["E4"] == "NestedNL"
+    assert context.in_context_by_scope(
+        ScopeList([Scope("EVENT", "NestedNL")])
+    )
+    assert not context.in_context_by_scope(
+        ScopeList([Scope("EVENT", "PMP")])
+    )
+
+
 def test_inactive_event_bc_databases_do_not_warn_or_fail_preflight(
     tmp_path: Path, caplog: pytest.LogCaptureFixture,
 ) -> None:

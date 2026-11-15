@@ -23,4 +23,4 @@ jobs:
       - name: Compile Python 3.11-compatible source
         run: python -m compileall -q pytuflow
       - name: Validate selected materials and conditional BC behaviour
-        run: python -m pytest -q tests/tmf/test_database.py tests/test_batch_validation_mvp.py tests/test_deferred_database_parity.py tests/test_fragment_inactive_scope.py
+        run: python -m pytest -q tests/test_batch_validation_mvp.py tests/test_deferred_database_parity.py tests/test_fragment_inactive_scope.py tests/tmf/test_database.py::test_mat_csv_header_after_blank_or_comment_preamble tests/tmf/test_database.py::test_mat_database

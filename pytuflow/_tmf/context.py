@@ -320,7 +320,7 @@ class Context:
         if s and isinstance(s, list) and len(s) > 1:
             setattr(self, identifier.upper(), s)
             self.var_map[identifier.upper()] = s
-        elif s or context.get(s1, None):
+        elif s or any(context.get(f'{identifier}{i}') for i in range(1, 10)):
             for i in range(1, 10):
                 if i == 1 and s:
                     key = s1
