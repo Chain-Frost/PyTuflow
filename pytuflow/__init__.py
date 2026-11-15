@@ -22,7 +22,8 @@ from ._tmf import *
 from ._fm import GXY, FMDAT
 from .util import TuflowBinaries, TuflowFVBinaries, pytuflow_logging, misc
 from .project import HPCProject, FVProject
+from .arr import ArrApiClient, ArrConfig, ArrEngine
 
 
 name = 'PyTuflow'
-__version__ = '1.2.6'
+__version__ = '1.3.1'
