@@ -12,13 +12,19 @@ permissions:
 
 jobs:
   focused:
-    name: Focused Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    name: Focused ${{ matrix.os }} Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.14"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,6 +47,7 @@ jobs:
           ref: 4ca2dbe35c1d7e6a1c7b7150fbea622b1aa0ddb0
           path: baseline
       - name: Compare synthetic 1,040-run baseline and candidate
+        if: matrix.os == 'windows-latest'
         shell: bash
         run: |
           PYTHONPATH="$GITHUB_WORKSPACE/baseline" python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 --json-output "$RUNNER_TEMP/dependency-baseline.json"
