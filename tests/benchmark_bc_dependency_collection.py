@@ -97,6 +97,7 @@ def main() -> None:
     parser.add_argument("--durations", type=int, default=13, help="Duration selections.")
     parser.add_argument("--tps", type=int, default=10, help="Temporal patterns.")
     parser.add_argument("--repeats", type=int, default=3, help="Independent collections using the same parsed TCF.")
+    parser.add_argument("--json-output", type=Path, help="Write benchmark JSON to a new file, apart from parser logs.")
     arguments = parser.parse_args()
     if min(arguments.rows, arguments.aep, arguments.durations, arguments.tps, arguments.repeats) < 1:
         parser.error("All numeric options must be positive")
@@ -146,7 +147,11 @@ def main() -> None:
             "selected_provenance_sha256": next(iter(checksums)),
             "interpretation": "Benchmark only. Compare full fallback semantics and matched native samples.",
         }
-    print(json.dumps(report, indent=2))
+    document = json.dumps(report, indent=2)
+    if arguments.json_output is not None:
+        with arguments.json_output.open("x", encoding="utf-8") as output:
+            output.write(document + "\n")
+    print(document)
 
 
 if __name__ == "__main__":

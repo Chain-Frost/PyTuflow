@@ -43,8 +43,8 @@ jobs:
       - name: Compare synthetic 1,040-run baseline and candidate
         shell: bash
         run: |
-          PYTHONPATH="$GITHUB_WORKSPACE/baseline" python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 > "$RUNNER_TEMP/dependency-baseline.json"
-          python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 > "$RUNNER_TEMP/dependency-candidate.json"
+          PYTHONPATH="$GITHUB_WORKSPACE/baseline" python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 --json-output "$RUNNER_TEMP/dependency-baseline.json"
+          python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 --json-output "$RUNNER_TEMP/dependency-candidate.json"
           python - <<'PY'
           import json
           import os
