@@ -1,0 +1,37 @@
+name: Deferred dependency parity and benchmark
+
+on:
+  push:
+    branches: [perf/deferred-bc-dependencies-320]
+  pull_request:
+    branches: [contrib/upstream-batch-validation-final]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    name: Focused Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package and pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest
+          python -m pip check
+      - name: Validate immutable fragment and database parity
+        run: |
+          python -m pytest -q --tb=short tests/test_fragment_dependencies.py tests/test_deferred_database_parity.py tests/test_batch_validation_mvp.py
+      - name: Run bounded synthetic dependency benchmark
+        run: |
+          python tests/benchmark_bc_dependency_collection.py --aep 2 --durations 3 --tps 4 --rows 40 --repeats 2
