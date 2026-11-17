@@ -89,6 +89,32 @@ Initial model loading still parses control files and may read input databases. B
 
 See [Validating Inputs for Multiple TUFLOW Runs](docs/examples/validating_batch_inputs.rst) for more examples and inspection options.
 
+### Benchmarking dependency collection
+
+Contributor regression testing includes a synthetic, solver-free benchmark with
+many BC database rows sharing the same run-specific source filename. It exercises
+`TCF.collect_file_dependencies`, not the TUFLOW solver or physical file
+inspection.
+
+```bash
+python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3
+```
+
+Run the command in separate checked-out baseline and candidate revisions on
+the **same** machine, Python environment and storage; record all individual
+collection times and the selected-provenance digest. The script prints
+per-run dependency counters and rejects changes between its repeated runs.
+These are only partial provenance fingerprints, **not** proof of complete
+semantic parity; the automated parity tests independently compare the full
+dependency records with the authoritative unoptimised evaluator.
+
+The implementation may reuse a syntax-only source template within one
+database projection and immutable command-index shifts during one batch.
+Row-specific source ownership, CSV column names, active conditions and
+failure handling are not deduplicated. There is no filesystem-status cache
+across independent input checks. A measured speedup is not assumed on SMB,
+and instrumented profiler timings should not be compared to unprofiled runs.
+
 ## Development
 
 The code base can be cloned from GitHub:

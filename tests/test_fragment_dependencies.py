@@ -9,7 +9,14 @@ import pytest
 from pytuflow import TCF
 from pytuflow._tmf.context import Context
 from pytuflow._tmf.deferred_dependency_fallback import collect_fallback_dependencies
-from pytuflow._tmf.fragment_dependencies import ExpressionPool
+from pytuflow._tmf.fragment_dependencies import (
+    DependencyFragment,
+    ExpressionPool,
+    _join,
+    _RebaseCache,
+)
+from pytuflow._tmf.dependency_records import BatchInputCommand, BatchInputReference
+from pytuflow._tmf.file_reference import DeferredDatabaseActivation, FileReference
 from pytuflow._tmf.inp.inp_run_state import InputRunState
 
 
@@ -476,3 +483,118 @@ def test_subtree_signature_parts_are_reused_per_run_and_invalidated(tmp_path: Pa
     third = plan._key(boundary, ctx)
     assert third != first
     assert third != second
+
+
+
+def test_rebased_fragments_share_immutable_records_without_losing_ordinals(tmp_path: Path) -> None:
+    """An identical subtree may be shifted repeatedly, but only at the same offset."""
+    reference = FileReference(
+        base_directory=tmp_path,
+        expanded_value="rain.csv",
+        path_pattern=tmp_path / "rain.csv",
+        layer_pattern=None,
+        origin="Read File == rain.csv",
+        requires_directory_scan=False,
+        requires_layer_scan=False,
+        requires_attribute_scan=False,
+        requires_database_scan=False,
+    )
+    prefix = DependencyFragment(
+        commands=(BatchInputCommand("leading", 0, tmp_path / "a.tcf", 1, "Read", "leading", 0),)
+    )
+    child = DependencyFragment(
+        commands=(BatchInputCommand("child", 0, tmp_path / "b.tcf", 2, "BC", "child", 1),),
+        references=(BatchInputReference("child", 0, tmp_path / "b.tcf", 2, reference),),
+        activations=(
+            DeferredDatabaseActivation(
+                0, "child", "bc", tmp_path / "bc.csv",
+                "BC Database == bc.csv", tmp_path / "b.tcf", 2,
+            ),
+        ),
+    )
+    cache = _RebaseCache()
+    expected = _join((prefix, child))
+    assert _join(()) == DependencyFragment()
+    assert _join((child,)) is child
+    first = _join((prefix, child), cache)
+    assert first == expected
+    assert first.commands[1].command_index == 1
+    assert first.references[0].command_index == 1
+    assert first.activations[0].sequence == 1
+    # A failed run must not seed the next run with unpublished shifts.
+    assert cache.pending and not cache.saved
+    cache.discard()
+    assert not cache.pending and not cache.saved
+    first = _join((prefix, child), cache)
+    cache.commit()
+    second = _join((prefix, child), cache)
+    assert second == expected
+    assert second.commands[1] is first.commands[1]
+    assert second.references[0] is first.references[0]
+    assert second.activations[0] is first.activations[0]
+    assert cache.hits > 0
+    # A different offset must not reuse records with stale command indices.
+    longer = _join((prefix, prefix, child), cache)
+    assert longer == _join((prefix, prefix, child))
+    assert longer.commands[2].command_index == 2
+    assert longer.references[0].command_index == 2
+    assert longer.activations[0].sequence == 2
+    assert longer.commands[2] is not second.commands[1]
+
+
+def test_repeated_bc_rows_parse_once_per_resolved_source_per_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated BC rows can share source syntax, not their column provenance."""
+    from pytuflow._tmf import deferred_database
+
+    rows = "".join(
+        f"BC{i:03d},rain_<<~e1~>>.csv,Time,Flow_{i:03d}\n"
+        for i in range(1, 41)
+    )
+    (tmp_path / "bc.csv").write_text(
+        "Name,Source,Column 1,Column 2\n" + rows, encoding="utf-8"
+    )
+    tcf = tmp_path / "model.tcf"
+    tcf.write_text("BC Database == bc.csv\n", encoding="utf-8")
+    model = TCF(tcf)
+    flags = [
+        "-e1 A -s1 EXG",
+        "-e1 B -s1 EXG",
+        "-e1 A -s1 DEV",
+    ]
+    expected = collect_fallback_dependencies(model, flags)
+    assert expected.passed
+    original_command = deferred_database.Command
+    constructed: list[str] = []
+
+    def traced_command(*args: Any, **kwargs: Any) -> Any:
+        constructed.append(str(args[0]))
+        return original_command(*args, **kwargs)
+
+    monkeypatch.setattr(deferred_database, "Command", traced_command)
+    actual = model.collect_file_dependencies(flags)
+    assert actual.passed, actual.fallback_reason
+    assert actual.runs == expected.runs
+    # Context expansion still runs per row; only identical parsed source
+    # syntax is shared within each distinct event-selected database.
+    assert constructed == ["Read File == rain_A.csv", "Read File == rain_B.csv"]
+    assert len(actual.runs[0].database_sources) == 40
+    assert [row.entry_name for row in actual.runs[0].database_sources] == [
+        f"BC{i:03d}" for i in range(1, 41)
+    ]
+    assert [row.csv_columns for row in actual.runs[0].database_sources] == [
+        ("Time", f"Flow_{i:03d}") for i in range(1, 41)
+    ]
+    assert all(
+        row.path_pattern.name == f"rain_{event}.csv"
+        for run, event in zip(actual.runs, ("A", "B", "A"), strict=True)
+        for row in run.database_sources
+    )
+    # No parser/template cache can persist across two independent checks.
+    repeated = model.collect_file_dependencies(flags)
+    assert repeated.runs == actual.runs
+    assert constructed == [
+        "Read File == rain_A.csv", "Read File == rain_B.csv",
+        "Read File == rain_A.csv", "Read File == rain_B.csv",
+    ]

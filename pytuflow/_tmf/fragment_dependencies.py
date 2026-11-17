@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from itertools import chain
 from time import perf_counter
 from typing import Any, cast
 
@@ -303,38 +304,121 @@ class DependencyFragment:
 _EMPTY_FRAGMENT = DependencyFragment()
 
 
-def _join(fragments: Iterable[DependencyFragment]) -> DependencyFragment:
-    """Merge ordered fragments while retaining all input provenance."""
-    commands: list[BatchInputCommand] = []
-    refs: list[BatchInputReference] = []
-    sources: list[DeferredDatabaseSource] = []
-    activations: list[DeferredDatabaseActivation] = []
-    for fragment in fragments:
+def _shift_fragment(fragment: DependencyFragment, offset: int) -> DependencyFragment:
+    """Rebase immutable relative ordinals; secondary source rows have no index."""
+    return DependencyFragment(
+        tuple(
+            replace(item, command_index=item.command_index + offset)
+            for item in fragment.commands
+        ),
+        tuple(
+            replace(item, command_index=item.command_index + offset)
+            for item in fragment.references
+        ),
+        fragment.sources,
+        tuple(
+            replace(item, sequence=item.sequence + offset)
+            for item in fragment.activations
+        ),
+    )
+
+
+class _RebaseCache:
+    """Bounded, invocation-local reuse of immutable command ordinal shifts.
+
+    Keys contain both object identity and the exact command offset. Strong
+    references prevent id reuse. Newly shifted records are published only
+    after the entire run succeeds; failed contexts discard pending entries.
+    """
+
+    _MAX_RECORDS = 100_000
+
+    def __init__(self) -> None:
+        self.saved: dict[
+            tuple[int, int], tuple[DependencyFragment, DependencyFragment]
+        ] = {}
+        self.pending: dict[
+            tuple[int, int], tuple[DependencyFragment, DependencyFragment]
+        ] = {}
+        self.records = 0
+        self.pending_records = 0
+        self.hits = 0
+
+    def shifted(self, fragment: DependencyFragment, offset: int) -> DependencyFragment:
+        """Return an identical immutable rebasing when this offset was seen."""
+        if not offset or not (
+            fragment.commands or fragment.references or fragment.activations
+        ):
+            return fragment
+        key = (id(fragment), offset)
+        cached = self.saved.get(key)
+        if cached is None:
+            cached = self.pending.get(key)
+        if cached is not None and cached[0] is fragment:
+            self.hits += 1
+            return cached[1]
+        shifted = _shift_fragment(fragment, offset)
+        count = (
+            len(fragment.commands) +
+            len(fragment.references) +
+            len(fragment.activations)
+        )
+        if (
+            len(self.saved) + len(self.pending) < _LIMIT
+            and self.records + self.pending_records + count <= self._MAX_RECORDS
+        ):
+            self.pending[key] = (fragment, shifted)
+            self.pending_records += count
+        return shifted
+
+    def commit(self) -> None:
+        """Publish only shifts belonging to a fully resolved run."""
+        self.saved.update(self.pending)
+        self.records += self.pending_records
+        self.discard()
+
+    def discard(self) -> None:
+        """Discard temporary shifts after any unsuccessful run."""
+        self.pending.clear()
+        self.pending_records = 0
+
+
+def _join(
+    fragments: Iterable[DependencyFragment],
+    rebase_cache: _RebaseCache | None = None,
+) -> DependencyFragment:
+    """Merge ordered fragments without losing ownership or relative ordinals.
+
+    Reuse a singleton directly. For multiple fragments, only the later records
+    need rebasing. An invocation-local cache can reuse the exact immutable
+    shift for a fragment at the same offset in another successful context.
+    """
+    iterator = iter(fragments)
+    first = next(iterator, None)
+    if first is None:
+        return _EMPTY_FRAGMENT
+    second = next(iterator, None)
+    if second is None:
+        return first
+    commands = list(first.commands)
+    refs = list(first.references)
+    sources = list(first.sources)
+    activations = list(first.activations)
+    for fragment in chain((second,), iterator):
         offset = len(commands)
         if offset:
-            # Only later fragments need their relative ordinals rebased.
-            commands.extend(
-                replace(item, command_index=item.command_index + offset)
-                for item in fragment.commands
+            fragment = (
+                rebase_cache.shifted(fragment, offset)
+                if rebase_cache is not None
+                else _shift_fragment(fragment, offset)
             )
-            refs.extend(
-                replace(item, command_index=item.command_index + offset)
-                for item in fragment.references
-            )
-            activations.extend(
-                replace(item, sequence=item.sequence + offset)
-                for item in fragment.activations
-            )
-        else:
-            # Frozen first-fragment records already have the correct ordinals.
-            commands.extend(fragment.commands)
-            refs.extend(fragment.references)
-            activations.extend(fragment.activations)
+        commands.extend(fragment.commands)
+        refs.extend(fragment.references)
         sources.extend(fragment.sources)
+        activations.extend(fragment.activations)
     return DependencyFragment(
         tuple(commands), tuple(refs), tuple(sources), tuple(activations)
     )
-
 
 @dataclass(frozen=True, slots=True)
 class FragmentBatchResult:
@@ -453,6 +537,7 @@ class _Plan:
             )
         self.model = model
         self.expressions = ExpressionPool()
+        self.rebase_cache = _RebaseCache()
         self.scope_program = ScopeProgram()
         self._builtin_manifest_translation = builtin_translation()
         self.manifests: dict[int, EffectiveDependencyManifest] = {}
@@ -867,7 +952,8 @@ class _Plan:
                         for child in children
                         for sub in self._source_inputs(child)
                     ),
-                )
+                ),
+                self.rebase_cache,
             )
         else:
             result = self._project_state(inp.context(context=ctx, parent=None))
@@ -920,7 +1006,9 @@ def collect_file_dependencies(
             )
             cast(Any, ctx)._batch_variable_assignments = plan.assignments
             prepare_run_context(model, ctx)
-            fragment = _join(plan.evaluate(inp, ctx) for inp in plan.roots)
+            fragment = _join(
+                (plan.evaluate(inp, ctx) for inp in plan.roots), plan.rebase_cache
+            )
             # Match the ordinary activation contract, including duplicate UUID
             # rejection; references alone are not proof of correct ownership.
             uuids = [command.input_uuid for command in fragment.commands]
@@ -940,6 +1028,7 @@ def collect_file_dependencies(
             )
             plan.cache.update(plan.pending)
             plan.include_selections.update(plan.pending_selections)
+            plan.rebase_cache.commit()
         except Exception as exc:  # noqa: BLE001 - invalidate the complete run on parser failures
             results.append(
                 BatchDependencyRun(
@@ -949,6 +1038,7 @@ def collect_file_dependencies(
         finally:
             plan.pending.clear()
             plan.pending_selections.clear()
+            plan.rebase_cache.discard()
     if not results:
         raise ValueError("At least one simulation context is required")
     return FragmentBatchResult(
