@@ -35,3 +35,29 @@ jobs:
       - name: Run bounded synthetic dependency benchmark
         run: |
           python tests/benchmark_bc_dependency_collection.py --aep 2 --durations 3 --tps 4 --rows 40 --repeats 2
+      - name: Checkout baseline contributor revision
+        uses: actions/checkout@v4
+        with:
+          ref: 4ca2dbe35c1d7e6a1c7b7150fbea622b1aa0ddb0
+          path: baseline
+      - name: Compare synthetic 1,040-run baseline and candidate
+        shell: bash
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/baseline" python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 > "$RUNNER_TEMP/dependency-baseline.json"
+          python tests/benchmark_bc_dependency_collection.py --aep 8 --durations 13 --tps 10 --rows 40 --repeats 3 > "$RUNNER_TEMP/dependency-candidate.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          folder = Path(os.environ["RUNNER_TEMP"])
+          baseline = json.loads((folder / "dependency-baseline.json").read_text())
+          candidate = json.loads((folder / "dependency-candidate.json").read_text())
+          if baseline["selected_provenance_sha256"] != candidate["selected_provenance_sha256"]:
+              raise SystemExit("Baseline/candidate synthetic provenance mismatch")
+          if baseline["run_count_and_source_count"] != candidate["run_count_and_source_count"]:
+              raise SystemExit("Baseline/candidate synthetic source counts mismatch")
+          print("Same 1,040-run synthetic fixture and selected-provenance digest.")
+          for name, report in (("baseline", baseline), ("candidate", candidate)):
+              print(f"{name}: {report['collection_seconds']} s; median {report['median_collection_seconds']} s")
+          print("Exploratory single-runner result; native Windows/SMB qualification still required.")
+          PY
