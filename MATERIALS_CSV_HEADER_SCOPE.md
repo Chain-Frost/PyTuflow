@@ -1,63 +1,42 @@
-# Materials CSV header parsing: implementation scope
+# Materials CSV parsing investigation and correction
 
-Status: planned work only. This PR records a task for a later implementation; it does not fix the parser.
+Status: reproduced on the actual owner-supplied file; correction delivered in the existing [upstream PR #17](https://github.com/TUFLOW-Support/PyTuflow/pull/17). This PR retains the investigation record only. No competing production implementation is introduced here.
 
-## Observed failure
+## Reproduction and cause
 
-PyTuflow's materials database reader attempts to convert the CSV heading `Material ID` to an integer:
+The installed Python 3.14 environment reports PyTuflow 1.3.1 from the approved local wheel for source commit `4ca2dbe35c1d7e6a1c7b7150fbea622b1aa0ddb0`. All 579 wheel package members match the installed files byte for byte. Upstream PR #17 was verified at that same source revision before modification.
 
-```text
-invalid literal for int() with base 10: 'Material ID'
-```
-
-The failed database load subsequently leaves background input checks unresolved:
+Reading the actual Materials_01.csv with that installation reproduces:
 
 ```text
-DeferredDatabaseResolutionError: Expected one cached materials database, found 0
+ValueError: invalid literal for int() with base 10: 'Material ID'
 ```
 
-In the observed run, TUFLOW 2026.3 successfully read the same file, loaded all 11 materials, and advanced into simulation. Twelve configured runs received checker warnings; this does not establish that all twelve have valid inputs or completed successfully.
+The existing header detection is present. Spaces before quoted multivalue fields and extra commas in trailing comments cause the shared CSV driver to use its fallback parser. That fallback ignores headers and quote grouping, reintroducing the header as a material record.
 
-## Verified-build follow-up supplied by the owner
+The original wrapper process was previously observed using the same Python 3.14 executable. Its historical in-memory package contents cannot be reconstructed from today's installed provenance alone; direct reproduction on the verified installation independently establishes the remaining defect.
 
-The owner reports that installed-distribution verification passed for PyTuflow 1.3.1 from source commit `4ca2dbe35c1d7e6a1c7b7150fbea622b1aa0ddb0`, including the approved wheel SHA-256 and local-wheel provenance. This update records that supplied verification; it has not independently rerun it or reproduced the CSV failure.
+## Correction and routing
 
-The owner reports that this build already contains the materials CSV header fix from [upstream PR #17](https://github.com/TUFLOW-Support/PyTuflow/pull/17). Therefore do not assume the required work is a new header-skipping implementation. If the failing wrapper used this same build and interpreter, investigate a remaining file-specific gap in that existing fix.
+Commit `0121101` on `contrib/upstream-batch-validation-final` corrects the existing implementation behind upstream PR #17, based directly on `4ca2dbe35c1d7e6a1c7b7150fbea622b1aa0ddb0`.
 
-## Required investigation before implementation
+Materials CSV parsing now recognises spaces before quoted fields. Where the header declares a trailing `!` comment column, parsing is bounded through that column so extra comment commas do not trigger fallback. Quoted Manning's and rainfall-loss fields remain intact. Nonempty invalid material IDs still raise errors. The shared CSV driver and TMF header override are unchanged.
 
-1. Identify the interpreter and imported PyTuflow module path used by the failing wrapper. Correlate them with the verified installed build; present-day installation alone does not prove historical process identity.
-2. Reproduce through the actual materials database reader using the owner's actual Materials_01.csv and the verified installation, without launching the wrapper or solver or changing model inputs. Retain the raw exception and relevant parser context locally.
-3. Determine which actual header or file-structure detail is unsupported. If it no longer reproduces, document that result and the remaining uncertainty rather than claiming a demonstrated fix.
-4. Add a minimal synthetic regression reproducing the observed unsupported structure without publishing the model file.
-5. Coordinate any demonstrated correction with the existing work in upstream PR #17 instead of developing a competing implementation here. Prepare the correction for that work; follow the owner's repository routing and authorisation before any upstream write or submission.
-6. Update the ryan-tools dependency only after the corrected build has been tested and a dependency update is separately actioned.
+## Validation
 
-Keep PR #74 open as the investigation scope until the actual CSV is tested. Passing generic header regression tests or finding an existing fix does not alone justify closing it as redundant.
+- The actual file fails on the installed baseline and loads all 11 expected materials from the newly built candidate wheel.
+- Material dependency resolution succeeds in both eager and deferred modes for all 12 configured AEP/scenario selections: 24 checks. This is materials-specific coverage, not complete model-input or hydraulic acceptance.
+- The actual materials file has identical SHA-256 before and after validation. No model files were published.
+- New synthetic regressions exercise spaced quoted values, trailing comment commas, blank/comment preambles, BOM, headerless input, malformed IDs, and database-context/dependency resolution. The three headered regression variants fail on the baseline with the original exception and pass on the correction.
+- Focused database/deferred suites: 102 passed, 4 skipped on Python 3.11 and Python 3.14. The four skips are Linux filename-case checks on Windows.
+- Broader TMF suite on Python 3.14: 587 passed, 1 skipped.
+- Python 3.11 grammar audit: 641 tracked files, zero errors. Wheel build and diff whitespace checks pass.
+- Python 3.12 and fresh native TUFLOW execution were not performed. Existing broad lint findings were not treated as a clean lint pass. Hosted CI is separate from these local results.
 
-## Implementation, only after reproduction
+The initial direct pytest invocation emitted the existing Windows HDF5 loader diagnostic (0xc0000139). Subsequent local runs preload h5py before pytest and complete successfully; no installed dependency was changed to obtain these results.
 
-- Reproduce the failure through the materials database reader and trace the downstream cache-resolution failure.
-- Recognise the supported materials CSV column header, including surrounding whitespace, while retaining headerless-file support.
-- Preserve quoted multivalue fields for depth-dependent Manning's roughness and rainfall-loss variables.
-- Keep malformed material IDs as actionable errors with file and row context. Do not skip arbitrary nonnumeric records.
-- Verify the successfully loaded database reaches the cache and resolves dependent input checks.
-- Keep the production change limited to materials parsing. Follow repository contribution and validation instructions before implementation.
+## Owner decisions and boundaries
 
-## Acceptance checks
+Material 5 has Manning's n = 0.001 intentionally for water ponds; preserve it. For GPU inspection report: "CodeMeter WebAdmin is not running; GPU availability could not be verified." Take no service action.
 
-- Regression: header beginning `Material ID, Manning's n` is accepted.
-- Headerless files retain existing behaviour.
-- Quoted multivalue roughness and rainfall-loss fields retain their values.
-- Invalid data-row material IDs produce a useful error.
-- Exercise database loading and downstream resolution, not only a standalone CSV helper.
-- Run applicable tests and compatibility checks; report any remaining unresolved checks honestly.
-
-Use a small synthetic fixture in the repository. The model file and logs are local investigation evidence, not attachments authorised for publication by this scope. When available, perform read-only validation against the owner's supplied local Materials_01.csv; record the outcome separately from synthetic coverage. Do not claim native solver or hydraulic acceptance from Python tests.
-
-## Boundaries and owner decisions
-
-- Do not edit model inputs, interrupt or launch simulations, install packages into the active model environment, or change services.
-- Material 5 has Manning's n = 0.001 intentionally for water ponds. Preserve it; warning 2218 is not part of this fix.
-- For GPU inspection, report: "CodeMeter WebAdmin is not running; GPU availability could not be verified." Take no further service action. GPU behaviour changes are outside this PR.
-- Keep this scope PR draft while the investigation remains outstanding. No merge or upstream submission is authorised by this scope update.
+No simulations were launched or interrupted, no model inputs or services were changed, and no wheel was installed into the model environment. The ryan-tools dependency and installed distribution remain unchanged. No merge or new upstream PR was performed. Keep this record available for review and any separately actioned dependency rollout.
