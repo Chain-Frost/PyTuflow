@@ -252,6 +252,13 @@ def database_source_references(
         frame = frame.loc[~empty]
 
     refs: list[FileReference] = []
+    # One BC Source is often selected by dozens of boundary rows. Parsing the
+    # same expanded filename once per row multiplies Command/path construction
+    # across large run batches. Keep syntax-only templates within THIS call:
+    # row-specific provenance and CSV column selectors are applied below.
+    # The next run and every independent check start with a fresh dictionary.
+    source_templates: dict[str, tuple[FileReference, ...]] = {}
+    source_parent = source_base if source_base is not None else Path(database.fpath)
     for key, record in frame.iterrows():
         value = _expanded(record[column], context, kind=kind, row=key)
         if not value:
@@ -322,20 +329,29 @@ def database_source_references(
                 )
             value = fields[1]
             csv_columns = () if Path(value).suffix.casefold() == '.csv' else None
-        command = Command(
-            f'Read File == {value}', config,
-            parent=source_base if source_base is not None else Path(database.fpath),
-        )
-        found = tuple(
-            replace(make_file_reference(part),
-                    origin=f'{kind} database row {key!s}', database_kind=None,
-                    requires_raster_metadata_scan=(kind == 'rainfall'),
-                    csv_columns=csv_columns)
-            for part in command.parts() if part.is_value_a_file()
-        )
-        if not found:
-            raise DeferredDatabaseResolutionError(
-                f'Unrecognised {kind} source in row {key!s}: {value}'
+        templates = source_templates.get(value)
+        if templates is None:
+            command = Command(f'Read File == {value}', config, parent=source_parent)
+            templates = tuple(
+                make_file_reference(part)
+                for part in command.parts() if part.is_value_a_file()
             )
-        refs.extend(found)
+            if not templates:
+                raise DeferredDatabaseResolutionError(
+                    f'Unrecognised {kind} source in row {key!s}: {value}'
+                )
+            # Bound cached unique sources, not the number of attributed rows.
+            # Never retain source-file existence or mutable interpreter state.
+            if len(source_templates) < 4096:
+                source_templates[value] = templates
+        refs.extend(
+            replace(
+                item,
+                origin=f'{kind} database row {key!s}',
+                database_kind=None,
+                requires_raster_metadata_scan=(kind == 'rainfall'),
+                csv_columns=csv_columns,
+            )
+            for item in templates
+        )
     return tuple(refs)
